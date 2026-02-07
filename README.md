@@ -319,7 +319,7 @@ This project is developed as part of an academic curriculum. All rights reserved
 
 - **Project**: OraSync Digital Timekeeping Application
 - **Course**: Software Engineering 1
-- **Presentation Date**: March 5, 2024
+- **Presentation Date**: March 5, 2026
 
 ---
 
