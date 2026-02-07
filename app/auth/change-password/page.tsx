@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "../../login/Login.module.css";
 import AuthShell from "../../components/AuthShell";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, CheckCircle } from "lucide-react";
 
 // Aggressive Emoji Regex
 const emojiRegex =
@@ -126,6 +126,16 @@ export default function ChangePasswordPage() {
       })
       .catch(() => setError("FAILED TO LOAD SYSTEM DATA"));
   }, [router]);
+
+  // STEP 4 Auto-Redirect
+  useEffect(() => {
+    if (step === 4) {
+      const timer = setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, router]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -358,10 +368,8 @@ export default function ChangePasswordPage() {
       if (res.ok) {
         localStorage.removeItem("temp_user_id");
         localStorage.removeItem("temp_user_email");
-        setIsExiting(true);
-        setTimeout(() => {
-          router.push("/login");
-        }, 700);
+        // Show confirmation screen instead of immediate redirect
+        setStep(4);
       } else {
         const data = await res.json();
         setError(data.message || "SETUP FAILED");
@@ -375,7 +383,15 @@ export default function ChangePasswordPage() {
   };
 
   const headerTitle =
-    step === 1 ? (otpSent ? "VERIFICATION" : "VERIFY IDENTITY") : step === 2 ? "NEW PASSWORD" : "SECURITY SETUP";
+    step === 1
+      ? otpSent
+        ? "VERIFICATION"
+        : "VERIFY IDENTITY"
+      : step === 2
+        ? "NEW PASSWORD"
+        : step === 4
+          ? "COMPLETE"
+          : "SECURITY SETUP";
 
   const headerSubtitle =
     step === 1
@@ -383,8 +399,10 @@ export default function ChangePasswordPage() {
         ? "ENTER THE 6-DIGIT CODE SENT TO YOUR REGISTERED CONTACT."
         : "SEND A VERIFICATION CODE."
       : step === 2
-      ? "CREATE A STRONG PASSWORD."
-      : "SELECT 3 QUESTIONS FOR RECOVERY.";
+        ? "CREATE A STRONG PASSWORD."
+        : step === 4
+          ? "SECURITY SETUP COMPLETE."
+          : "SELECT 3 QUESTIONS FOR RECOVERY.";
 
   const canProceedPasswordStep = checks.strongOk && password === confirmPassword && confirmPassword.length > 0;
 
@@ -661,7 +679,7 @@ export default function ChangePasswordPage() {
       {step === 3 && (
         <div className={`${styles.formContainer} ${styles.visibleForm}`}>
           <form onSubmit={handleFinalSubmit}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div className={styles.securityGrid}>
               <div className={styles.inputGroup}>
                 <label className={styles.label}>QUESTION 1</label>
                 <select className={styles.selectField} value={q1} onChange={(e) => setQ1(e.target.value)} required>
@@ -675,24 +693,24 @@ export default function ChangePasswordPage() {
                   ))}
                 </select>
 
-                <input
-                  type="text"
-                  placeholder="Answer 1"
-                  className={styles.input}
-                  style={{ marginTop: "10px" }}
-                  value={a1}
-                  onChange={(e) => setA1(stripEmojis(e.target.value))}
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Confirm Answer 1"
-                  className={styles.input}
-                  style={{ marginTop: "10px" }}
-                  value={a1Confirm}
-                  onChange={(e) => setA1Confirm(stripEmojis(e.target.value))}
-                  required
-                />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" }}>
+                  <input
+                    type="text"
+                    placeholder="Answer"
+                    className={styles.input}
+                    value={a1}
+                    onChange={(e) => setA1(stripEmojis(e.target.value))}
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="Confirm"
+                    className={styles.input}
+                    value={a1Confirm}
+                    onChange={(e) => setA1Confirm(stripEmojis(e.target.value))}
+                    required
+                  />
+                </div>
               </div>
 
               <div className={styles.inputGroup}>
@@ -710,28 +728,26 @@ export default function ChangePasswordPage() {
                     ))}
                 </select>
 
-                <input
-                  type="text"
-                  placeholder="Answer 2"
-                  className={styles.input}
-                  style={{ marginTop: "10px" }}
-                  value={a2}
-                  onChange={(e) => setA2(stripEmojis(e.target.value))}
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Confirm Answer 2"
-                  className={styles.input}
-                  style={{ marginTop: "10px" }}
-                  value={a2Confirm}
-                  onChange={(e) => setA2Confirm(stripEmojis(e.target.value))}
-                  required
-                />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" }}>
+                  <input
+                    type="text"
+                    placeholder="Answer"
+                    className={styles.input}
+                    value={a2}
+                    onChange={(e) => setA2(stripEmojis(e.target.value))}
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="Confirm"
+                    className={styles.input}
+                    value={a2Confirm}
+                    onChange={(e) => setA2Confirm(stripEmojis(e.target.value))}
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <div style={{ marginTop: "16px" }}>
               <div className={styles.inputGroup}>
                 <label className={styles.label}>QUESTION 3</label>
                 <select className={styles.selectField} value={q3} onChange={(e) => setQ3(e.target.value)} required>
@@ -747,31 +763,59 @@ export default function ChangePasswordPage() {
                     ))}
                 </select>
 
-                <input
-                  type="text"
-                  placeholder="Answer 3"
-                  className={styles.input}
-                  style={{ marginTop: "10px" }}
-                  value={a3}
-                  onChange={(e) => setA3(stripEmojis(e.target.value))}
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Confirm Answer 3"
-                  className={styles.input}
-                  style={{ marginTop: "10px" }}
-                  value={a3Confirm}
-                  onChange={(e) => setA3Confirm(stripEmojis(e.target.value))}
-                  required
-                />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" }}>
+                  <input
+                    type="text"
+                    placeholder="Answer"
+                    className={styles.input}
+                    value={a3}
+                    onChange={(e) => setA3(stripEmojis(e.target.value))}
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="Confirm"
+                    className={styles.input}
+                    value={a3Confirm}
+                    onChange={(e) => setA3Confirm(stripEmojis(e.target.value))}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className={styles.securityFooter}>
+                <button type="submit" className={styles.submitBtn} disabled={loading}>
+                  {loading ? "SAVING..." : "SAVE & CONTINUE"}
+                </button>
               </div>
             </div>
-
-            <button type="submit" className={styles.submitBtn} disabled={loading} style={{ marginTop: "18px" }}>
-              {loading ? "SAVING..." : "SAVE & CONTINUE"}
-            </button>
           </form>
+        </div>
+      )}
+
+      {/* STEP 4: SUCCESS */}
+      {step === 4 && (
+        <div className={`${styles.formContainer} ${styles.visibleForm}`}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "20px 0",
+            }}
+          >
+            <CheckCircle size={64} color="var(--accent-orange)" style={{ marginBottom: 20 }} />
+            <div style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: 10 }}>
+              SECURITY SETUP HAS BEEN SET!
+            </div>
+            <div style={{ fontSize: "0.9rem", color: "var(--text-grey)" }}>
+              REDIRECTING TO LOGIN...
+            </div>
+
+
+          </div>
         </div>
       )}
     </AuthShell>

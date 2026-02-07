@@ -1,5 +1,5 @@
-/* app/login/Login.module.css */
 @import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 /* =========================================================
    THEME TOKENS
@@ -16,6 +16,11 @@
   --accent-orange: #fbb06e;
   --accent-orange-dim: #d99152;
   --text-grey: #888888;
+
+  /* FONTS */
+  --font-brand: "Rajdhani", sans-serif;
+  --font-body: "Inter", sans-serif;
+
 
   /* Default Theme = DARK MODE (as you requested) */
   --bg-left: var(--deep-navy);
@@ -82,7 +87,7 @@
    ========================================================= */
 
 .loginPage {
-  font-family: "Rajdhani", sans-serif;
+  font-family: var(--font-body);
   height: 100vh;
   width: 100vw;
   display: flex;
@@ -109,6 +114,8 @@
 
 /* --- GLOBAL ANIMATED BACKGROUND (Dark Mode) --- */
 .animatedBackground {
+  display: none;
+  /* REMOVED per user request */
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -133,11 +140,11 @@
   background-color: var(--bg-deep);
   /* Base dark color */
 
-  /* subtle movement */
-  animation: gridDrift 18s linear infinite;
+  /* subtle movement - SLOWED DOWN significantly */
+  animation: gridDrift 60s linear infinite;
 }
 
-/* --- ANIMATIONS (Ported from alogin.html) --- */
+/* --- ANIMATIONS (Ported & Slowed) --- */
 @keyframes floatVertical {
 
   0%,
@@ -146,7 +153,8 @@
   }
 
   50% {
-    transform: translateY(-20px);
+    transform: translateY(-10px);
+    /* Reduced distance */
   }
 }
 
@@ -158,7 +166,8 @@
   }
 
   50% {
-    transform: translateX(15px);
+    transform: translateX(10px);
+    /* Reduced distance */
   }
 }
 
@@ -167,16 +176,42 @@
   0%,
   100% {
     transform: scale(1);
-    opacity: 0.2;
+    opacity: 0.1;
+    /* Reduced opacity */
   }
 
   50% {
-    transform: scale(1.05);
-    opacity: 0.4;
+    transform: scale(1.02);
+    /* Reduced scale */
+    opacity: 0.2;
   }
 }
 
-/* --- DECORATIONS (Ported) --- */
+/* --- DECORATIONS (Ported & De-Noised) --- */
+/* ALL DECORATIONS HIDDEN per user request */
+.bgDecor,
+.bgSqOutline,
+.bgSqSolid,
+.sqTlBig,
+.sqLmMed,
+.sqBlSmall,
+.sqLcMedSolid,
+.sqTlMedOutline,
+.sqBlLargeSolid,
+.sqBlMedOrange,
+.sqTrSmallOrange,
+.sqTrBig,
+.sqRmMed,
+.sqBrMedOutline,
+.sqRight2,
+.techLineH,
+.tl1,
+.versionTag,
+.dataGridBox,
+.dotGrid {
+  display: none !important;
+}
+
 .bgDecor {
   position: absolute;
   z-index: 0;
@@ -186,7 +221,8 @@
 }
 
 .bgSqOutline {
-  border: 2px solid var(--shape-stroke);
+  border: 1px solid var(--shape-stroke);
+  /* Thinner border */
 }
 
 .bgSqSolid {
@@ -198,8 +234,11 @@
   height: 400px;
   top: -100px;
   left: -100px;
-  animation: floatVertical 20s ease-in-out infinite;
+  animation: floatVertical 40s ease-in-out infinite;
+  /* Slower */
   border-radius: 40px;
+  opacity: 0.3;
+  /* Reduced */
 }
 
 .sqLmMed {
@@ -207,9 +246,11 @@
   height: 150px;
   top: 40%;
   left: -50px;
-  border: 2px solid var(--accent-orange-dim);
-  opacity: 0.6;
-  animation: floatHorizontal 12s ease-in-out infinite alternate;
+  border: 1px solid var(--accent-orange-dim);
+  opacity: 0.3;
+  /* Reduced */
+  animation: floatHorizontal 25s ease-in-out infinite alternate;
+  /* Slower */
 }
 
 .sqBlSmall {
@@ -218,8 +259,10 @@
   bottom: 120px;
   left: 150px;
   background: var(--accent-blue);
-  opacity: 0.7;
-  animation: breathe 4s ease-in-out infinite;
+  opacity: 0.4;
+  /* Reduced */
+  animation: breathe 8s ease-in-out infinite;
+  /* Slower */
 }
 
 .sqLcMedSolid {
@@ -227,8 +270,10 @@
   height: 120px;
   top: 30%;
   left: 20%;
-  opacity: 0.6;
-  animation: floatVertical 10s ease-in-out infinite reverse;
+  opacity: 0.3;
+  /* Reduced */
+  animation: floatVertical 20s ease-in-out infinite reverse;
+  /* Slower */
 }
 
 .sqTlMedOutline {
@@ -236,8 +281,10 @@
   height: 180px;
   top: 50px;
   left: 50px;
-  opacity: 0.8;
-  animation: breathe 6s ease-in-out infinite alternate;
+  opacity: 0.4;
+  /* Reduced */
+  animation: breathe 12s ease-in-out infinite alternate;
+  /* Slower */
 }
 
 .sqBlLargeSolid {
@@ -245,10 +292,13 @@
   height: 250px;
   bottom: -50px;
   left: -50px;
-  opacity: 0.5;
+  opacity: 0.2;
+  /* Reduced significantly */
   background: var(--accent-blue);
-  box-shadow: 0 0 30px var(--accent-blue);
-  animation: floatHorizontal 15s ease-in-out infinite;
+  box-shadow: 0 0 30px rgba(15, 52, 166, 0.2);
+  /* Softer shadow */
+  animation: floatHorizontal 30s ease-in-out infinite;
+  /* Slower */
 }
 
 .sqBlMedOrange {
@@ -256,9 +306,9 @@
   height: 100px;
   bottom: 20%;
   left: 10%;
-  border: 2px solid var(--accent-orange-dim);
-  opacity: 0.8;
-  animation: breathe 8s ease-in-out infinite;
+  border: 1px solid var(--accent-orange-dim);
+  opacity: 0.4;
+  animation: breathe 16s ease-in-out infinite;
 }
 
 /* decorationContainer removed */
@@ -270,8 +320,8 @@
   top: 15%;
   right: -20px;
   background: var(--accent-orange);
-  opacity: 0.6;
-  animation: floatVertical 15s ease-in-out infinite reverse;
+  opacity: 0.3;
+  animation: floatVertical 30s ease-in-out infinite reverse;
 }
 
 .sqTrBig {
@@ -281,9 +331,9 @@
   right: -280px;
   /* Mostly off-screen */
   z-index: 1;
-  animation: floatHorizontal 18s ease-in-out infinite reverse;
+  animation: floatHorizontal 35s ease-in-out infinite reverse;
   border-radius: 50px;
-  opacity: 0.5;
+  opacity: 0.2;
 }
 
 .sqRmMed {
@@ -293,8 +343,8 @@
   right: -160px;
   /* Mostly off-screen */
   z-index: 1;
-  animation: floatVertical 14s ease-in-out infinite;
-  opacity: 0.5;
+  animation: floatVertical 28s ease-in-out infinite;
+  opacity: 0.2;
 }
 
 .sqBrMedOutline {
@@ -303,8 +353,8 @@
   bottom: 80px;
   right: -90px;
   z-index: 1;
-  animation: floatVertical 16s ease-in-out infinite;
-  opacity: 0.6;
+  animation: floatVertical 32s ease-in-out infinite;
+  opacity: 0.3;
 }
 
 .sqRight2 {
@@ -314,7 +364,7 @@
   background: rgba(251, 176, 110, 0.05);
   bottom: 40px;
   right: -40px;
-  opacity: 0.8;
+  opacity: 0.4;
   position: absolute;
   border-radius: 8px;
   z-index: 1;
@@ -325,7 +375,8 @@
   position: absolute;
   height: 1px;
   width: 150px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  /* Fainter */
   transition: background 0.5s ease;
   z-index: 1;
 }
@@ -353,10 +404,11 @@
   top: 40px;
   left: 40px;
   /* Reverted to 40px */
-  font-size: 0.9rem;
+  font-size: clamp(0.65rem, 0.9vw, 0.85rem);
   font-weight: 600;
   letter-spacing: 2px;
-  opacity: 0.5;
+  opacity: 0.3;
+  /* Reduced */
   z-index: 10;
 }
 
@@ -376,59 +428,64 @@
   display: grid;
   grid-template-columns: repeat(4, 12px);
   gap: 8px;
+  opacity: 0.5;
+  /* Reduced overall visibility */
 }
 
 .dataPixel {
   width: 10px;
   height: 10px;
   background-color: var(--accent-orange-dim);
-  opacity: 0.6;
+  opacity: 0.4;
   border-radius: 2px;
-  animation: breathe 3s ease-in-out infinite;
+  animation: breathe 6s ease-in-out infinite;
+  /* Slower */
 }
 
 /* Stagger animations for a "living" data effect */
 .dataPixel:nth-child(odd) {
-  animation-duration: 4s;
-  animation-delay: 0.5s;
-}
-
-.dataPixel:nth-child(2n) {
-  animation-duration: 2.5s;
+  animation-duration: 8s;
   animation-delay: 1s;
 }
 
+.dataPixel:nth-child(2n) {
+  animation-duration: 5s;
+  animation-delay: 2s;
+}
+
 .dataPixel:nth-child(3n) {
-  animation-delay: 0.2s;
+  animation-delay: 0.5s;
 }
 
 .copyright {
-  font-family: "Rajdhani", sans-serif;
+  font-family: var(--font-brand);
   font-size: 0.9rem;
   font-weight: 600;
   letter-spacing: 2px;
-  color: rgba(255, 255, 255, 0.7);
-  /* Increased visibility from 0.3 */
+  color: rgba(255, 255, 255, 0.4);
+  /* Reduced */
   text-transform: uppercase;
 }
 
 .brandTitle {
-  font-size: 7rem;
+  font-size: clamp(2.5rem, 6vw, 5.5rem);
   font-weight: 700;
   line-height: 0.9;
   letter-spacing: 5px;
   margin-bottom: 10px;
   text-transform: uppercase;
-  text-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+  text-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
+  /* Faint shadow */
 }
 
 .brandSubtitle {
-  font-size: 1.4rem;
+  font-size: clamp(0.8rem, 1.2vw, 1.2rem);
   color: var(--accent-orange);
   letter-spacing: 4px;
   font-weight: 700;
   text-transform: uppercase;
   margin-bottom: 40px;
+  opacity: 0.8;
 }
 
 .clockWrapper {
@@ -436,13 +493,16 @@
 }
 
 .liveClock {
-  background: rgba(15, 52, 166, 0.2);
+  background: rgba(15, 52, 166, 0.1);
+  /* Lighter background */
   padding: 12px 24px;
-  border-left: 4px solid var(--accent-orange);
-  font-size: 1.1rem;
+  border-left: 3px solid var(--accent-orange);
+  /* Thinner border */
+  font-size: clamp(0.75rem, 1vw, 1rem);
   font-weight: 600;
   letter-spacing: 2px;
   border-radius: 0 8px 8px 0;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .footer {
@@ -457,7 +517,8 @@
   grid-template-columns: repeat(8, 6px);
   gap: 4px;
   margin-bottom: 15px;
-  opacity: 0.3;
+  opacity: 0.15;
+  /* Reduced */
 }
 
 .dot {
@@ -470,7 +531,7 @@
 .copyright {
   font-size: 0.75rem;
   letter-spacing: 2px;
-  opacity: 0.5;
+  opacity: 0.4;
   text-transform: uppercase;
 }
 
@@ -522,18 +583,20 @@
   /* Optional: Add light mode grid to this overlay if desired */
   /* Re-added and Animated per user request */
   background-image: repeating-linear-gradient(0deg,
-      rgba(15, 52, 166, 0.08) 0px,
-      rgba(15, 52, 166, 0.08) 1px,
+      rgba(15, 52, 166, 0.05) 0px,
+      /* Reduced opacity */
+      rgba(15, 52, 166, 0.05) 1px,
       transparent 1px,
       transparent 80px),
     repeating-linear-gradient(90deg,
-      rgba(15, 52, 166, 0.08) 0px,
-      rgba(15, 52, 166, 0.08) 1px,
+      rgba(15, 52, 166, 0.05) 0px,
+      rgba(15, 52, 166, 0.05) 1px,
       transparent 1px,
       transparent 80px);
 
   /* Animate to match global background (even if alignment isn't perfect, it feels alive) */
-  animation: gridDrift 18s linear infinite;
+  animation: gridDrift 60s linear infinite;
+  /* Slower */
 }
 
 .lightMode .rightPanelOverlay {
@@ -575,7 +638,8 @@
   right: 40px;
   width: 50px;
   height: 50px;
-  border: 2px solid var(--toggle-border);
+  border: 1px solid var(--toggle-border);
+  /* Thinner border */
   border-radius: 12px;
   background: transparent;
   color: var(--toggle-color);
@@ -589,7 +653,8 @@
 }
 
 .themeToggle:hover {
-  box-shadow: 0 0 15px rgba(15, 52, 166, 0.3);
+  box-shadow: 0 0 15px rgba(15, 52, 166, 0.15);
+  /* Softer hover glow */
 }
 
 .themeToggle span {
@@ -604,13 +669,14 @@
    ========================================================= */
 
 .loginCard {
-  width: 440px;
-  padding: 50px 40px;
+  width: min(400px, 94vw);
+  padding: 40px 32px;
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 16px;
-  /* Dark Mode: Orange Glow (Intensified) */
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 60px rgba(251, 176, 110, 0.4);
+  /* Dark Mode: Softer Shadow (Professional) */
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  /* Much softer than previous neon glow */
   position: relative;
   color: var(--card-text);
   transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease,
@@ -618,10 +684,11 @@
 }
 
 .lightMode .loginCard {
-  /* Light Mode: Layered Shadow (Dark Drop + Blue Glow) */
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2), 0 5px 15px rgba(0, 0, 0, 0.1), 0 0 50px rgba(15, 52, 166, 0.3);
-  border-color: rgba(0, 0, 0, 0.1);
-  /* Subtle border for definition */
+  /* Light Mode: Very clean, minimalistic shadow */
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  /* Clean professional shadow */
+  border-color: rgba(0, 0, 0, 0.05);
+  /* Barely visible border */
 }
 
 /* ===== Security Setup (Step 3) layout fix ===== */
@@ -632,13 +699,13 @@
   gap: 16px;
 }
 
-/* desktop: 2 columns */
-@media (min-width: 980px) {
+/* desktop: 2 columns REMOVED for single vertical stack */
+/* @media (min-width: 980px) {
   .securityGrid {
     grid-template-columns: 1fr 1fr;
     gap: 18px;
   }
-}
+} */
 
 .securityBlock {
   display: flex;
@@ -673,6 +740,27 @@
 .leftPanel,
 .rightPanel {
   transition: width 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* RESPONSIVE FIX: Hide left panel on smaller screens & Allow scrolling */
+@media (max-width: 1024px) {
+  .loginPage {
+    height: auto;
+    min-height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .leftPanel {
+    display: none;
+  }
+
+  .rightPanel {
+    width: 100% !important;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
 }
 
 
@@ -744,7 +832,7 @@
   font-weight: 700;
   letter-spacing: 1px;
   text-transform: uppercase;
-  margin-bottom: 25px;
+  margin-bottom: 15px;
 }
 
 .orangeDot {
@@ -756,7 +844,7 @@
 }
 
 .cardTitle {
-  font-size: 3rem;
+  font-size: 2rem;
   font-weight: 700;
   text-transform: uppercase;
   line-height: 1;
@@ -766,7 +854,8 @@
 .cardSubtitle {
   font-size: 0.9rem;
   color: var(--text-grey);
-  margin-bottom: 40px;
+  margin-bottom: 25px;
+  font-family: var(--font-body);
 }
 
 /* If some pages still use cardHeader */
@@ -794,17 +883,18 @@
   text-transform: uppercase;
   margin-bottom: 10px;
   color: var(--text-grey);
+  font-family: var(--font-body);
 }
 
 .input {
   width: 100%;
-  padding: 16px;
+  font-family: var(--font-body);
+  padding: 12px;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
   border-radius: 8px;
   color: var(--input-text);
-  font-family: "Rajdhani", sans-serif;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   outline: none;
   transition: all 0.3s ease;
@@ -853,9 +943,9 @@
 
 .lightMode .inputWrapper:focus-within {
   border-color: #3b82f6;
-  /* Neon Blue Border */
-  box-shadow: 0 0 0 1px #3b82f6, 0 0 12px rgba(59, 130, 246, 0.5);
-  /* Intense Neon Glow */
+  /* Professional Blue Focus */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  /* Clean Ring */
 }
 
 .input:focus {
@@ -896,7 +986,10 @@
   color: var(--btn-text);
   border: none;
   border-radius: 8px;
-  font-family: "Rajdhani", sans-serif;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 1.2rem;
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 2px;
@@ -1006,7 +1099,10 @@
   border: 1px solid var(--input-border);
   padding: 15px;
   color: var(--input-text);
-  font-family: "Rajdhani", sans-serif;
+  padding: 15px;
+  color: var(--input-text);
+  font-family: var(--font-body);
+  font-size: 1.1rem;
   font-size: 1.1rem;
   font-weight: 600;
   outline: none;
@@ -1064,9 +1160,7 @@
     display: none;
   }
 
-  .brandTitle {
-    font-size: 4rem;
-  }
+  /* .brandTitle font-size removed to let claim take effect on mobile */
 
   .rightPanel {
     height: 60%;

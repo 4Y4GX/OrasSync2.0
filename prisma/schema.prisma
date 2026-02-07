@@ -1,0 +1,349 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model D_tblaccount_recovery_incident {
+  incident_id                                                             Int                                           @id @default(autoincrement())
+  user_id                                                                 String?                                       @db.VarChar(30)
+  incident_type                                                           D_tblaccount_recovery_incident_incident_type?
+  status                                                                  D_tblaccount_recovery_incident_status?        @default(OPEN)
+  dedupe_key                                                              String                                        @unique(map: "dedupe_key") @db.VarChar(160)
+  created_at                                                              DateTime?                                     @default(now()) @db.Timestamp(0)
+  resolved_at                                                             DateTime?                                     @db.Timestamp(0)
+  resolved_by_user_id                                                     String?                                       @db.VarChar(30)
+  D_tbluser_D_tblaccount_recovery_incident_resolved_by_user_idToD_tbluser D_tbluser?                                    @relation("D_tblaccount_recovery_incident_resolved_by_user_idToD_tbluser", fields: [resolved_by_user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_incident_resolver")
+  D_tbluser_D_tblaccount_recovery_incident_user_idToD_tbluser             D_tbluser?                                    @relation("D_tblaccount_recovery_incident_user_idToD_tbluser", fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_incident_user")
+
+  @@index([resolved_by_user_id], map: "fk_incident_resolver")
+  @@index([status], map: "idx_incident_status")
+  @@index([user_id], map: "idx_incident_user")
+}
+
+model D_tblactivity {
+  activity_id   Int             @id @default(autoincrement())
+  activity_code String?         @db.VarChar(10)
+  activity_name String?         @db.VarChar(50)
+  is_billable   Boolean?
+  D_tbltime_log D_tbltime_log[]
+}
+
+model D_tblaudit_log {
+  audit_id       Int        @id @default(autoincrement())
+  changed_by     String?    @db.VarChar(30)
+  action_type    String?    @db.VarChar(50)
+  table_affected String?    @db.VarChar(50)
+  old_value      String?    @db.VarChar(255)
+  new_value      String?    @db.VarChar(255)
+  created_at     DateTime?  @default(now()) @db.Timestamp(0)
+  D_tbluser      D_tbluser? @relation(fields: [changed_by], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_audit_user")
+
+  @@index([changed_by], map: "fk_audit_user")
+}
+
+model D_tblbreak_log {
+  break_id   Int        @id @default(autoincrement())
+  user_id    String?    @db.VarChar(30)
+  break_type String?    @db.VarChar(50)
+  start_time DateTime?  @db.Time(0)
+  end_time   DateTime?  @db.Time(0)
+  log_date   DateTime?  @default(now()) @db.Timestamp(0)
+  reason     String?    @db.VarChar(255)
+  D_tbluser  D_tbluser? @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_break_user")
+
+  @@index([user_id], map: "fk_break_user")
+}
+
+model D_tblclock_log {
+  clock_id           Int                  @id @default(autoincrement())
+  user_id            String?              @db.VarChar(30)
+  shift_date         DateTime?            @db.Date
+  last_log_in        DateTime?            @default(now()) @db.Timestamp(0)
+  clock_in_time      DateTime?            @default(now()) @db.Timestamp(0)
+  clock_out_time     DateTime?            @db.Timestamp(0)
+  is_sentiment_done  Boolean?             @default(false)
+  is_early_leave     Boolean?             @default(false)
+  active_key         String?              @db.VarChar(10)
+  D_tbluser          D_tbluser?           @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clock_user")
+  D_tblsentiment_log D_tblsentiment_log[]
+  D_tbltime_log      D_tbltime_log[]
+
+  @@unique([user_id, active_key], map: "uniq_user_active_shift")
+}
+
+model D_tbldepartment {
+  dept_id       Int             @id @default(autoincrement())
+  dept_name     String?         @unique(map: "dept_name") @db.VarChar(50)
+  D_tblteam     D_tblteam[]
+  D_tbltime_log D_tbltime_log[]
+  D_tbluser     D_tbluser[]
+}
+
+model D_tblearly_reasonlog {
+  reasonlog_id Int        @id @default(autoincrement())
+  user_id      String?    @db.VarChar(30)
+  shift_date   DateTime?  @db.Date
+  reason       String?    @db.VarChar(255)
+  D_tbluser    D_tbluser? @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_early_user")
+
+  @@index([user_id], map: "fk_early_user")
+}
+
+model D_tblotp_log {
+  otp_id      Int        @id @default(autoincrement())
+  user_id     String?    @db.VarChar(30)
+  otp_code    String?    @db.VarChar(10)
+  created_at  DateTime?  @default(now()) @db.Timestamp(0)
+  attempts    Int?       @default(0)
+  is_verified Boolean?   @default(false)
+  D_tbluser   D_tbluser? @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_otp_user")
+
+  @@index([user_id], map: "fk_otp_user")
+}
+
+model D_tblposition {
+  pos_id    Int         @id @default(autoincrement())
+  pos_name  String?     @unique(map: "pos_name") @db.VarChar(50)
+  D_tbluser D_tbluser[]
+}
+
+model D_tblrole {
+  role_id   Int         @id
+  role_name String?     @db.VarChar(50)
+  D_tbluser D_tbluser[]
+}
+
+model D_tblsecurity_questions {
+  question_id                Int                          @id @default(autoincrement())
+  question_text              String?                      @db.VarChar(255)
+  D_tbluser_security_answers D_tbluser_security_answers[]
+}
+
+model D_tblsentiment_log {
+  sentiment_id     Int                                  @id @default(autoincrement())
+  user_id          String?                              @db.VarChar(30)
+  clock_id         Int?
+  sentiment_status D_tblsentiment_log_sentiment_status?
+  reason_comment   String?                              @db.VarChar(255)
+  created_at       DateTime?                            @default(now()) @db.Timestamp(0)
+  D_tblclock_log   D_tblclock_log?                      @relation(fields: [clock_id], references: [clock_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sent_clock")
+  D_tbluser        D_tbluser?                           @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sent_user")
+
+  @@index([clock_id], map: "fk_sent_clock")
+  @@index([user_id], map: "fk_sent_user")
+}
+
+model D_tblshift_template {
+  shift_id                                                                          Int                    @id @default(autoincrement())
+  shift_name                                                                        String?                @db.VarChar(30)
+  start_time                                                                        DateTime?              @db.Time(0)
+  end_time                                                                          DateTime?              @db.Time(0)
+  description                                                                       String?                @db.VarChar(100)
+  D_tblweekly_schedule_D_tblweekly_schedule_friday_shift_idToD_tblshift_template    D_tblweekly_schedule[] @relation("D_tblweekly_schedule_friday_shift_idToD_tblshift_template")
+  D_tblweekly_schedule_D_tblweekly_schedule_monday_shift_idToD_tblshift_template    D_tblweekly_schedule[] @relation("D_tblweekly_schedule_monday_shift_idToD_tblshift_template")
+  D_tblweekly_schedule_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template  D_tblweekly_schedule[] @relation("D_tblweekly_schedule_saturday_shift_idToD_tblshift_template")
+  D_tblweekly_schedule_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template    D_tblweekly_schedule[] @relation("D_tblweekly_schedule_sunday_shift_idToD_tblshift_template")
+  D_tblweekly_schedule_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template  D_tblweekly_schedule[] @relation("D_tblweekly_schedule_thursday_shift_idToD_tblshift_template")
+  D_tblweekly_schedule_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template   D_tblweekly_schedule[] @relation("D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template")
+  D_tblweekly_schedule_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template D_tblweekly_schedule[] @relation("D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template")
+}
+
+model D_tblteam {
+  team_id         Int              @id @default(autoincrement())
+  team_name       String?          @unique(map: "team_name") @db.VarChar(50)
+  dept_id         Int?
+  D_tbldepartment D_tbldepartment? @relation(fields: [dept_id], references: [dept_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_team_dept")
+  D_tbluser       D_tbluser[]
+
+  @@index([dept_id], map: "fk_team_dept")
+}
+
+model D_tbltime_log {
+  tlog_id                                                 Int                                      @id @default(autoincrement())
+  user_id                                                 String?                                  @db.VarChar(30)
+  activity_id                                             Int?
+  log_date                                                DateTime?                                @db.Date
+  start_time                                              DateTime?                                @db.Time(0)
+  end_time                                                DateTime?                                @db.Time(0)
+  total_hours                                             Decimal?                                 @db.Decimal(5, 2)
+  supervisor_id                                           String?                                  @db.VarChar(30)
+  manager_id                                              String?                                  @db.VarChar(30)
+  dept_id_at_log                                          Int?
+  clock_id                                                Int?
+  shift_date                                              DateTime?                                @db.DateTime(0)
+  approval_status                                         D_tbltime_log_approval_status?           @default(PENDING)
+  approved_by_supervisor_id                               D_tbltime_log_approved_by_supervisor_id? @default(PENDING)
+  approved_by_manager_id                                  D_tbltime_log_approved_by_manager_id?    @default(PENDING)
+  supervisor_approved_at                                  DateTime?                                @db.Timestamp(0)
+  manager_approved_at                                     DateTime?                                @db.Timestamp(0)
+  rejection_reason                                        String?                                  @db.VarChar(255)
+  supervisor_id_at_log                                    String?                                  @db.VarChar(30)
+  D_tbldepartment                                         D_tbldepartment?                         @relation(fields: [dept_id_at_log], references: [dept_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_dept_id_at_log")
+  D_tbluser_D_tbltime_log_supervisor_id_at_logToD_tbluser D_tbluser?                               @relation("D_tbltime_log_supervisor_id_at_logToD_tbluser", fields: [supervisor_id_at_log], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_incident_supervisor")
+  D_tblactivity                                           D_tblactivity?                           @relation(fields: [activity_id], references: [activity_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tlog_act")
+  D_tblclock_log                                          D_tblclock_log?                          @relation(fields: [clock_id], references: [clock_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tlog_clock")
+  D_tbluser_D_tbltime_log_user_idToD_tbluser              D_tbluser?                               @relation("D_tbltime_log_user_idToD_tbluser", fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tlog_user")
+
+  @@index([dept_id_at_log], map: "fk_dept_id_at_log")
+  @@index([supervisor_id_at_log], map: "fk_incident_supervisor")
+  @@index([activity_id], map: "fk_tlog_act")
+  @@index([clock_id], map: "fk_tlog_clock")
+  @@index([user_id, log_date], map: "idx_user_logdate")
+}
+
+model D_tbluser {
+  user_id                                                                                      String                           @id @db.VarChar(30)
+  first_name                                                                                   String?                          @db.VarChar(50)
+  last_name                                                                                    String?                          @db.VarChar(50)
+  email                                                                                        String?                          @unique @db.VarChar(50)
+  role_id                                                                                      Int?
+  pos_id                                                                                       Int?
+  dept_id                                                                                      Int?
+  team_id                                                                                      Int?
+  account_status                                                                               D_tbluser_account_status?
+  supervisor_id                                                                                String?                          @db.VarChar(30)
+  manager_id                                                                                   String?                          @db.VarChar(30)
+  hire_date                                                                                    DateTime?                        @db.Date
+  original_hire_date                                                                           DateTime?                        @db.Date
+  resignation_date                                                                             DateTime?                        @db.Date
+  original_resignation_date                                                                    DateTime?                        @db.Date
+  account_created_at                                                                           DateTime?                        @default(now()) @db.Timestamp(0)
+  streak_count                                                                                 Int?                             @default(0)
+  D_tblaccount_recovery_incident_D_tblaccount_recovery_incident_resolved_by_user_idToD_tbluser D_tblaccount_recovery_incident[] @relation("D_tblaccount_recovery_incident_resolved_by_user_idToD_tbluser")
+  D_tblaccount_recovery_incident_D_tblaccount_recovery_incident_user_idToD_tbluser             D_tblaccount_recovery_incident[] @relation("D_tblaccount_recovery_incident_user_idToD_tbluser")
+  D_tblaudit_log                                                                               D_tblaudit_log[]
+  D_tblbreak_log                                                                               D_tblbreak_log[]
+  D_tblclock_log                                                                               D_tblclock_log[]
+  D_tblearly_reasonlog                                                                         D_tblearly_reasonlog[]
+  D_tblotp_log                                                                                 D_tblotp_log[]
+  D_tblsentiment_log                                                                           D_tblsentiment_log[]
+  D_tbltime_log_D_tbltime_log_supervisor_id_at_logToD_tbluser                                  D_tbltime_log[]                  @relation("D_tbltime_log_supervisor_id_at_logToD_tbluser")
+  D_tbltime_log_D_tbltime_log_user_idToD_tbluser                                               D_tbltime_log[]                  @relation("D_tbltime_log_user_idToD_tbluser")
+  D_tbldepartment                                                                              D_tbldepartment?                 @relation(fields: [dept_id], references: [dept_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_dept")
+  D_tbluser_D_tbluser_manager_idToD_tbluser                                                    D_tbluser?                       @relation("D_tbluser_manager_idToD_tbluser", fields: [manager_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_manager")
+  other_D_tbluser_D_tbluser_manager_idToD_tbluser                                              D_tbluser[]                      @relation("D_tbluser_manager_idToD_tbluser")
+  D_tblposition                                                                                D_tblposition?                   @relation(fields: [pos_id], references: [pos_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_pos")
+  D_tblrole                                                                                    D_tblrole?                       @relation(fields: [role_id], references: [role_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_role")
+  D_tbluser_D_tbluser_supervisor_idToD_tbluser                                                 D_tbluser?                       @relation("D_tbluser_supervisor_idToD_tbluser", fields: [supervisor_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_supervisor")
+  other_D_tbluser_D_tbluser_supervisor_idToD_tbluser                                           D_tbluser[]                      @relation("D_tbluser_supervisor_idToD_tbluser")
+  D_tblteam                                                                                    D_tblteam?                       @relation(fields: [team_id], references: [team_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_team")
+  D_tbluser_authentication                                                                     D_tbluser_authentication?
+  D_tbluser_security_answers                                                                   D_tbluser_security_answers[]
+  D_tbluser_stats                                                                              D_tbluser_stats?
+  D_tblweekly_schedule                                                                         D_tblweekly_schedule[]
+
+  @@index([dept_id], map: "fk_user_dept")
+  @@index([manager_id], map: "fk_user_manager")
+  @@index([pos_id], map: "fk_user_pos")
+  @@index([role_id], map: "fk_user_role")
+  @@index([supervisor_id], map: "fk_user_supervisor")
+  @@index([team_id], map: "fk_user_team")
+}
+
+model D_tbluser_authentication {
+  user_id             String    @id @db.VarChar(30)
+  password_hash       String?   @db.Char(64)
+  is_first_login      Boolean?  @default(true)
+  failed_attempts     Int?      @default(0)
+  last_failed_attempt DateTime? @db.DateTime(0)
+  is_disabled         Boolean?  @default(false)
+  question_attempts   Int?      @default(0)
+  D_tbluser           D_tbluser @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user_auth")
+}
+
+model D_tbluser_security_answers {
+  answer_id               Int                      @id @default(autoincrement())
+  user_id                 String?                  @db.VarChar(30)
+  question_id             Int?
+  answer_hash             String?                  @db.Char(64)
+  D_tblsecurity_questions D_tblsecurity_questions? @relation(fields: [question_id], references: [question_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sa_ques")
+  D_tbluser               D_tbluser?               @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_sa_user")
+
+  @@index([question_id], map: "fk_sa_ques")
+  @@index([user_id], map: "fk_sa_user")
+}
+
+model D_tbluser_stats {
+  user_id         String    @id @db.VarChar(30)
+  streak_count    Int?      @default(0)
+  last_attendance DateTime? @db.Date
+  total_absences  Int?      @default(0)
+  updated_at      DateTime? @default(now()) @db.Timestamp(0)
+  D_tbluser       D_tbluser @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_stats_user")
+}
+
+model D_tblweekly_schedule {
+  schedule_id                                                                      Int                  @id @default(autoincrement())
+  user_id                                                                          String?              @db.VarChar(30)
+  monday_shift_id                                                                  Int?
+  tuesday_shift_id                                                                 Int?
+  wednesday_shift_id                                                               Int?
+  thursday_shift_id                                                                Int?
+  friday_shift_id                                                                  Int?
+  saturday_shift_id                                                                Int?
+  sunday_shift_id                                                                  Int?
+  is_active                                                                        Boolean?             @default(true)
+  D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template    D_tblshift_template? @relation("D_tblweekly_schedule_friday_shift_idToD_tblshift_template", fields: [friday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_fri")
+  D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template    D_tblshift_template? @relation("D_tblweekly_schedule_monday_shift_idToD_tblshift_template", fields: [monday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_mon")
+  D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template  D_tblshift_template? @relation("D_tblweekly_schedule_saturday_shift_idToD_tblshift_template", fields: [saturday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_sat")
+  D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template    D_tblshift_template? @relation("D_tblweekly_schedule_sunday_shift_idToD_tblshift_template", fields: [sunday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_sun")
+  D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template  D_tblshift_template? @relation("D_tblweekly_schedule_thursday_shift_idToD_tblshift_template", fields: [thursday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_thu")
+  D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template   D_tblshift_template? @relation("D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template", fields: [tuesday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_tue")
+  D_tbluser                                                                        D_tbluser?           @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_user")
+  D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template D_tblshift_template? @relation("D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template", fields: [wednesday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_wed")
+
+  @@index([friday_shift_id], map: "fk_ws_fri")
+  @@index([monday_shift_id], map: "fk_ws_mon")
+  @@index([saturday_shift_id], map: "fk_ws_sat")
+  @@index([sunday_shift_id], map: "fk_ws_sun")
+  @@index([thursday_shift_id], map: "fk_ws_thu")
+  @@index([tuesday_shift_id], map: "fk_ws_tue")
+  @@index([user_id], map: "fk_ws_user")
+  @@index([wednesday_shift_id], map: "fk_ws_wed")
+}
+
+enum D_tblaccount_recovery_incident_incident_type {
+  ACCOUNT_LOCKED_LOGIN_FAILURE
+  RECOVERY_LOCKED_OTP_LIMIT_EXCEEDED
+  ACCOUNT_LOCKED_SECURITY_QUESTION_FAILURE
+}
+
+enum D_tblaccount_recovery_incident_status {
+  OPEN
+  RESOLVED
+}
+
+enum D_tblsentiment_log_sentiment_status {
+  GREAT
+  OKAY
+  NOT_GOOD @map("NOT GOOD")
+}
+
+enum D_tbluser_account_status {
+  ACTIVE
+  DISABLED
+  DEACTIVATED
+}
+
+enum D_tbltime_log_approval_status {
+  PENDING
+  MANAGER_APPROVED
+  SUPERVISOR_APPROVED
+  REJECTED
+}
+
+enum D_tbltime_log_approved_by_supervisor_id {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum D_tbltime_log_approved_by_manager_id {
+  PENDING
+  APPROVED
+  REJECTED
+}
