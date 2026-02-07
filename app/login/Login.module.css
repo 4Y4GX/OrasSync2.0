@@ -1,0 +1,1119 @@
+/* app/login/Login.module.css */
+@import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap");
+
+/* =========================================================
+   THEME TOKENS
+   ✅ Dark mode: dark bg + WHITE card
+   ✅ Light mode: white bg + DARK card
+   ========================================================= */
+
+:root {
+  --deep-navy: #01081f;
+  --bg-deep: var(--deep-navy);
+  /* Fix for missing bg */
+  --pure-white: #ffffff;
+  --accent-blue: #0f34a6;
+  --accent-orange: #fbb06e;
+  --accent-orange-dim: #d99152;
+  --text-grey: #888888;
+
+  /* Default Theme = DARK MODE (as you requested) */
+  --bg-left: var(--deep-navy);
+  /* Left always dark */
+  --bg-right: var(--deep-navy);
+  /* Right dark */
+  --right-grid-line: rgba(15, 52, 166, 0.18);
+  --right-grid-line-2: rgba(15, 52, 166, 0.08);
+
+  --shape-stroke: rgba(15, 52, 166, 0.35);
+  --shape-fill: rgba(15, 52, 166, 0.04);
+
+  --card-bg: var(--pure-white);
+  /* ✅ white card in dark mode */
+  --card-border: rgba(15, 52, 166, 0.18);
+  --card-text: #020b26;
+
+  --input-bg: #f1f5f9;
+  --input-border: #cbd5e1;
+  --input-text: #020b26;
+
+  --btn-bg: #020b26;
+  --btn-text: var(--pure-white);
+
+  --toggle-border: rgba(15, 52, 166, 0.55);
+  --toggle-color: var(--pure-white);
+
+  --radius-input: 8px;
+}
+
+/* LIGHT MODE (inverted as you requested)
+   ✅ white bg + DARK card
+*/
+.lightMode {
+  --bg-right: var(--pure-white);
+
+  --right-grid-line: rgba(15, 52, 166, 0.16);
+  --right-grid-line-2: rgba(15, 52, 166, 0.06);
+
+  --shape-stroke: rgba(15, 52, 166, 0.25);
+  --shape-fill: rgba(15, 52, 166, 0.03);
+
+  --card-bg: var(--deep-navy);
+  /* ✅ dark card in light mode */
+  --card-border: rgba(15, 52, 166, 0.25);
+  --card-text: var(--pure-white);
+
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --input-border: rgba(255, 255, 255, 0.18);
+  --input-text: #ffffff;
+
+  --btn-bg: var(--pure-white);
+  --btn-text: var(--deep-navy);
+
+  --toggle-color: var(--accent-blue);
+}
+
+/* =========================================================
+   LAYOUT
+   ========================================================= */
+
+/* =========================================================
+   LAYOUT
+   ========================================================= */
+
+.loginPage {
+  font-family: "Rajdhani", sans-serif;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  /* Context for absolute bg */
+  background-color: var(--bg-deep);
+}
+
+/* --- LEFT PANEL (Always Dark) --- */
+/* --- LEFT PANEL (Always Dark) --- */
+.leftPanel {
+  width: 50%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-left: 8%;
+  /* Main content back to original % alignment */
+  color: white;
+  overflow: hidden;
+  z-index: 2;
+}
+
+/* --- GLOBAL ANIMATED BACKGROUND (Dark Mode) --- */
+.animatedBackground {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+
+  /* UI-team style grid (2 layers) */
+  /* UI-team style grid (Simplified: 1 layer) */
+  background-image: repeating-linear-gradient(0deg,
+      var(--right-grid-line) 0px,
+      var(--right-grid-line) 1px,
+      transparent 1px,
+      transparent 80px),
+    repeating-linear-gradient(90deg,
+      var(--right-grid-line) 0px,
+      var(--right-grid-line) 1px,
+      transparent 1px,
+      transparent 80px);
+
+  opacity: 0.6;
+  /* Slightly reduced opacity for subtlety */
+  transform: translateZ(0);
+  background-color: var(--bg-deep);
+  /* Base dark color */
+
+  /* subtle movement */
+  animation: gridDrift 18s linear infinite;
+}
+
+/* --- ANIMATIONS (Ported from alogin.html) --- */
+@keyframes floatVertical {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes floatHorizontal {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(15px);
+  }
+}
+
+@keyframes breathe {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.2;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.4;
+  }
+}
+
+/* --- DECORATIONS (Ported) --- */
+.bgDecor {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  transition: all 0.5s ease;
+  border-radius: 12px;
+}
+
+.bgSqOutline {
+  border: 2px solid var(--shape-stroke);
+}
+
+.bgSqSolid {
+  background: var(--shape-fill);
+}
+
+.sqTlBig {
+  width: 400px;
+  height: 400px;
+  top: -100px;
+  left: -100px;
+  animation: floatVertical 20s ease-in-out infinite;
+  border-radius: 40px;
+}
+
+.sqLmMed {
+  width: 150px;
+  height: 150px;
+  top: 40%;
+  left: -50px;
+  border: 2px solid var(--accent-orange-dim);
+  opacity: 0.6;
+  animation: floatHorizontal 12s ease-in-out infinite alternate;
+}
+
+.sqBlSmall {
+  width: 50px;
+  height: 50px;
+  bottom: 120px;
+  left: 150px;
+  background: var(--accent-blue);
+  opacity: 0.7;
+  animation: breathe 4s ease-in-out infinite;
+}
+
+.sqLcMedSolid {
+  width: 120px;
+  height: 120px;
+  top: 30%;
+  left: 20%;
+  opacity: 0.6;
+  animation: floatVertical 10s ease-in-out infinite reverse;
+}
+
+.sqTlMedOutline {
+  width: 180px;
+  height: 180px;
+  top: 50px;
+  left: 50px;
+  opacity: 0.8;
+  animation: breathe 6s ease-in-out infinite alternate;
+}
+
+.sqBlLargeSolid {
+  width: 250px;
+  height: 250px;
+  bottom: -50px;
+  left: -50px;
+  opacity: 0.5;
+  background: var(--accent-blue);
+  box-shadow: 0 0 30px var(--accent-blue);
+  animation: floatHorizontal 15s ease-in-out infinite;
+}
+
+.sqBlMedOrange {
+  width: 100px;
+  height: 100px;
+  bottom: 20%;
+  left: 10%;
+  border: 2px solid var(--accent-orange-dim);
+  opacity: 0.8;
+  animation: breathe 8s ease-in-out infinite;
+}
+
+/* decorationContainer removed */
+
+/* --- RIGHT PANEL DECORATIONS (Ported & Adjusted to Edge) --- */
+.sqTrSmallOrange {
+  width: 40px;
+  height: 40px;
+  top: 15%;
+  right: -20px;
+  background: var(--accent-orange);
+  opacity: 0.6;
+  animation: floatVertical 15s ease-in-out infinite reverse;
+}
+
+.sqTrBig {
+  width: 350px;
+  height: 350px;
+  top: -50px;
+  right: -280px;
+  /* Mostly off-screen */
+  z-index: 1;
+  animation: floatHorizontal 18s ease-in-out infinite reverse;
+  border-radius: 50px;
+  opacity: 0.5;
+}
+
+.sqRmMed {
+  width: 200px;
+  height: 200px;
+  bottom: 20%;
+  right: -160px;
+  /* Mostly off-screen */
+  z-index: 1;
+  animation: floatVertical 14s ease-in-out infinite;
+  opacity: 0.5;
+}
+
+.sqBrMedOutline {
+  width: 130px;
+  height: 130px;
+  bottom: 80px;
+  right: -90px;
+  z-index: 1;
+  animation: floatVertical 16s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+.sqRight2 {
+  width: 80px;
+  height: 80px;
+  border: 1px solid var(--accent-orange);
+  background: rgba(251, 176, 110, 0.05);
+  bottom: 40px;
+  right: -40px;
+  opacity: 0.8;
+  position: absolute;
+  border-radius: 8px;
+  z-index: 1;
+  transition: background 0.5s ease;
+}
+
+.techLineH {
+  position: absolute;
+  height: 1px;
+  width: 150px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.5s ease;
+  z-index: 1;
+}
+
+.tl1 {
+  bottom: 100px;
+  right: -80px;
+  width: 30%;
+}
+
+/* Hide decorations on smaller screens to prevent overlap with centered card */
+@media (max-width: 1400px) {
+  .decorationContainer {
+    display: none;
+  }
+}
+
+.contentWrapper {
+  position: relative;
+  z-index: 10;
+}
+
+.versionTag {
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  /* Reverted to 40px */
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  opacity: 0.5;
+  z-index: 10;
+}
+
+/* --- BOTTOM LEFT STATUS (Restored) --- */
+.bottomStatus {
+  position: absolute;
+  bottom: 50px;
+  left: 40px;
+  /* Matches padding-left of .leftPanel (40px) */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  z-index: 10;
+}
+
+.dataGridBox {
+  display: grid;
+  grid-template-columns: repeat(4, 12px);
+  gap: 8px;
+}
+
+.dataPixel {
+  width: 10px;
+  height: 10px;
+  background-color: var(--accent-orange-dim);
+  opacity: 0.6;
+  border-radius: 2px;
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* Stagger animations for a "living" data effect */
+.dataPixel:nth-child(odd) {
+  animation-duration: 4s;
+  animation-delay: 0.5s;
+}
+
+.dataPixel:nth-child(2n) {
+  animation-duration: 2.5s;
+  animation-delay: 1s;
+}
+
+.dataPixel:nth-child(3n) {
+  animation-delay: 0.2s;
+}
+
+.copyright {
+  font-family: "Rajdhani", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: rgba(255, 255, 255, 0.7);
+  /* Increased visibility from 0.3 */
+  text-transform: uppercase;
+}
+
+.brandTitle {
+  font-size: 7rem;
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: 5px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  text-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
+}
+
+.brandSubtitle {
+  font-size: 1.4rem;
+  color: var(--accent-orange);
+  letter-spacing: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 40px;
+}
+
+.clockWrapper {
+  display: inline-block;
+}
+
+.liveClock {
+  background: rgba(15, 52, 166, 0.2);
+  padding: 12px 24px;
+  border-left: 4px solid var(--accent-orange);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  border-radius: 0 8px 8px 0;
+}
+
+.footer {
+  position: absolute;
+  bottom: 40px;
+  left: 40px;
+  z-index: 10;
+}
+
+.dotGrid {
+  display: grid;
+  grid-template-columns: repeat(8, 6px);
+  gap: 4px;
+  margin-bottom: 15px;
+  opacity: 0.3;
+}
+
+.dot {
+  width: 4px;
+  height: 4px;
+  background-color: var(--accent-blue);
+  border-radius: 50%;
+}
+
+.copyright {
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  opacity: 0.5;
+  text-transform: uppercase;
+}
+
+/* --- RIGHT PANEL --- */
+.rightPanel {
+  width: 50%;
+  /* background-color removed to show global animation */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  transition: none;
+  z-index: 1;
+}
+
+/* Removed .rightPanel::before as it's now global .animatedBackground */
+
+
+
+/* Gives that soft vignette like the mock */
+.rightPanel ._vignetteFix {
+  display: none;
+}
+
+/* placeholder if needed */
+.rightPanel>* {
+  position: relative;
+  z-index: 2;
+  /* keep content above bg layers */
+}
+
+/* 
+   THE SLIDING WHITE OVERLAY 
+   - Slides OUT to the right in Dark Mode (translateX 100%)
+   - Slides IN to 0 in Light Mode 
+   - PLACED HERE to override .rightPanel > * position: relative
+*/
+.rightPanelOverlay {
+  position: absolute;
+  inset: 0;
+  background-color: var(--pure-white);
+  z-index: 1;
+  /* Below content (z-2) */
+  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform: translateX(100%);
+  /* Default: Hidden to right (Dark Mode) */
+
+  /* Optional: Add light mode grid to this overlay if desired */
+  /* Re-added and Animated per user request */
+  background-image: repeating-linear-gradient(0deg,
+      rgba(15, 52, 166, 0.08) 0px,
+      rgba(15, 52, 166, 0.08) 1px,
+      transparent 1px,
+      transparent 80px),
+    repeating-linear-gradient(90deg,
+      rgba(15, 52, 166, 0.08) 0px,
+      rgba(15, 52, 166, 0.08) 1px,
+      transparent 1px,
+      transparent 80px);
+
+  /* Animate to match global background (even if alignment isn't perfect, it feels alive) */
+  animation: gridDrift 18s linear infinite;
+}
+
+.lightMode .rightPanelOverlay {
+  transform: translateX(0);
+  /* Visible in Light Mode */
+}
+
+@keyframes gridDrift {
+  0% {
+    background-position: 0px 0px, 0px 0px, 0px 0px, 0px 0px;
+  }
+
+  100% {
+    background-position: 160px 80px, 160px 80px, 80px 40px, 80px 40px;
+  }
+}
+
+@keyframes squaresFloat {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(18px, 12px, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* =========================================================
+   THEME TOGGLE
+   ========================================================= */
+
+.themeToggle {
+  position: absolute;
+  top: 40px;
+  right: 40px;
+  width: 50px;
+  height: 50px;
+  border: 2px solid var(--toggle-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--toggle-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transform: rotate(45deg);
+  transition: all 0.3s ease;
+  z-index: 20;
+}
+
+.themeToggle:hover {
+  box-shadow: 0 0 15px rgba(15, 52, 166, 0.3);
+}
+
+.themeToggle span {
+  transform: rotate(-45deg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* =========================================================
+   CARD
+   ========================================================= */
+
+.loginCard {
+  width: 440px;
+  padding: 50px 40px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  /* Dark Mode: Orange Glow (Intensified) */
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 60px rgba(251, 176, 110, 0.4);
+  position: relative;
+  color: var(--card-text);
+  transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease,
+    transform 0.35s ease, box-shadow 0.35s ease, width 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.lightMode .loginCard {
+  /* Light Mode: Layered Shadow (Dark Drop + Blue Glow) */
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2), 0 5px 15px rgba(0, 0, 0, 0.1), 0 0 50px rgba(15, 52, 166, 0.3);
+  border-color: rgba(0, 0, 0, 0.1);
+  /* Subtle border for definition */
+}
+
+/* ===== Security Setup (Step 3) layout fix ===== */
+
+.securityGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+/* desktop: 2 columns */
+@media (min-width: 980px) {
+  .securityGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+}
+
+.securityBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* button full width at bottom */
+.securityFooter {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+}
+
+/* Make expanded card scroll instead of becoming super tall */
+.expandedMode {
+  width: min(1080px, 94vw);
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  /* padding-right removed to ensure symmetry with base padding (40px) */
+}
+
+/* === Layout Expansion Logic (applied to .loginPage) === */
+.layoutExpanded .leftPanel {
+  width: 35%;
+}
+
+.layoutExpanded .rightPanel {
+  width: 65%;
+}
+
+/* Ensure smooth transition for the layout change */
+.leftPanel,
+.rightPanel {
+  transition: width 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+
+/* slightly tighten header spacing when expanded */
+.expandedMode .cardTitle {
+  margin-bottom: 6px;
+}
+
+.expandedMode .cardSubtitle {
+  margin-bottom: 14px;
+}
+
+/* OPTIONAL: smoother scrollbar for the card */
+.expandedMode::-webkit-scrollbar {
+  width: 10px;
+}
+
+.expandedMode::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+}
+
+.expandedMode::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Corner Accents */
+.cornerTopLeft {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 30px;
+  height: 30px;
+  border-top: 3px solid var(--accent-blue);
+  border-left: 3px solid var(--accent-blue);
+  border-radius: 8px 0 0 0;
+  z-index: 5;
+  transition: border-color 0.3s ease;
+}
+
+.lightMode .cornerTopLeft {
+  border-color: var(--accent-orange);
+}
+
+.cornerBottomRight {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border-bottom: 3px solid var(--accent-blue);
+  border-right: 3px solid var(--accent-blue);
+  border-radius: 0 0 8px 0;
+  z-index: 5;
+  transition: border-color 0.3s ease;
+}
+
+.lightMode .cornerBottomRight {
+  border-color: var(--accent-orange);
+}
+
+/* Card Content */
+.secureHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent-orange);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 25px;
+}
+
+.orangeDot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--accent-orange);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent-orange);
+}
+
+.cardTitle {
+  font-size: 3rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.cardSubtitle {
+  font-size: 0.9rem;
+  color: var(--text-grey);
+  margin-bottom: 40px;
+}
+
+/* If some pages still use cardHeader */
+.cardHeader h2 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+/* =========================================================
+   FORMS
+   ========================================================= */
+
+.inputGroup {
+  margin-bottom: 25px;
+}
+
+.label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  color: var(--text-grey);
+}
+
+.input {
+  width: 100%;
+  padding: 16px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  color: var(--input-text);
+  font-family: "Rajdhani", sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.input::placeholder {
+  color: rgba(136, 136, 136, 0.9);
+}
+
+.lightMode .input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.lightMode .inputWrapper {
+  background-color: rgba(0, 0, 0, 0.25) !important;
+  /* Dark Inset Background */
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  /* Subtle Border */
+  /* Light Mode Input Shadow */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  /* Ensure radius matches input */
+  overflow: hidden;
+  /* Ensure bg doesn't spill */
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  /* Smooth transition */
+}
+
+.lightMode .inputWrapper:hover {
+  border-color: var(--accent-blue);
+  /* Revert to Blue (Dark Mode style) */
+}
+
+/* Force text input to be transparent so wrapper bg shows */
+.lightMode .inputWrapper .input {
+  background-color: transparent !important;
+  border: none !important;
+  /* Wrapper handles border */
+  color: #ffffff;
+  /* White Text */
+}
+
+.lightMode .inputWrapper .input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.lightMode .inputWrapper:focus-within {
+  border-color: #3b82f6;
+  /* Neon Blue Border */
+  box-shadow: 0 0 0 1px #3b82f6, 0 0 12px rgba(59, 130, 246, 0.5);
+  /* Intense Neon Glow */
+}
+
+.input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 4px rgba(15, 52, 166, 0.12);
+}
+
+.passwordWrapper {
+  position: relative;
+}
+
+.eyeIcon {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  color: var(--text-grey);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.forgotPass {
+  display: block;
+  text-align: right;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--accent-orange);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.submitBtn {
+  width: 100%;
+  padding: 16px;
+  background-color: var(--btn-bg);
+  color: var(--btn-text);
+  border: none;
+  border-radius: 8px;
+  font-family: "Rajdhani", sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: 15px;
+  transition: transform 0.2s ease, background-color 0.3s ease, color 0.3s ease,
+    opacity 0.2s ease;
+}
+
+.submitBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background-color: var(--accent-blue);
+  color: white;
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   OTP / ANIMATIONS
+   ========================================================= */
+
+.otpGrid {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.otpBox {
+  width: 45px;
+  height: 50px;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 2px solid var(--input-border);
+  border-radius: 6px;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.otpBox:focus {
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 10px rgba(251, 176, 110, 0.35);
+  transform: translateY(-2px);
+}
+
+.resendWrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  font-size: 0.8rem;
+  color: var(--accent-orange);
+}
+
+.resendBtn {
+  cursor: pointer;
+  opacity: 0.5;
+  pointer-events: none;
+  font-weight: 700;
+  transition: opacity 0.3s;
+}
+
+.active {
+  opacity: 1;
+  pointer-events: auto;
+  text-decoration: underline;
+}
+
+/* Form entrance */
+.formContainer {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.visibleForm {
+  display: block;
+  opacity: 1;
+  transform: translateX(0);
+  animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* =========================================================
+   SELECT (SECURITY QUESTIONS)
+   ========================================================= */
+
+.selectField {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  padding: 15px;
+  color: var(--input-text);
+  font-family: "Rajdhani", sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  outline: none;
+  border-radius: var(--radius-input);
+  transition: all 0.3s ease;
+  appearance: none;
+  cursor: pointer;
+
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23888%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+  background-repeat: no-repeat;
+  background-position: right 15px top 50%;
+  background-size: 12px auto;
+}
+
+.selectField:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(15, 52, 166, 0.2);
+}
+
+.selectField option {
+  background-color: var(--card-bg);
+  color: var(--card-text);
+  padding: 10px;
+}
+
+/* Hard fallback for option rendering */
+.loginContainer:not(.lightMode) .selectField option {
+  background-color: #ffffff;
+  color: #020b26;
+}
+
+.lightMode .selectField option {
+  background-color: #01081f;
+  color: #ffffff;
+}
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 900px) {
+  .loginContainer {
+    flex-direction: column;
+  }
+
+  .leftPanel {
+    height: 40%;
+    width: 100%;
+    padding: 0;
+    align-items: center;
+    text-align: center;
+  }
+
+  .footer {
+    display: none;
+  }
+
+  .brandTitle {
+    font-size: 4rem;
+  }
+
+  .rightPanel {
+    height: 60%;
+    width: 100%;
+  }
+
+  .themeToggle {
+    top: 20px;
+    right: 20px;
+  }
+
+  .loginCard {
+    width: 90%;
+    box-shadow: none;
+  }
+}
+
+/* =========================================================
+   SENTIMENT PAGE
+   ========================================================= */
+
+.sentimentBtn {
+  flex: 1;
+  border-radius: 12px;
+  padding: 14px 10px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--card-text);
+  position: relative;
+}
+
+.sentimentBtn:hover {
+  border-color: var(--accent-orange);
+  background: rgba(251, 176, 110, 0.05);
+  /* Proper hover tint */
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.sentimentBtnSelected {
+  border: 1px solid var(--accent-orange) !important;
+  background: rgba(251, 176, 110, 0.12) !important;
+  box-shadow: 0 0 15px rgba(251, 176, 110, 0.15);
+}
+
+.sentimentBtn div {
+  color: inherit;
+}

@@ -1,0 +1,225 @@
+/* Admin Theme - Crimson Command */
+
+.admin-theme {
+  --accent-admin: #ff0055;
+  --accent-silver: #9ca3af;
+  --accent-glow: #ff0055;
+  
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --tech-mesh-color: rgba(255, 0, 85, 0.08);
+  --shadow-glow: 0 0 25px rgba(255, 0, 85, 0.25);
+  
+  --sq-outline: rgba(255, 0, 85, 0.25);
+  --sq-solid: rgba(255, 0, 85, 0.05);
+  
+  --bg-panel: rgba(255, 255, 255, 0.06);
+  --bg-input: rgba(255, 255, 255, 0.05);
+  --text-main: rgba(255, 255, 255, 0.92);
+  --text-muted: rgba(255, 255, 255, 0.55);
+  --color-go: #46e38a;
+  --color-warn: #f7c948;
+  --color-urgent: #ff6b6b;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --radius-round: 14px;
+}
+
+.admin-theme.light-mode {
+  --accent-admin: #be123c;
+  --accent-silver: #4b5563;
+  
+  --tech-mesh-color: rgba(220, 20, 60, 0.03);
+  --shadow-glow: 0 0 20px rgba(190, 18, 60, 0.2);
+  
+  --sq-outline: rgba(190, 18, 60, 0.1);
+  --sq-solid: rgba(190, 18, 60, 0.05);
+  
+  --bg-panel: rgba(255, 255, 255, 0.85);
+  --bg-input: rgba(0, 0, 0, 0.04);
+  --text-main: rgba(0, 0, 0, 0.86);
+  --text-muted: rgba(0, 0, 0, 0.55);
+}
+
+.admin-accent {
+  color: #ff0055;
+}
+
+.admin-btn {
+  background: #ff0055;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.admin-btn:hover {
+  background: #e60050;
+  transform: translateY(-1px);
+}
+
+.btn-add {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.status-badge-admin {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-badge-admin.active {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--color-go);
+  border: 1px solid var(--color-go);
+}
+
+.status-badge-admin.deactivated {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--color-urgent);
+  border: 1px solid var(--color-urgent);
+}
+
+.action-badge {
+  background: rgba(255, 0, 85, 0.15);
+  color: #ff0055;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  border: 1px solid rgba(255, 0, 85, 0.3);
+}
+
+.config-grid {
+  display: grid;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.input-rounded {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input);
+  color: var(--text-main);
+  font-size: 0.9rem;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input-rounded:focus {
+  border-color: var(--accent-admin);
+  box-shadow: 0 0 0 3px rgba(255, 0, 85, 0.1);
+}
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.settings-row:last-child {
+  border-bottom: none;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  transition: 0.3s;
+  border-radius: 34px;
+  border: 1px solid var(--border-subtle);
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: var(--accent-admin);
+  border-color: var(--accent-admin);
+}
+
+input:checked + .slider:before {
+  transform: translateX(24px);
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.stat-box {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-round);
+  padding: 20px;
+  transition: all 0.3s;
+}
+
+.stat-box:hover {
+  border-color: var(--accent-admin);
+  box-shadow: 0 5px 20px rgba(255, 0, 85, 0.2);
+  transform: translateY(-2px);
+}
+
+.stat-big {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+}
