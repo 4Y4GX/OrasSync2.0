@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "../../login/Login.module.css";
 import AuthShell from "../../components/AuthShell";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, CheckCircle } from "lucide-react";
 import { passwordChecks, removeEmojis, STRONG_PASS_REGEX } from "@/lib/zeroTrustValidation";
 
 function clampPasswordInput(raw: string) {
@@ -15,7 +15,7 @@ export default function ResetPasswordPage() {
   const router = useRouter();
 
   // ✅ start unknown so it won't render the wrong step first
-  const [step, setStep] = useState<1 | 2 | null>(null);
+  const [step, setStep] = useState<1 | 2 | 3 | null>(null);
 
   const [sessionLoading, setSessionLoading] = useState(true);
 
@@ -70,7 +70,20 @@ export default function ResetPasswordPage() {
     };
 
     loadSession();
+    loadSession();
   }, [router]);
+
+  // ✅ Auto-Redirect for Step 3 (Success)
+  useEffect(() => {
+    if (step === 3) {
+      const timer = setTimeout(() => {
+        router.push("/login");
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [step, router]);
+
+  // ✅ Auto-Redirect removed (Step 3 removed)
 
   const checks = useMemo(() => passwordChecks(newPass), [newPass]);
   const passwordsMatch = useMemo(
@@ -106,7 +119,7 @@ export default function ResetPasswordPage() {
   const handleVerifyAnswer = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
+    // setSuccess("");
     setLoading(true);
 
     try {
@@ -137,7 +150,7 @@ export default function ResetPasswordPage() {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
+    // setSuccess("");
 
     setTouchedPw(true);
     setTouchedConfirm(true);
@@ -159,10 +172,11 @@ export default function ResetPasswordPage() {
       });
 
       if (res.ok) {
-        setSuccess("PASSWORD UPDATED");
+        // setSuccess("PASSWORD UPDATED"); // Removed
         setNewPass("");
         setConfirmPass("");
-        setTimeout(() => router.push("/login"), 1200);
+        setStep(3); // Show success screen
+        // setTimeout(() => router.push("/login"), 1200); // Handled by useEffect now
       } else {
         setError("REQUEST FAILED");
       }
@@ -193,7 +207,7 @@ export default function ResetPasswordPage() {
     try {
       const ev = new KeyboardEvent("keydown");
       syncCapsFromNative(ev, which);
-    } catch {}
+    } catch { }
 
     return () => {
       window.removeEventListener("keydown", handler);
@@ -207,13 +221,21 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell
       headerTag="SECURE RESET"
-      title={step === 1 ? "SECURITY CHECK" : "NEW PASSWORD"}
-      subtitle={step === 1 ? "ANSWER THE SECURITY QUESTION." : "SET A NEW PASSWORD."}
+      title={step === 2 ? "NEW PASSWORD" : step === 3 ? "COMPLETE" : "SECURITY CHECK"}
+      subtitle={
+        step === 1
+          ? "ANSWER THE SECURITY QUESTION."
+          : step === 2
+            ? "SET A NEW PASSWORD."
+            : step === 3
+              ? "PASSWORD RESET SUCCESSFUL."
+              : ""
+      }
     >
       {/* ✅ Prevent the 1-second flash by not rendering forms until session is loaded */}
       {sessionLoading || step === null ? (
         <div className={`${styles.formContainer} ${styles.visibleForm}`}>
-          <div style={{ textAlign: "center", opacity: 0.85, fontWeight: 700 }}>
+          <div style={{ textAlign: "center", opacity: 0.85, fontWeight: 700, padding: "40px 0" }}>
             LOADING...
           </div>
         </div>
@@ -226,7 +248,7 @@ export default function ResetPasswordPage() {
             <div className={`${styles.formContainer} ${styles.visibleForm}`}>
               <form onSubmit={handleVerifyAnswer}>
                 <div className={styles.inputGroup}>
-                  <label style={{ color: "var(--accent-orange)" }}>
+                  <label className={styles.label} style={{ color: "var(--accent-orange)" }}>
                     {(question ? String(question) : "SECURITY CHECK").toUpperCase()}
                   </label>
 
@@ -405,7 +427,32 @@ export default function ResetPasswordPage() {
               </form>
             </div>
           )}
+
+
         </>
+      )}
+
+      {step === 3 && (
+        <div className={`${styles.formContainer} ${styles.visibleForm}`}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              padding: "20px 0",
+            }}
+          >
+            <CheckCircle size={64} color="var(--accent-orange)" style={{ marginBottom: 20 }} />
+            <div style={{ fontSize: "1.2rem", fontWeight: 700, marginBottom: 10 }}>
+              PASSWORD RESET COMPLETE
+            </div>
+            <div style={{ fontSize: "0.9rem", color: "var(--text-grey)" }}>
+              REDIRECTING TO LOGIN...
+            </div>
+          </div>
+        </div>
       )}
     </AuthShell>
   );

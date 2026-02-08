@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import '../../styles/dashboard.css';
 import '../../styles/supervisor.css';
+import SupervisorScheduleManagement from '@/app/components/SupervisorScheduleManagement';
+import TeamStatusMonitor from '@/app/components/TeamStatusMonitor';
 
 export default function SupervisorDashboard() {
   const [activeSection, setActiveSection] = useState('team');
@@ -88,70 +90,7 @@ export default function SupervisorDashboard() {
           {/* Team Overview */}
           {activeSection === 'team' && (
             <div className="section-view active fade-in">
-              <div className="hud-row">
-                <div className="hud-card">
-                  <div className="hud-label">Team Members</div>
-                  <div className="hud-val supervisor-accent">12</div>
-                  <div className="hud-bg-icon">👥</div>
-                </div>
-                <div className="hud-card">
-                  <div className="hud-label">Currently Working</div>
-                  <div className="hud-val" style={{ color: 'var(--color-go)' }}>9</div>
-                  <div className="hud-bg-icon">✓</div>
-                </div>
-                <div className="hud-card">
-                  <div className="hud-label">Pending Reviews</div>
-                  <div className="hud-val" style={{ color: 'var(--color-warn)' }}>8</div>
-                  <div className="hud-bg-icon">⏳</div>
-                </div>
-              </div>
-
-              <div className="glass-card">
-                <div className="section-title">
-                  <span>Team Status</span>
-                </div>
-                <div className="table-container" style={{ maxHeight: '500px' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Employee</th>
-                        <th>Department</th>
-                        <th>Status</th>
-                        <th>Hours Today</th>
-                        <th>Current Activity</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { name: 'John Doe', dept: 'Development', status: 'Working', hours: '7.5', activity: 'Coding' },
-                        { name: 'Jane Smith', dept: 'Development', status: 'Break', hours: '6.0', activity: 'On Break' },
-                        { name: 'Mike Johnson', dept: 'Development', status: 'Working', hours: '8.0', activity: 'Review' },
-                        { name: 'Emily Davis', dept: 'QA', status: 'Working', hours: '7.0', activity: 'Testing' },
-                        { name: 'Chris Wilson', dept: 'QA', status: 'Offline', hours: '0.0', activity: 'Not Clocked In' }
-                      ].map((member, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600 }}>{member.name}</td>
-                          <td>{member.dept}</td>
-                          <td>
-                            <span className={`status-${member.status.toLowerCase()}`}>
-                              {member.status === 'Working' && '● '}
-                              {member.status === 'Break' && '⏸ '}
-                              {member.status === 'Offline' && '○ '}
-                              {member.status}
-                            </span>
-                          </td>
-                          <td style={{ fontFamily: 'var(--font-mono)' }}>{member.hours} hrs</td>
-                          <td>{member.activity}</td>
-                          <td>
-                            <button className="btn-mini supervisor-btn">View Details</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <TeamStatusMonitor />
             </div>
           )}
 
@@ -202,37 +141,7 @@ export default function SupervisorDashboard() {
           {/* Team Schedule */}
           {activeSection === 'schedule' && (
             <div className="section-view active fade-in">
-              <div className="glass-card">
-                <div className="section-title">
-                  <span>Team Schedule - This Week</span>
-                </div>
-                <div className="schedule-matrix">
-                  <table className="schedule-table">
-                    <thead>
-                      <tr>
-                        <th>Employee</th>
-                        <th>Monday</th>
-                        <th>Tuesday</th>
-                        <th>Wednesday</th>
-                        <th>Thursday</th>
-                        <th>Friday</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {['John Doe', 'Jane Smith', 'Mike Johnson', 'Emily Davis'].map((name, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600 }}>{name}</td>
-                          <td><span className="shift-chip">9:00 - 17:00</span></td>
-                          <td><span className="shift-chip">9:00 - 17:00</span></td>
-                          <td><span className="shift-chip">9:00 - 17:00</span></td>
-                          <td><span className="shift-chip">9:00 - 17:00</span></td>
-                          <td><span className="shift-chip off">Day Off</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <SupervisorScheduleManagement />
             </div>
           )}
 

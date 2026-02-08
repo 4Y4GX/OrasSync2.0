@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import ActivityTracker from "@/app/components/ActivityTracker";
+import AnalyticsDashboard from "@/app/components/AnalyticsDashboard";
 
 type ScheduleToday = {
   hasSchedule: boolean;
@@ -162,6 +164,9 @@ export default function DashboardPage() {
   // ✅ Profile dropdown menu
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuWrapRef = useRef<HTMLDivElement | null>(null);
+
+  // Active section for navigation
+  const [activeSection, setActiveSection] = useState<"dashboard" | "analytics">("dashboard");
 
   // tick clock (UI)
   useEffect(() => {
@@ -605,7 +610,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="content-area">
-          {!isClockedIn && (
+          {activeSection === "dashboard" && (
+            <>
+              {!isClockedIn && (
             <div className="clock-container" id="layout-initial">
               <div className="clock-panel" role="region" aria-label="Clock In panel">
                 <div className="clock-label">CURRENT TIME</div>
@@ -712,29 +719,15 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="action-panel">
+                  <ActivityTracker isClockedIn={isClockedIn} />
+
+                  <div className="spacer" style={{ margin: '1.5rem 0' }} />
+
                   <div className="panel-header">
-                    <div className="panel-title">ACTION PANEL</div>
+                    <div className="panel-title">SESSION CONTROL</div>
                   </div>
 
                   <div className="panel-body">
-                    <div className="label-sm">Switch tasks below. Time is logged automatically.</div>
-
-                    <select className="select" id="task-select" defaultValue="work">
-                      <option value="work">Work/email (B)</option>
-                      <option value="meeting">Meeting (M)</option>
-                      <option value="break">Break (BR)</option>
-                    </select>
-
-                    <button
-                      className="primary-btn"
-                      id="btn-log"
-                      onClick={() => setServerMsg("Activity logging not wired yet (UI only).")}
-                    >
-                      LOG CHANGE &amp; UPDATE TIMER
-                    </button>
-
-                    <div className="spacer" />
-
                     <div className="session-box">
                       <div className="label-sm">SESSION STATUS</div>
                       <div className="session-state" id="session-state">
@@ -749,6 +742,12 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+          )}
+          </>
+          )}
+
+          {activeSection === "analytics" && (
+            <AnalyticsDashboard />
           )}
         </div>
       </main>

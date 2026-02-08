@@ -4,6 +4,17 @@
 
 OraSync is a comprehensive web-based timekeeping application designed to replace manual, paper-based time tracking with digital time tracking and reviewing for better efficiency. The application tracks employee work hours, task categorization, and sentiment tracking to provide management with actionable insights into productivity.
 
+## 🚀 Quick Start - Test Credentials
+
+| Role | Email | Password | Dashboard Access |
+|------|-------|----------|------------------|
+| **Admin** | admin@orasync.com | Admin123!@# | User Management, Excel Import/Export, System Config |
+| **Manager** | manager@orasync.com | Manager123!@# | Final Approval, Cross-Dept Analytics, Team Oversight |
+| **Supervisor** | supervisor@orasync.com | Supervisor123!@# | Team Approval, Scheduling, Real-time Status |
+| **Employee** | employee@orasync.com | Employee123!@# | Clock In/Out, Activity Tracking, Personal Analytics |
+
+> ⚠️ **Important**: Change these default passwords in production! These are for testing/demo purposes only.
+
 ## Technology Stack
 
 - **Frontend**: Next.js 16 with React 19
@@ -167,11 +178,28 @@ npx prisma db seed
 ```
 
 ### 4. Run Development Server
-```bash
-npm run dev
-```
 
-Visit `http://localhost:3000` to access the application.
+**IMPORTANT: Use PM2 for running the development server**
+
+```bash
+# Build the application first
+npm run build
+
+# Start with PM2 (recommended for development in sandbox)
+npm run build && pm2 start ecosystem.config.cjs
+
+# Check service status
+pm2 list
+
+# View logs (non-blocking)
+pm2 logs webapp --nostream
+
+# Restart if needed
+fuser -k 3000/tcp && pm2 restart webapp
+
+# Test the service
+curl http://localhost:3000
+```
 
 ### 5. Build for Production
 ```bash
@@ -186,33 +214,218 @@ The application is configured to use Railway MySQL database:
 - **Database**: railway
 - **Provider**: MySQL with Prisma ORM
 
+## 🔑 Test Accounts / Login Credentials
+
+For testing and demonstration purposes, use these accounts to login with different roles:
+
+### Admin Account (role_id: 4)
+```
+Email:    admin@orasync.com
+Password: Admin123!@#
+```
+**Access Level:** Full system access
+- User management (create, update, deactivate)
+- Excel import/export
+- System configuration
+- Audit logs
+- All analytics and reports
+
+### Manager Account (role_id: 3)
+```
+Email:    manager@orasync.com
+Password: Manager123!@#
+```
+**Access Level:** Management oversight
+- Final timesheet approval
+- Cross-department analytics
+- Supervisor assignment
+- Schedule management (when supervisor absent)
+- Team performance metrics
+
+### Supervisor Account (role_id: 2)
+```
+Email:    supervisor@orasync.com
+Password: Supervisor123!@#
+```
+**Access Level:** Team management
+- Team timesheet review and approval
+- Schedule management for team
+- Real-time team status monitoring
+- Team analytics
+- Activity oversight
+
+### Employee Account (role_id: 1)
+```
+Email:    employee@orasync.com
+Password: Employee123!@#
+```
+**Access Level:** Basic user
+- Clock in/out
+- Activity tracking (start/switch/end tasks)
+- Daily sentiment check-in
+- Personal timesheet view
+- Personal analytics dashboard
+
+### 🔐 Password Requirements
+- **Length**: 15-20 characters minimum
+- **Complexity**: Must include uppercase, lowercase, numbers, and special characters
+- **First Login**: System forces password change on first login
+- **Email Domain**: Must use @gmail.com or @orasync.com domains
+- **Security**: SHA256 hashing with salt
+
+### 🚨 Important Notes
+1. **Change Default Passwords**: These are test credentials. In production, change all default passwords immediately.
+2. **First Login Flow**: On first login, users will be prompted to:
+   - Change their password
+   - Set up security questions
+   - Complete profile information
+3. **Account Lockout**: 3 failed login attempts will lock the account
+4. **Session Management**: JWT tokens expire after configured duration (default: 8 hours)
+
+### 📝 Creating Additional Test Users
+To create more test users, use the Admin dashboard:
+1. Login as Admin
+2. Navigate to "Users" section
+3. Click "Create New User"
+4. Fill in required fields:
+   - Email (must be @gmail.com)
+   - First Name, Last Name
+   - Role, Department, Position, Team
+   - Initial temporary password
+5. User will be forced to change password on first login
+
 ## Current Implementation Status
 
-### ✅ Completed Features
-- [x] Role-based dashboard pages (Admin, Manager, Supervisor)
+### ✅ Completed Features (Sprint 1-3)
+
+#### Authentication & Security (Sprint 1)
+- [x] Role-based dashboard pages (Admin, Manager, Supervisor, Employee)
 - [x] Role-specific CSS themes with unique color schemes
-- [x] Base dashboard components and layouts
-- [x] Employee dashboard with clock in/out functionality
-- [x] Authentication system with JWT
-- [x] Sentiment tracking interface
-- [x] Database schema with 39 tables
-- [x] Prisma ORM integration
+- [x] Authentication system with JWT and SHA256 password hashing
+- [x] Account lockout and recovery system
+- [x] Security questions and OTP verification
+- [x] Database schema with 39 tables and Prisma ORM
 
-### 🚧 In Progress
-- [ ] Real-time data integration with database
-- [ ] API endpoints for dashboard data
-- [ ] Timesheet approval workflow implementation
+#### Core Workflow (Sprint 2)
+- [x] Employee clock in/out with schedule validation
+- [x] Sentiment tracking interface (mandatory daily check-in)
+- [x] Early clock-out justification system
+- [x] Personal timesheet view
 
-### 📋 Planned Features (Sprint 2-4)
-- [ ] Activity tracking and task switching
-- [ ] Admin user management CRUD operations
-- [ ] Supervisor team schedule management
-- [ ] Manager final approval workflow
-- [ ] Analytics and reporting features
-- [ ] Excel import/export functionality
-- [ ] Real-time team status monitoring
-- [ ] Email notifications
-- [ ] Mobile responsive design
+#### Activity Tracking (Sprint 3 Week 1) ✅ NEW
+- [x] Real-time activity start/switch/end functionality
+- [x] Duration tracking with live timers
+- [x] Activity list with billable/non-billable indicators
+- [x] Activity history and logging
+- [x] Integration with employee dashboard
+
+#### Admin User Management (Sprint 3 Week 1) ✅ NEW
+- [x] Complete CRUD operations for user management
+- [x] Create users with profile details and initial password
+- [x] Edit user information (role, department, position, team)
+- [x] Deactivate users (soft delete with audit trail)
+- [x] Advanced search and filtering (by role, status, keyword)
+- [x] Pagination for large datasets
+- [x] Metadata management for dropdowns
+
+#### Supervisor Schedule Management (Sprint 3 Week 1) ✅ NEW
+- [x] Weekly schedule management for team members
+- [x] Create/edit/delete schedules per employee
+- [x] Day-by-day shift assignment (Monday-Sunday)
+- [x] Shift template integration
+- [x] Visual schedule matrix display
+- [x] Team member access control
+
+#### Manager Approval Workflow (Sprint 3 Week 2) ✅ NEW
+- [x] Two-level timesheet approval (Supervisor → Manager)
+- [x] View pending timesheets by role and status
+- [x] Approve individual or bulk timesheets
+- [x] Reject timesheets with mandatory reason
+- [x] Approval status tracking and filtering
+- [x] Complete audit trail for all actions
+
+#### Real-time Team Monitoring (Sprint 3 Week 2) ✅ NEW
+- [x] Live team member status display
+- [x] Current activity per team member
+- [x] Hours worked today calculation
+- [x] Clock in/out time tracking
+- [x] Billable vs non-billable activity indicators
+- [x] Department and team organization
+
+#### Analytics & Reporting (Sprint 3 Week 3) ✅ NEW
+- [x] Analytics dashboard with charts and metrics
+- [x] Team performance analytics
+- [x] Individual productivity tracking
+- [x] Billable vs non-billable hours breakdown
+- [x] Weekly/monthly trends visualization
+- [x] Multi-role analytics (Admin, Supervisor, Employee)
+
+#### Excel Import/Export (Sprint 3 Week 3) ✅ NEW
+- [x] User data export to Excel (CSV)
+- [x] Timesheet export with filters
+- [x] Bulk user import from Excel/CSV
+- [x] Data validation and error reporting
+- [x] Template download functionality
+- [x] Admin and Supervisor access
+
+#### Real-time Team Status UI (Sprint 3 Week 3) ✅ NEW
+- [x] Live team status dashboard component
+- [x] Current activity visualization
+- [x] Clock status indicators
+- [x] Hours worked display
+- [x] Team member filtering
+- [x] Auto-refresh capabilities
+
+### 🚧 API Endpoints Implemented
+
+#### Employee APIs
+- `POST /api/employee/clock/in` - Clock in with schedule validation
+- `POST /api/employee/clock/out` - Clock out with early leave detection
+- `GET /api/employee/clock/status` - Current clock and schedule status
+- `POST /api/employee/sentiment` - Daily sentiment submission
+- `GET /api/employee/sentiment/status` - Sentiment completion check
+- `GET /api/employee/timesheet` - Personal timesheet view
+- `POST /api/employee/activity/start` - Start new activity
+- `POST /api/employee/activity/switch` - Switch activities
+- `POST /api/employee/activity/end` - End current activity
+- `GET /api/employee/activity/current` - Current activity status
+- `GET /api/employee/activity/list` - Available activities
+
+#### Admin APIs
+- `GET /api/admin/users/list` - List users (paginated, filtered)
+- `POST /api/admin/users/create` - Create new user
+- `PUT /api/admin/users/update` - Update user details
+- `DELETE /api/admin/users/delete` - Deactivate user
+- `GET /api/admin/users/[user_id]` - Single user details
+- `GET /api/admin/metadata` - Dropdowns metadata
+
+#### Supervisor APIs
+- `GET /api/supervisor/schedules/list` - Team schedules
+- `POST /api/supervisor/schedules/create` - Create schedule
+- `PUT /api/supervisor/schedules/update` - Update schedule
+- `DELETE /api/supervisor/schedules/delete` - Delete schedule
+- `GET /api/supervisor/shifts/list` - Shift templates
+- `GET /api/supervisor/team/members` - Team members
+- `GET /api/supervisor/team/status` - Real-time team status
+
+#### Manager APIs
+- `GET /api/manager/timesheets/pending` - Pending timesheets
+- `POST /api/manager/timesheets/approve` - Approve (bulk)
+- `POST /api/manager/timesheets/reject` - Reject with reason
+
+#### Analytics APIs
+- `GET /api/analytics/dashboard` - Personal analytics dashboard
+- `GET /api/analytics/team` - Team analytics (Supervisor/Manager)
+
+#### Import/Export APIs
+- `GET /api/export/users` - Export users to CSV
+- `GET /api/export/timesheets` - Export timesheets to CSV
+- `POST /api/import/users` - Bulk import users from CSV
+
+### 📋 Remaining Features (Sprint 4)
+- [ ] Email notifications system
+- [ ] Mobile responsive design enhancements
+- [ ] Advanced reporting filters and customization
 
 ## Development Workflow
 
@@ -220,9 +433,10 @@ The application is configured to use Railway MySQL database:
 - **Sprint 0** (Dec 18 – Jan 7): Design & Architecture ✅
 - **Sprint 1** (Jan 8 – Jan 21): Security & Identity ✅
 - **Sprint 2** (Jan 22 – Feb 4): Core Workflow ✅
-- **Sprint 3 Week 1** (Feb 5 – Feb 11): Activities & Scheduling 🚧
-- **Sprint 3 Week 2** (Feb 12 – Feb 18): Approvals & Reporting 📋
-- **Sprint 4** (Feb 19 – Mar 4): QA, Integration & Bug Fixing 📋
+- **Sprint 3 Week 1** (Feb 5 – Feb 11): Activities & Scheduling ✅
+- **Sprint 3 Week 2** (Feb 12 – Feb 18): Approvals & Monitoring ✅
+- **Sprint 3 Week 3** (Feb 19 – Feb 25): Analytics & Reporting ✅
+- **Sprint 4** (Feb 26 – Mar 4): QA, Integration & Bug Fixing 📋
 - **Final Presentation**: March 5
 
 ## Role-Based Access Control
@@ -323,6 +537,7 @@ This project is developed as part of an academic curriculum. All rights reserved
 
 ---
 
-**Last Updated**: February 7, 2026
-**Version**: MVP 1.0.0
-**Status**: Active Development
+**Last Updated**: February 8, 2026  
+**Version**: MVP 2.0.1  
+**Status**: Sprint 3 Completed - All Major Features Implemented ✅  
+**Test Credentials**: Available for all roles (see Quick Start section)

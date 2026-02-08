@@ -214,6 +214,6 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
-    </AuthShell>
+    </AuthShell >
   );
 }

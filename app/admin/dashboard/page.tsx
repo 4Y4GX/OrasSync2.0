@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import '../../styles/dashboard.css';
 import '../../styles/admin.css';
+import AdminUserManagement from '@/app/components/AdminUserManagement';
+import ExcelImportExport from '@/app/components/ExcelImportExport';
 
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('users');
@@ -17,13 +19,13 @@ export default function AdminDashboard() {
         <div className="brand-logo">ORASync</div>
 
         <ul className="nav-links">
-          {['users', 'departments', 'audit', 'system', 'settings'].map(section => (
+          {['users', 'import-export', 'departments', 'audit', 'system', 'settings'].map(section => (
             <li 
               key={section}
               className={`nav-item ${activeSection === section ? 'active' : ''}`}
               onClick={() => setActiveSection(section)}
             >
-              {section.charAt(0).toUpperCase() + section.slice(1)}
+              {section === 'import-export' ? 'Import/Export' : section.charAt(0).toUpperCase() + section.slice(1)}
             </li>
           ))}
         </ul>
@@ -61,63 +63,23 @@ export default function AdminDashboard() {
         <div className="content-area">
           {activeSection === 'users' && (
             <div className="section-view active fade-in">
-              <div className="hud-row">
-                <div className="hud-card">
-                  <div className="hud-label">Total Users</div>
-                  <div className="hud-val admin-accent">156</div>
-                  <div className="hud-bg-icon">👤</div>
-                </div>
-                <div className="hud-card">
-                  <div className="hud-label">Active Users</div>
-                  <div className="hud-val" style={{ color: 'var(--color-go)' }}>142</div>
-                  <div className="hud-bg-icon">✓</div>
-                </div>
-                <div className="hud-card">
-                  <div className="hud-label">Deactivated</div>
-                  <div className="hud-val" style={{ color: 'var(--color-urgent)' }}>14</div>
-                  <div className="hud-bg-icon">✗</div>
-                </div>
-              </div>
+              <AdminUserManagement />
+            </div>
+          )}
 
+          {activeSection === 'import-export' && (
+            <div className="section-view active fade-in">
+              <ExcelImportExport />
+            </div>
+          )}
+
+          {activeSection === 'departments' && (
+            <div className="section-view active fade-in">
               <div className="glass-card">
-                <div className="section-title">
-                  <span>User Management</span>
-                  <button className="btn-add admin-btn">+ Add User</button>
-                </div>
-                <div className="table-container" style={{ maxHeight: '500px' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>User ID</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Department</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Array.from({ length: 20 }).map((_, i) => (
-                        <tr key={i}>
-                          <td style={{ fontFamily: 'var(--font-mono)' }}>EMP{String(i + 1).padStart(3, '0')}</td>
-                          <td style={{ fontWeight: 600 }}>User {i + 1}</td>
-                          <td>user{i + 1}@company.com</td>
-                          <td>{i % 3 === 0 ? 'Manager' : i % 2 === 0 ? 'Supervisor' : 'Employee'}</td>
-                          <td>Development</td>
-                          <td>
-                            <span className={`status-badge-admin ${i % 5 === 0 ? 'deactivated' : 'active'}`}>
-                              {i % 5 === 0 ? 'Deactivated' : 'Active'}
-                            </span>
-                          </td>
-                          <td>
-                            <button className="btn-mini admin-btn">Edit</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <div className="section-title">Department Management</div>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
+                  Department management features coming soon. Use User Management to assign users to departments.
+                </p>
               </div>
             </div>
           )}
