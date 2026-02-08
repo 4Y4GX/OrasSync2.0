@@ -18,6 +18,7 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [countdown, setCountdown] = useState(0);
+  const [verified, setVerified] = useState(false);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -114,10 +115,14 @@ export default function ForgotPasswordPage() {
       });
 
       if (res.ok) {
-        // ✅ no need to store reset_user_id anymore
-        setOtp(["", "", "", "", "", ""]);
-        setUsername("");
-        router.push("/auth/reset-password");
+        setVerified(true); // Lock inputs
+        setMessage("VERIFICATION SUCCESSFUL");
+        // setOtp(["", "", "", "", "", ""]); // Keep OTP visible for "success" feel? Or clear? User likely prefers seeing it.
+        // setUsername(""); // Keep username for context if needed, or clear. safely clearing might be better for sec, but user exp wise keeping it is fine.
+
+        setTimeout(() => {
+          router.push("/auth/reset-password");
+        }, 1500);
         return;
       }
 
@@ -265,6 +270,7 @@ export default function ForgotPasswordPage() {
                 onChange={(e) => handleOtpChange(idx, e.target.value)}
                 onKeyDown={(e) => handleOtpKeyDown(idx, e)}
                 onPaste={handleOtpPaste}
+                disabled={verified}
               />
             ))}
           </div>
@@ -279,8 +285,8 @@ export default function ForgotPasswordPage() {
             </span>
           </div>
 
-          <button type="button" className={styles.submitBtn} onClick={handleVerifyOtp} disabled={loading}>
-            {loading ? "VERIFYING..." : "VERIFY CODE"}
+          <button type="button" className={styles.submitBtn} onClick={handleVerifyOtp} disabled={loading || verified}>
+            {verified ? "VERIFIED" : loading ? "VERIFYING..." : "VERIFY CODE"}
           </button>
 
           <div className={styles.forgotPass} style={{ textAlign: "center", marginTop: "15px" }} onClick={() => setStep(1)}>

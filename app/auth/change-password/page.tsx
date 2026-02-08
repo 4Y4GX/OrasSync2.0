@@ -71,6 +71,7 @@ export default function ChangePasswordPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [message, setMessage] = useState("");
 
   const [userId, setUserId] = useState("");
@@ -233,7 +234,9 @@ export default function ChangePasswordPage() {
   const handleSendOtp = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setLoading(true);
+    setLoading(true);
     setError("");
+    setSuccess("");
     setMessage("");
 
     try {
@@ -264,7 +267,9 @@ export default function ChangePasswordPage() {
     if (code.length < 6) return;
 
     setLoading(true);
+    setLoading(true);
     setError("");
+    setSuccess("");
     setMessage("");
 
     try {
@@ -283,8 +288,13 @@ export default function ChangePasswordPage() {
           otpRefs.current[0]?.focus();
           return;
         }
-        setStep(2);
-        setOtp(["", "", "", "", "", ""]);
+
+        setSuccess("VERIFICATION SUCCESSFUL");
+        setTimeout(() => {
+          setStep(2);
+          setOtp(["", "", "", "", "", ""]);
+          setSuccess("");
+        }, 1500);
       } else {
         setError("INVALID CODE");
         setOtp(["", "", "", "", "", ""]);
@@ -470,6 +480,11 @@ export default function ChangePasswordPage() {
             </form>
           ) : (
             <div>
+              {success && (
+                <div className="text-green-500 text-sm font-bold mb-4 text-center uppercase">
+                  {success}
+                </div>
+              )}
               <div className={styles.otpGrid}>
                 {otp.map((digit, idx) => (
                   <input

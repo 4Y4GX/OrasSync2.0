@@ -221,19 +221,21 @@ export default function ResetPasswordPage() {
   return (
     <AuthShell
       headerTag="SECURE RESET"
-      title={step === 1 ? "SECURITY CHECK" : step === 2 ? "NEW PASSWORD" : "COMPLETE"}
+      title={step === 2 ? "NEW PASSWORD" : step === 3 ? "COMPLETE" : "SECURITY CHECK"}
       subtitle={
         step === 1
           ? "ANSWER THE SECURITY QUESTION."
           : step === 2
             ? "SET A NEW PASSWORD."
-            : "PASSWORD RESET SUCCESSFUL."
+            : step === 3
+              ? "PASSWORD RESET SUCCESSFUL."
+              : ""
       }
     >
       {/* ✅ Prevent the 1-second flash by not rendering forms until session is loaded */}
       {sessionLoading || step === null ? (
         <div className={`${styles.formContainer} ${styles.visibleForm}`}>
-          <div style={{ textAlign: "center", opacity: 0.85, fontWeight: 700 }}>
+          <div style={{ textAlign: "center", opacity: 0.85, fontWeight: 700, padding: "40px 0" }}>
             LOADING...
           </div>
         </div>
@@ -246,7 +248,7 @@ export default function ResetPasswordPage() {
             <div className={`${styles.formContainer} ${styles.visibleForm}`}>
               <form onSubmit={handleVerifyAnswer}>
                 <div className={styles.inputGroup}>
-                  <label style={{ color: "var(--accent-orange)" }}>
+                  <label className={styles.label} style={{ color: "var(--accent-orange)" }}>
                     {(question ? String(question) : "SECURITY CHECK").toUpperCase()}
                   </label>
 

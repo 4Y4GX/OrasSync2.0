@@ -397,6 +397,7 @@
 .contentWrapper {
   position: relative;
   z-index: 10;
+  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .versionTag {
@@ -410,6 +411,7 @@
   opacity: 0.3;
   /* Reduced */
   z-index: 10;
+  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 /* --- BOTTOM LEFT STATUS (Restored) --- */
@@ -422,6 +424,7 @@
   flex-direction: column;
   gap: 20px;
   z-index: 10;
+  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .dataGridBox {
@@ -674,9 +677,8 @@
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 16px;
-  /* Dark Mode: Softer Shadow (Professional) */
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-  /* Much softer than previous neon glow */
+  /* Dark Mode: ORANGE Glow (User Request) */
+  box-shadow: 0 0 30px rgba(255, 122, 0, 0.25), 0 0 10px rgba(255, 122, 0, 0.1);
   position: relative;
   color: var(--card-text);
   transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease,
@@ -684,8 +686,8 @@
 }
 
 .lightMode .loginCard {
-  /* Light Mode: Very clean, minimalistic shadow */
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  /* Light Mode: BLUE Glow (User Request) */
+  box-shadow: 0 8px 30px rgba(15, 52, 166, 0.15), 0 4px 10px rgba(15, 52, 166, 0.05);
   /* Clean professional shadow */
   border-color: rgba(0, 0, 0, 0.05);
   /* Barely visible border */
@@ -727,6 +729,14 @@
   /* padding-right removed to ensure symmetry with base padding (40px) */
 }
 
+/* Auto-scale down on smaller vertical screens to prevent cutoff */
+@media (max-height: 900px) {
+  .expandedMode {
+    transform: scale(0.85);
+    transform-origin: center center;
+  }
+}
+
 /* === Layout Expansion Logic (applied to .loginPage) === */
 .layoutExpanded .leftPanel {
   width: 35%;
@@ -736,11 +746,20 @@
   width: 65%;
 }
 
-/* Ensure smooth transition for the layout change */
+/* Shift left panel content to the left when expanded */
+.layoutExpanded .contentWrapper,
+.layoutExpanded .versionTag,
+/* Assuming these should move too */
+.layoutExpanded .bottomStatus {
+  transform: translateX(-40px);
+}
+
+/* ensure smooth transition for the layout change */
 .leftPanel,
 .rightPanel {
   transition: width 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
+
 
 /* RESPONSIVE FIX: Hide left panel on smaller screens & Allow scrolling */
 @media (max-width: 1024px) {
@@ -1210,4 +1229,19 @@
 
 .sentimentBtn div {
   color: inherit;
+}
+
+/* --- SPINNER ANIMATION --- */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
 }
