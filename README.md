@@ -424,8 +424,6 @@ To create more test users, use the Admin dashboard:
 
 ### 📋 Remaining Features (Sprint 4)
 - [ ] Email notifications system
-- [ ] Mobile responsive design enhancements
-- [ ] Advanced reporting filters and customization
 
 ## Development Workflow
 
