@@ -4,7 +4,7 @@
 
 OraSync is a comprehensive web-based timekeeping application designed to replace manual, paper-based time tracking with digital time tracking and reviewing for better efficiency. The application tracks employee work hours, task categorization, and sentiment tracking to provide management with actionable insights into productivity.
 
-## 🚀 Quick Start - Test Credentials
+## Test Credentials
 
 | Role | Email | Password | Dashboard Access |
 |------|-------|----------|------------------|
