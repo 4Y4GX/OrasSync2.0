@@ -602,6 +602,35 @@
   /* Slower */
 }
 
+/* FIXED THE WIDTH ISSUE */
+/* --- FORGOT PASSWORD LINK --- */
+.forgotPass {
+  margin-top: 8px;
+  width: fit-content;
+  margin-left: auto;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--accent-orange);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  position: relative;
+  z-index: 10;
+  transition: opacity 0.2s ease, text-decoration 0.2s ease;
+
+  /* Reset button styles */
+  background: none;
+  border: none;
+  padding: 0;
+  display: block;
+  /* ensure block layout for margin-left: auto */
+}
+
+.forgotPass:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+
 .lightMode .rightPanelOverlay {
   transform: translateX(0);
   /* Visible in Light Mode */
