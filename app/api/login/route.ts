@@ -101,10 +101,21 @@ export async function POST(req: Request) {
       });
     }
 
-    const roleId = Number(userProfile.role_id ?? 0);
+   const roleId = Number(userProfile.role_id ?? 0);
 
-    // default redirect
-    let redirect = roleId === 3 ? "/admin/dashboard" : "/employee/dashboard";
+    // Current problematic line:
+    // let redirect = roleId === 3 ? "/admin/dashboard" : "/employee/dashboard";
+
+    // Fixed logic for Manager (Role 5):
+    let redirect = "/employee/dashboard"; // Default
+
+    if (roleId === 3) {
+    redirect = "/admin/dashboard";
+    } else if (roleId === 5) {
+    redirect = "/manager/dashboard"; // ✅ Redirects Role 5 to Manager dashboard
+    } else if (roleId === 4) {
+    redirect = "/supervisor/dashboard"; // ✅ Redirects Role 4 to Supervisor dashboard
+    }
 
     // ✅ Daily sentiment gate for employees
     if (roleId === 1) {
