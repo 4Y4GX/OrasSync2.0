@@ -5,6 +5,23 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+// TIMEZONE FIX: Helper to normalize date to start of day (00:00:00)
+// This must match the logic used in clock/in/route.ts and activity/start/route.ts
+// to ensure shift_date queries work correctly regardless of user timezone
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+// Helper to format TIME field with seconds
+function formatTimeHHMMSS(timeDate: Date): string {
+  const hh = timeDate.getUTCHours().toString().padStart(2, "0");
+  const mm = timeDate.getUTCMinutes().toString().padStart(2, "0");
+  const ss = timeDate.getUTCSeconds().toString().padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
+
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
@@ -21,7 +38,10 @@ export async function POST(request: Request) {
 
     // Get current date in local timezone
     const now = new Date();
-    const shiftDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // TIMEZONE FIX: Use consistent startOfDay logic as clock-in endpoint
+    // Previous code: new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // Issue: Device timezone caused mismatch when querying d_tblclock_log
+    const shiftDate = startOfDay(now);
 
     // Check if user is clocked in
     const activeShift = await prisma.d_tblclock_log.findFirst({
@@ -58,7 +78,14 @@ export async function POST(request: Request) {
 
     // End current activity
     const currentTime = new Date();
-    const startTime = new Date(`${shiftDate.toISOString().split('T')[0]}T${activeActivity.start_time}`);
+    if (!activeActivity.start_time) {
+      return NextResponse.json(
+        { message: "Active activity has no start time" },
+        { status: 400 }
+      );
+    }
+    const timeStr = formatTimeHHMMSS(activeActivity.start_time);
+    const startTime = new Date(`${shiftDate.toISOString().split('T')[0]}T${timeStr}`);
     const durationMs = currentTime.getTime() - startTime.getTime();
     const totalHours = durationMs / (1000 * 60 * 60);
 
@@ -96,33 +123,28 @@ export async function POST(request: Request) {
       },
     });
 
-    // Get activity details
-    const oldActivity = await prisma.d_tblactivity.findUnique({
-      where: { activity_id: activeActivity.activity_id },
-    });
-
-    const newActivityDetails = await prisma.d_tblactivity.findUnique({
-      where: { activity_id: parseInt(activity_id) },
-    });
+     // Get activity details
+    const activity = activeActivity.activity_id
+      ? await prisma.d_tblactivity.findUnique({
+        where: { activity_id: activeActivity.activity_id },
+      })
+      : null;
 
     return NextResponse.json({
-      message: "Activity switched successfully",
-      old_activity: {
-        activity_name: oldActivity?.activity_name,
+      message: "Activity ended successfully",
+      activity: {
+        tlog_id: activeActivity.tlog_id,
+        activity_name: activity?.activity_name,
+        activity_code: activity?.activity_code,
         total_hours: Math.round(totalHours * 100) / 100,
-      },
-      new_activity: {
-        tlog_id: newActivity.tlog_id,
-        activity_name: newActivityDetails?.activity_name,
-        activity_code: newActivityDetails?.activity_code,
-        is_billable: newActivityDetails?.is_billable,
-        start_time: newActivity.start_time,
+        start_time: activeActivity.start_time,
+        end_time: currentTime.toTimeString().split(' ')[0],
       },
     });
   } catch (error) {
-    console.error("Switch activity error:", error);
+    console.error("End activity error:", error);
     return NextResponse.json(
-      { message: "Failed to switch activity" },
+      { message: "Failed to end activity" },
       { status: 500 }
     );
   }

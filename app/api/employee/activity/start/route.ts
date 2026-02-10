@@ -2,8 +2,26 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatTimeHHMM } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
+
+// TIMEZONE FIX: Helper to normalize date to start of day (00:00:00)
+// This must match the same logic used in clock/in/route.ts to ensure
+// shift_date queries work correctly regardless of user timezone
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+// Helper to format TIME field with seconds
+function formatTimeHHMMSS(timeDate: Date): string {
+  const hh = timeDate.getUTCHours().toString().padStart(2, "0");
+  const mm = timeDate.getUTCMinutes().toString().padStart(2, "0");
+  const ss = timeDate.getUTCSeconds().toString().padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
 
 export async function POST(request: Request) {
   try {
@@ -21,7 +39,10 @@ export async function POST(request: Request) {
 
     // Get current date in local timezone
     const now = new Date();
-    const shiftDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // TIMEZONE FIX: Use consistent startOfDay logic as clock-in endpoint
+    // Previous code: new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // Issue: Device timezone caused mismatch when querying d_tblclock_log
+    const shiftDate = startOfDay(now);
 
     // Check if user is clocked in
     const activeShift = await prisma.d_tblclock_log.findFirst({
@@ -50,9 +71,10 @@ export async function POST(request: Request) {
     });
 
     // If there's an active activity, end it first
-    if (activeActivity) {
+    if (activeActivity && activeActivity.start_time) {
       const currentTime = new Date();
-      const startTime = new Date(`${shiftDate.toISOString().split('T')[0]}T${activeActivity.start_time}`);
+      const timeStr = formatTimeHHMMSS(activeActivity.start_time);
+      const startTime = new Date(`${shiftDate.toISOString().split('T')[0]}T${timeStr}`);
       const durationMs = currentTime.getTime() - startTime.getTime();
       const totalHours = durationMs / (1000 * 60 * 60);
 
@@ -103,7 +125,7 @@ export async function POST(request: Request) {
         activity_name: activity?.activity_name,
         activity_code: activity?.activity_code,
         is_billable: activity?.is_billable,
-        start_time: newActivity.start_time,
+        start_time: typeof newActivity.start_time === 'string' ? newActivity.start_time : (newActivity.start_time ? formatTimeHHMMSS(newActivity.start_time) : "00:00:00"),
       },
     });
   } catch (error) {

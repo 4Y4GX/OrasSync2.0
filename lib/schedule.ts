@@ -2,21 +2,22 @@ import { prisma } from "@/lib/db";
 
 export function formatTimeHHMM(input: string | Date): string {
   const d = typeof input === "string" ? new Date(input) : input;
-  const hh = d.getHours().toString().padStart(2, "0");
-  const mm = d.getMinutes().toString().padStart(2, "0");
+  const hh = d.getUTCHours().toString().padStart(2, "0");
+  const mm = d.getUTCMinutes().toString().padStart(2, "0");
   return `${hh}:${mm}`;
 }
 
 // Convert a Date stored as TIME(0) into "today at that time"
+// Note: Prisma returns TIME fields as UTC dates, so we need to use getUTC* methods
 function timeToToday(timeValue: Date): Date {
   const now = new Date();
   return new Date(
     now.getFullYear(),
     now.getMonth(),
     now.getDate(),
-    timeValue.getHours(),
-    timeValue.getMinutes(),
-    timeValue.getSeconds(),
+    timeValue.getUTCHours(),
+    timeValue.getUTCMinutes(),
+    timeValue.getUTCSeconds(),
     0
   );
 }

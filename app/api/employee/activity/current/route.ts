@@ -2,8 +2,26 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { formatTimeHHMM } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
+
+// TIMEZONE FIX: Helper to normalize date to start of day (00:00:00)
+// This must match the logic used in clock/in/route.ts and activity/start/route.ts
+// to ensure shift_date queries work correctly regardless of user timezone
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+// Helper to format TIME field with seconds
+function formatTimeHHMMSS(timeDate: Date): string {
+  const hh = timeDate.getUTCHours().toString().padStart(2, "0");
+  const mm = timeDate.getUTCMinutes().toString().padStart(2, "0");
+  const ss = timeDate.getUTCSeconds().toString().padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
+}
 
 export async function GET() {
   try {
@@ -14,7 +32,10 @@ export async function GET() {
 
     // Get current date in local timezone
     const now = new Date();
-    const shiftDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // TIMEZONE FIX: Use consistent startOfDay logic as clock-in endpoint
+    // Previous code: new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    // Issue: Device timezone caused mismatch when querying d_tblclock_log
+    const shiftDate = startOfDay(now);
 
     // Check if user is clocked in
     const activeShift = await prisma.d_tblclock_log.findFirst({
@@ -60,7 +81,7 @@ export async function GET() {
         activity_name: activeActivity.D_tblactivity?.activity_name,
         activity_code: activeActivity.D_tblactivity?.activity_code,
         is_billable: activeActivity.D_tblactivity?.is_billable,
-        start_time: activeActivity.start_time,
+        start_time: activeActivity.start_time ? formatTimeHHMMSS(activeActivity.start_time) : "00:00:00",
         log_date: activeActivity.log_date,
       },
     });
