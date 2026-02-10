@@ -6,12 +6,11 @@ import { formatTimeHHMM } from "@/lib/schedule";
 
 export const dynamic = "force-dynamic";
 
-// TIMEZONE FIX: Helper to normalize date to start of day (00:00:00)
-// This must match the same logic used in clock/in/route.ts to ensure
-// shift_date queries work correctly regardless of user timezone
+// TIMEZONE FIX: Helper to normalize date to start of day (00:00:00) in UTC
+// This must match the same logic used in clock/in/route.ts
 function startOfDay(d: Date) {
   const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
+  x.setUTCHours(0, 0, 0, 0); // Use UTC to avoid timezone issues
   return x;
 }
 
@@ -37,12 +36,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Activity ID is required" }, { status: 400 });
     }
 
-    // Get current date in local timezone
     const now = new Date();
-    // TIMEZONE FIX: Use consistent startOfDay logic as clock-in endpoint
-    // Previous code: new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    // Issue: Device timezone caused mismatch when querying d_tblclock_log
     const shiftDate = startOfDay(now);
+
+    console.log("🔍 Activity Start Debug:", {
+      user_id: user.user_id,
+      shiftDate: shiftDate.toISOString(),
+      activity_id,
+    });
 
     // Check if user is clocked in
     const activeShift = await prisma.d_tblclock_log.findFirst({
@@ -53,9 +54,33 @@ export async function POST(request: Request) {
       },
     });
 
+    console.log("🔍 Active Shift Found:", activeShift);
+
     if (!activeShift) {
+      // DEBUGGING: Let's see what shifts exist for this user
+      const allShifts = await prisma.d_tblclock_log.findMany({
+        where: {
+          user_id: user.user_id,
+          clock_out_time: null,
+        },
+        orderBy: { clock_in_time: 'desc' },
+        take: 5,
+      });
+
+      console.log("🔍 All active shifts for user:", allShifts);
+
       return NextResponse.json(
-        { message: "You must be clocked in to start an activity" },
+        { 
+          message: "You must be clocked in to start an activity",
+          debug: {
+            queriedShiftDate: shiftDate.toISOString(),
+            foundShifts: allShifts.map(s => ({
+              clock_id: s.clock_id,
+              shift_date: s.shift_date,
+              clock_in_time: s.clock_in_time,
+            }))
+          }
+        },
         { status: 400 }
       );
     }

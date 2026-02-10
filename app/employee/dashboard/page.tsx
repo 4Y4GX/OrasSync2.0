@@ -441,19 +441,22 @@ export default function DashboardPage() {
   }, [profileMenuOpen]);
 
   const ledgerRows = useMemo(() => {
-    const t = now.toLocaleTimeString([], {
-      hour12: true,
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  if (!isClockedIn || !clockInTimeRef.current) return [];
 
-    if (!isClockedIn) return [];
+  // Use the actual clock-in time from the ref
+  const clockInDate = new Date(clockInTimeRef.current);
+  const t = clockInDate.toLocaleTimeString([], {
+    hour12: true,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
-    return [
-      { code: "B", activity: "Work/Email", start: t, end: "…", endAccent: false },
-      { code: "SYS", activity: "CLOCK IN", start: t, end: t, endAccent: true },
-    ];
-  }, [isClockedIn, now]);
+  return [
+  //  { code: "B", activity: "Work/Email", start: t, end: "…", endAccent: false },
+    { code: "SYS", activity: "CLOCK IN", start: t, end: "…", endAccent: true },
+  ];
+}, [isClockedIn]); // Remove 'now' from dependencies since we don't need it to update
+
 
   const profileNameText = useMemo(() => {
     const n =
