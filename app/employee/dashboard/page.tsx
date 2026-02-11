@@ -168,7 +168,41 @@ export default function DashboardPage() {
   const profileMenuWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Active section for navigation
-  const [activeSection, setActiveSection] = useState<"dashboard" | "analytics">("dashboard");
+  const [activeSection, setActiveSection] = useState<"dashboard" | "calendar" | "timesheet" | "analytics">("dashboard");
+
+  // --- CALENDAR STATE ---
+  const [calView, setCalView] = useState<"week" | "month">("week");
+  const [calDate, setCalDate] = useState(() => new Date());
+
+  const dailyEvents = [
+    { title: 'Shift Start / Email', color: 'var(--accent-cyan)', bg: 'rgba(0, 242, 255, 0.15)' },
+    { title: 'Team Standup', color: 'var(--color-warn)', bg: 'rgba(251, 176, 110, 0.15)' },
+    { title: 'Lunch Break', color: 'var(--text-muted)', bg: 'rgba(139, 155, 180, 0.15)' },
+    { title: 'Deep Work: Project Alpha', color: 'var(--accent-blue)', bg: 'rgba(15, 52, 166, 0.25)' },
+    { title: 'End of Day Report', color: 'var(--accent-cyan)', bg: 'rgba(0, 242, 255, 0.15)' }
+  ];
+
+  const calNavigate = (dir: number) => {
+    const next = new Date(calDate);
+    if (calView === 'week') next.setDate(next.getDate() + (dir * 7));
+    else next.setMonth(next.getMonth() + dir);
+    setCalDate(next);
+  };
+
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  const getCalendarTitle = () => {
+    if (calView === 'week') {
+      const start = new Date(calDate);
+      const day = start.getDay();
+      start.setDate(start.getDate() - day);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      return `${monthNames[start.getMonth()].substring(0, 3)} ${start.getDate()} — ${monthNames[end.getMonth()].substring(0, 3)} ${end.getDate()}, ${end.getFullYear()}`;
+    }
+    return `${monthNames[calDate.getMonth()]} ${calDate.getFullYear()}`;
+  };
+
 
   // tick clock (UI)
   useEffect(() => {
@@ -519,10 +553,10 @@ export default function DashboardPage() {
           <div className="brand-logo">ORASync</div>
 
           <ul className="nav-links">
-            <li className="nav-item active">Dashboard</li>
-            <li className="nav-item">Calendar</li>
-            <li className="nav-item">Timesheet</li>
-            <li className="nav-item">Analytics</li>
+            <li className={`nav-item ${activeSection === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveSection('dashboard')}>Dashboard</li>
+            <li className={`nav-item ${activeSection === 'calendar' ? 'active' : ''}`} onClick={() => setActiveSection('calendar')}>Calendar</li>
+            <li className={`nav-item ${activeSection === 'timesheet' ? 'active' : ''}`} onClick={() => setActiveSection('timesheet')}>Timesheet</li>
+            <li className={`nav-item ${activeSection === 'analytics' ? 'active' : ''}`} onClick={() => setActiveSection('analytics')}>Analytics</li>
           </ul>
 
           <div className="widget-box">
@@ -614,96 +648,189 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="section-view fade-in">
-                <div className="hud-row">
-                  <div className="hud-card">
-                    <div className="hud-bg-icon">⏱</div>
-                    <div className="hud-label">CURRENT TIME</div>
-                    <div className="hud-val accent-cyan">
-                      {now.toLocaleTimeString([], { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                    </div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 5, textTransform: "uppercase", letterSpacing: 2 }}>
-                      {formatDateLine(now)}
-                    </div>
-                  </div>
-                  <div className="hud-card">
-                    <div className="hud-bg-icon">⚡</div>
-                    <div className="hud-label">SESSION DURATION</div>
-                    <div className="hud-val">
-                      {sessionDuration}
-                    </div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 5, fontFamily: "var(--font-mono)" }}>
-                      Target: {targetHours}
-                    </div>
-                  </div>
-                  <div className="hud-card" style={{ borderColor: "var(--accent-blue)" }}>
-                    <div className="hud-bg-icon">🔥</div>
-                    <div className="hud-label">ACTIVITY DURATION</div>
-                    <div className="hud-val warn">
-                      {sessionDuration}
-                    </div>
-                    <div className="status-badge warn" style={{ marginTop: 5, alignSelf: "flex-start", fontSize: "0.7rem" }}>
-                      Active Task
-                    </div>
-                  </div>
-                </div>
-
-                <div className="workspace-grid">
-                  <div className="logs-panel">
-                    <div className="section-title">
-                      <span>Activity Ledger</span>
-                      <span className="live-updates-badge">LIVE UPDATES</span>
-                    </div>
-                    <div className="table-container">
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Code</th>
-                            <th>Activity</th>
-                            <th>Start Time</th>
-                            <th>End Time</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {ledgerRows.map((r, i) => (
-                            <tr key={i}>
-                              <td>{r.code}</td>
-                              <td style={{ fontWeight: 700 }}>{r.activity}</td>
-                              <td>{r.start}</td>
-                              <td className={r.endAccent ? "td-accent" : ""}>{r.end}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="controls-panel">
-                    <div className="glass-card" style={{ flex: 1 }}>
-                      <div className="section-title">Action Panel</div>
-                      <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: "0.9rem" }}>
-                        Switch tasks below. Time is logged automatically.
-                      </p>
-
-                      <ActivityTracker isClockedIn={isClockedIn} />
-
-                      <div className="ap-divider" />
-
-                      <div style={{ marginTop: "auto" }}>
-                        <div className="label-sm">SESSION STATUS</div>
-                        <div className="session-status-box" style={{ marginBottom: 20 }}>
-                          CLOCKED IN
+                {activeSection === 'dashboard' && (
+                  <>
+                    <div className="hud-row">
+                      <div className="hud-card">
+                        <div className="hud-bg-icon">⏱</div>
+                        <div className="hud-label">CURRENT TIME</div>
+                        <div className="hud-val accent-cyan">
+                          {now.toLocaleTimeString([], { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                         </div>
-
-                        <button
-                          className="btn-ap-danger"
-                          onClick={() => setModalConfirm("out")}
-                        >
-                          CLOCK OUT
-                        </button>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 5, textTransform: "uppercase", letterSpacing: 2 }}>
+                          {formatDateLine(now)}
+                        </div>
+                      </div>
+                      <div className="hud-card">
+                        <div className="hud-bg-icon">⚡</div>
+                        <div className="hud-label">SESSION DURATION</div>
+                        <div className="hud-val">
+                          {sessionDuration}
+                        </div>
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 5, fontFamily: "var(--font-mono)" }}>
+                          Target: {targetHours}
+                        </div>
+                      </div>
+                      <div className="hud-card" style={{ borderColor: "var(--accent-blue)" }}>
+                        <div className="hud-bg-icon">🔥</div>
+                        <div className="hud-label">ACTIVITY DURATION</div>
+                        <div className="hud-val warn">
+                          {sessionDuration}
+                        </div>
+                        <div className="status-badge warn" style={{ marginTop: 5, alignSelf: "flex-start", fontSize: "0.7rem" }}>
+                          Active Task
+                        </div>
                       </div>
                     </div>
+
+                    <div className="workspace-grid">
+                      <div className="logs-panel">
+                        <div className="section-title">
+                          <span>Activity Ledger</span>
+                          <span className="live-updates-badge">LIVE UPDATES</span>
+                        </div>
+                        <div className="table-container">
+                          <table className="data-table">
+                            <thead>
+                              <tr>
+                                <th>Code</th>
+                                <th>Activity</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ledgerRows.map((r, i) => (
+                                <tr key={i}>
+                                  <td>{r.code}</td>
+                                  <td style={{ fontWeight: 700 }}>{r.activity}</td>
+                                  <td>{r.start}</td>
+                                  <td className={r.endAccent ? "td-accent" : ""}>{r.end}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      <div className="controls-panel">
+                        <div className="glass-card" style={{ flex: 1 }}>
+                          <div className="section-title">Action Panel</div>
+                          <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: "0.9rem" }}>
+                            Switch tasks below. Time is logged automatically.
+                          </p>
+
+                          <ActivityTracker isClockedIn={isClockedIn} />
+
+                          <div className="ap-divider" />
+
+                          <div style={{ marginTop: "auto" }}>
+                            <div className="label-sm">SESSION STATUS</div>
+                            <div className="session-status-box" style={{ marginBottom: 20 }}>
+                              CLOCKED IN
+                            </div>
+
+                            <button
+                              className="btn-ap-danger"
+                              onClick={() => setModalConfirm("out")}
+                            >
+                              CLOCK OUT
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeSection === 'calendar' && (
+                  <div className="glass-card" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: 25 }}>
+                    {/* Header */}
+                    <div className="calendar-header-bar">
+                      <div className="cal-controls">
+                        <button className="cal-nav-btn" onClick={() => calNavigate(-1)}>❮</button>
+                        <span style={{ minWidth: 180, textAlign: "center", fontFamily: "var(--font-main)", fontWeight: 700, fontSize: "1.1rem", textTransform: "uppercase", letterSpacing: 1 }}>
+                          {getCalendarTitle()}
+                        </span>
+                        <button className="cal-nav-btn" onClick={() => calNavigate(1)}>❯</button>
+                      </div>
+
+                      <div className="cal-toggles">
+                        <button className={`cal-view-btn ${calView === 'week' ? 'active' : ''}`} onClick={() => setCalView('week')}>Week</button>
+                        <button className={`cal-view-btn ${calView === 'month' ? 'active' : ''}`} onClick={() => setCalView('month')}>Month</button>
+                      </div>
+                    </div>
+
+                    {/* Grid */}
+                    <div className={`calendar-grid view-${calView}`}>
+                      {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+                        <div key={d} className="cal-day-header">{d}</div>
+                      ))}
+
+                      {(() => {
+                        const days = [];
+                        const currMonth = calDate.getMonth();
+                        const start = new Date(calDate);
+                        let loopCount = 0;
+
+                        if (calView === 'week') {
+                          const day = start.getDay();
+                          start.setDate(start.getDate() - day);
+                          loopCount = 7;
+                        } else {
+                          start.setDate(1);
+                          start.setDate(start.getDate() - start.getDay());
+                          loopCount = 42;
+                        }
+
+                        const runner = new Date(start);
+
+                        for (let i = 0; i < loopCount; i++) {
+                          const dateNum = runner.getDate();
+                          const isToday = runner.toDateString() === new Date().toDateString();
+                          const isDiffMonth = runner.getMonth() !== currMonth && calView === 'month';
+                          const dayOfWeek = runner.getDay();
+                          const hasShift = (dayOfWeek !== 0 && dayOfWeek !== 6);
+                          const hasMeeting = (dayOfWeek === 2);
+
+                          // Generate Chips
+                          let chips = null;
+                          if (!isDiffMonth) {
+                            if (hasShift) {
+                              if (calView === 'week') {
+                                chips = dailyEvents.map((ev, idx) => (
+                                  <div key={idx} className="cal-chip" style={{ background: ev.bg, color: ev.color }}>{ev.title}</div>
+                                ));
+                              } else {
+                                chips = (
+                                  <>
+                                    <div className="cal-chip chip-shift">09:00 - 06:00</div>
+                                    {hasMeeting && <div className="cal-chip chip-event">Team Sync</div>}
+                                  </>
+                                );
+                              }
+                            } else if (hasMeeting && calView === 'month') {
+                              chips = <div className="cal-chip chip-event">Team Sync</div>;
+                            }
+                          }
+
+                          days.push(
+                            <div
+                              key={i}
+                              className={`cal-day ${isDiffMonth ? 'diff-month' : ''} ${hasShift && !isDiffMonth ? 'is-scheduled' : ''} ${isToday ? 'today' : ''}`}
+                            >
+                              <div className="cal-date-num">{dateNum}</div>
+                              {chips}
+                            </div>
+                          );
+                          runner.setDate(runner.getDate() + 1);
+                        }
+                        return days;
+                      })()}
+                    </div>
                   </div>
-                </div>
+                )}
+
               </div>
             )}
           </div>

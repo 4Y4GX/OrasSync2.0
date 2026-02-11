@@ -1298,6 +1298,17 @@ body.light-mode .btn-ap-primary:disabled {
   border: 1px solid var(--border-subtle);
 }
 
+/* --- GENERIC GLASS CARD --- */
+.glass-card {
+  background: var(--bg-panel);
+  /* High opacity to hide grid */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+}
+
 .cal-view-btn {
   background: transparent;
   border: none;
@@ -1328,6 +1339,11 @@ body.light-mode .btn-ap-primary:disabled {
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--border-subtle) var(--bg-deep);
+  /* Opaque background to hide global tech mesh grid */
+  background: var(--bg-deep);
+  border-radius: 12px;
+  /* Ensure border transition is smooth by having a base transparent border */
+  border: 1px solid transparent;
 }
 
 /* --- HIGHLIGHT TODAY'S DATE (HIGH CONTRAST) --- */
@@ -1466,7 +1482,12 @@ body.light-mode .cal-hover-overlay {
 
 .cal-day.diff-month {
   opacity: 0.3;
+  /* Dimmed but visible */
   pointer-events: none;
+  /* Optional: keep unclickable or remove this if user wants interaction */
+  background: transparent;
+  /* Optional: remove background to distinguish further */
+  border-color: transparent;
 }
 
 .cal-chip {
@@ -1495,4 +1516,34 @@ body.light-mode .cal-hover-overlay {
 .view-month .cal-chip {
   font-size: 0.65rem;
   padding: 1px 4px;
+}
+
+/* --- LIGHT MODE DEPTH ENHANCEMENTS --- */
+body.light-mode .calendar-grid {
+  background: #f8fafc;
+  /* Very light slate background for contrast against card */
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+body.light-mode .cal-day {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  /* Stronger border */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  /* Soft shadow */
+}
+
+body.light-mode .cal-day:hover {
+  background: #ffffff;
+  border-color: var(--accent-blue);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+  /* Deep lift shadow */
+  transform: translateY(-4px) scale(1.02);
+}
+
+body.light-mode .cal-day-header {
+  color: #475569;
+  font-weight: 800;
+  letter-spacing: 1px;
 }
