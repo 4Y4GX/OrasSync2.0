@@ -146,6 +146,7 @@ export default function DashboardPage() {
   const [showEarlyModal, setShowEarlyModal] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonErr, setReasonErr] = useState("");
+  const [reasonShake, setReasonShake] = useState(false);
 
   // ✅ Logout prompt modal after clock-out
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
@@ -170,7 +171,14 @@ export default function DashboardPage() {
   // Active section for navigation
   const [activeSection, setActiveSection] = useState<"dashboard" | "calendar" | "timesheet" | "analytics">("dashboard");
 
-  // --- CALENDAR STATE ---
+  /* --- ANALYTICS STATE --- */
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  /* --- TIMESHEET STATE --- */
+  const [timesheetDays, setTimesheetDays] = useState<any[]>([]);
+
+  /* --- CALENDAR STATE --- */
   const [calView, setCalView] = useState<"week" | "month">("week");
   const [calDate, setCalDate] = useState(() => new Date());
 
@@ -247,6 +255,19 @@ export default function DashboardPage() {
     }
   }, [isClockedIn]);
 
+  // Fetch Logs (Timesheet)
+  const fetchLogs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/employee/timesheet");
+      const data = await res.json();
+      if (res.ok && data.days) {
+        setTimesheetDays(data.days);
+      }
+    } catch (e) {
+      console.error("Failed to fetch timesheet", e);
+    }
+  }, []);
+
   // Load status on mount
   useEffect(() => {
     (async () => {
@@ -272,7 +293,9 @@ export default function DashboardPage() {
         setLoading(false);
       }
     })();
-  }, []);
+    // Fetch logs initially too
+    fetchLogs();
+  }, [fetchLogs]);
 
   // ✅ DAILY SENTIMENT GATE (safety net even if user navigates directly)
   useEffect(() => {
@@ -412,6 +435,8 @@ export default function DashboardPage() {
     const err = validateReasonClient(reason);
     if (err) {
       setReasonErr(err);
+      setReasonShake(true);
+      setTimeout(() => setReasonShake(false), 500);
       return;
     }
     void doClockOut(reason.trim());
@@ -476,20 +501,88 @@ export default function DashboardPage() {
     };
   }, [profileMenuOpen]);
 
+  /* --- ANALYTICS DATA FETCHING --- */
+  useEffect(() => {
+    if (activeSection !== "analytics") return;
+
+    const fetchAnalytics = async () => {
+      setAnalyticsLoading(true);
+      try {
+        const res = await fetch("/api/analytics/dashboard?period=week");
+        if (res.ok) {
+          const data = await res.json();
+          setAnalyticsData(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch analytics", err);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+
+    void fetchAnalytics();
+  }, [activeSection]);
+
+  /* --- REAL LEDGER DATA REPLACES MOCK --- */
   const ledgerRows = useMemo(() => {
-    const t = now.toLocaleTimeString([], {
-      hour12: true,
-      hour: "2-digit",
-      minute: "2-digit",
+    // Flatten all activities from all days or just find today's
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayDay = timesheetDays.find(d => d.date === todayStr);
+
+    if (!todayDay) {
+      // If we are clocked in but api hasn't updated or returns nothing for today logic?
+      // Fallback for immediate feedback if needed, but let's stick to valid data
+      // If clocked in, show at least the CLOCK IN event if not present in API yet?
+      // For now, let's just map the API data.
+      if (isClockedIn) {
+        // Show pending/session logs if API doesn't have them yet? 
+        // Realistically, the API should have them.
+        return [];
+      }
+      return [];
+    }
+
+    // Combine Clocks and Activities for the Ledger
+    const rows: { code: string; activity: string; start: string; end: string; sort: number; endAccent: boolean }[] = [];
+
+    // Clocks
+    todayDay.clocks.forEach((c: any) => {
+      if (c.clock_in_time) {
+        rows.push({
+          code: "SYS",
+          activity: "CLOCK IN",
+          start: new Date(c.clock_in_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }),
+          end: c.clock_out_time ? new Date(c.clock_out_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }) : "...",
+          sort: new Date(c.clock_in_time).getTime(),
+          endAccent: true
+        });
+      }
+      if (c.clock_out_time) {
+        rows.push({
+          code: "SYS",
+          activity: "CLOCK OUT",
+          start: new Date(c.clock_out_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }),
+          end: "", // Event point
+          sort: new Date(c.clock_out_time).getTime(),
+          endAccent: true
+        });
+      }
     });
 
-    if (!isClockedIn) return [];
+    // Activities
+    todayDay.activities.forEach((a: any) => {
+      rows.push({
+        code: "ACT", // we could use billable status B/NB
+        activity: a.activity_name || "Unknown",
+        start: a.start_time ? new Date(a.start_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }) : "",
+        end: a.end_time ? new Date(a.end_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }) : "...",
+        sort: a.start_time ? new Date(a.start_time).getTime() : 0,
+        endAccent: false
+      });
+    });
 
-    return [
-      { code: "B", activity: "Work/Email", start: t, end: "…", endAccent: false },
-      { code: "SYS", activity: "CLOCK IN", start: t, end: t, endAccent: true },
-    ];
-  }, [isClockedIn, now]);
+    return rows.sort((a, b) => b.sort - a.sort); // Descending
+  }, [timesheetDays, isClockedIn]);
 
   const profileNameText = useMemo(() => {
     const n =
@@ -647,250 +740,540 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <div className="section-view fade-in">
-                {activeSection === 'dashboard' && (
-                  <>
-                    <div className="hud-row">
-                      <div className="hud-card">
-                        <div className="hud-bg-icon">⏱</div>
-                        <div className="hud-label">CURRENT TIME</div>
-                        <div className="hud-val accent-cyan">
-                          {now.toLocaleTimeString([], { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              <div className="section-view fade-in" key={activeSection}>
+                <div className="section-animate">
+                  {activeSection === 'dashboard' && (
+                    <>
+                      <div className="hud-row">
+                        <div className="hud-card">
+                          <div className="hud-bg-icon">⏱</div>
+                          <div className="hud-label">CURRENT TIME</div>
+                          <div className="hud-val accent-cyan">
+                            {now.toLocaleTimeString([], { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                          </div>
+                          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 5, textTransform: "uppercase", letterSpacing: 2 }}>
+                            {formatDateLine(now)}
+                          </div>
                         </div>
-                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 5, textTransform: "uppercase", letterSpacing: 2 }}>
-                          {formatDateLine(now)}
+                        <div className="hud-card">
+                          <div className="hud-bg-icon">⚡</div>
+                          <div className="hud-label">SESSION DURATION</div>
+                          <div className="hud-val">
+                            {sessionDuration}
+                          </div>
+                          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 5, fontFamily: "var(--font-mono)" }}>
+                            Target: {targetHours}
+                          </div>
                         </div>
-                      </div>
-                      <div className="hud-card">
-                        <div className="hud-bg-icon">⚡</div>
-                        <div className="hud-label">SESSION DURATION</div>
-                        <div className="hud-val">
-                          {sessionDuration}
-                        </div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: 5, fontFamily: "var(--font-mono)" }}>
-                          Target: {targetHours}
-                        </div>
-                      </div>
-                      <div className="hud-card" style={{ borderColor: "var(--accent-blue)" }}>
-                        <div className="hud-bg-icon">🔥</div>
-                        <div className="hud-label">ACTIVITY DURATION</div>
-                        <div className="hud-val warn">
-                          {sessionDuration}
-                        </div>
-                        <div className="status-badge warn" style={{ marginTop: 5, alignSelf: "flex-start", fontSize: "0.7rem" }}>
-                          Active Task
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="workspace-grid">
-                      <div className="logs-panel">
-                        <div className="section-title">
-                          <span>Activity Ledger</span>
-                          <span className="live-updates-badge">LIVE UPDATES</span>
-                        </div>
-                        <div className="table-container">
-                          <table className="data-table">
-                            <thead>
-                              <tr>
-                                <th>Code</th>
-                                <th>Activity</th>
-                                <th>Start Time</th>
-                                <th>End Time</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {ledgerRows.map((r, i) => (
-                                <tr key={i}>
-                                  <td>{r.code}</td>
-                                  <td style={{ fontWeight: 700 }}>{r.activity}</td>
-                                  <td>{r.start}</td>
-                                  <td className={r.endAccent ? "td-accent" : ""}>{r.end}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      <div className="controls-panel">
-                        <div className="glass-card" style={{ flex: 1 }}>
-                          <div className="section-title">Action Panel</div>
-                          <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: "0.9rem" }}>
-                            Switch tasks below. Time is logged automatically.
-                          </p>
-
-                          <ActivityTracker isClockedIn={isClockedIn} />
-
-                          <div className="ap-divider" />
-
-                          <div style={{ marginTop: "auto" }}>
-                            <div className="label-sm">SESSION STATUS</div>
-                            <div className="session-status-box" style={{ marginBottom: 20 }}>
-                              CLOCKED IN
-                            </div>
-
-                            <button
-                              className="btn-ap-danger"
-                              onClick={() => setModalConfirm("out")}
-                            >
-                              CLOCK OUT
-                            </button>
+                        <div className="hud-card" style={{ borderColor: "var(--accent-blue)" }}>
+                          <div className="hud-bg-icon">🔥</div>
+                          <div className="hud-label">ACTIVITY DURATION</div>
+                          <div className="hud-val warn">
+                            {sessionDuration}
+                          </div>
+                          <div className="status-badge warn" style={{ marginTop: 5, alignSelf: "flex-start", fontSize: "0.7rem" }}>
+                            Active Task
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </>
-                )}
 
-                {activeSection === 'calendar' && (
-                  <div className="glass-card" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: 25 }}>
-                    {/* Header */}
-                    <div className="calendar-header-bar">
-                      <div className="cal-controls">
-                        <button className="cal-nav-btn" onClick={() => calNavigate(-1)}>❮</button>
-                        <span style={{ minWidth: 180, textAlign: "center", fontFamily: "var(--font-main)", fontWeight: 700, fontSize: "1.1rem", textTransform: "uppercase", letterSpacing: 1 }}>
-                          {getCalendarTitle()}
-                        </span>
-                        <button className="cal-nav-btn" onClick={() => calNavigate(1)}>❯</button>
+                      <div className="workspace-grid">
+                        <div className="logs-panel">
+                          <div className="section-title">
+                            <span>Activity Ledger</span>
+                            <span className="live-updates-badge">LIVE UPDATES</span>
+                          </div>
+                          <div className="table-container">
+                            <table className="data-table">
+                              <thead>
+                                <tr>
+                                  <th>Code</th>
+                                  <th>Activity</th>
+                                  <th>Start Time</th>
+                                  <th>End Time</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {ledgerRows.map((r, i) => (
+                                  <tr key={i}>
+                                    <td>{r.code}</td>
+                                    <td style={{ fontWeight: 700 }}>{r.activity}</td>
+                                    <td>{r.start}</td>
+                                    <td className={r.endAccent ? "td-accent" : ""}>{r.end}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <div className="controls-panel">
+                          <div className="glass-card" style={{ flex: 1 }}>
+                            <div className="section-title">Action Panel</div>
+                            <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: "0.9rem" }}>
+                              Switch tasks below. Time is logged automatically.
+                            </p>
+
+                            <ActivityTracker isClockedIn={isClockedIn} onActivityChange={fetchLogs} />
+
+                            <div className="ap-divider" />
+
+                            <div style={{ marginTop: "auto" }}>
+                              <div className="label-sm">SESSION STATUS</div>
+                              <div className="session-status-box" style={{ marginBottom: 20 }}>
+                                CLOCKED IN
+                              </div>
+
+                              <button
+                                className="btn-ap-danger"
+                                onClick={() => setModalConfirm("out")}
+                              >
+                                CLOCK OUT
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    </>
+                  )}
 
-                      <div className="cal-toggles">
-                        <button className={`cal-view-btn ${calView === 'week' ? 'active' : ''}`} onClick={() => setCalView('week')}>Week</button>
-                        <button className={`cal-view-btn ${calView === 'month' ? 'active' : ''}`} onClick={() => setCalView('month')}>Month</button>
-                      </div>
-                    </div>
+                  {activeSection === 'timesheet' && (
+                    <div className="ts-split">
 
-                    {/* Grid */}
-                    <div className={`calendar-grid view-${calView}`}>
-                      {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
-                        <div key={d} className="cal-day-header">{d}</div>
-                      ))}
+                      {/* LEFT PANEL: TIMELINE */}
+                      <div className="ts-left">
+                        <div className="glass-card" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column" }}>
+                          <div className="section-title"
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                            <span>Timeline Visualization</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                              <div style={{ display: "flex", gap: 15, marginRight: 15, borderRight: "1px solid var(--border-subtle)", paddingRight: 15 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <div style={{ width: 10, height: 10, background: "var(--accent-blue)", borderRadius: 2, boxShadow: "0 0 5px var(--accent-blue)" }} />
+                                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: 600 }}>BILLABLE</span>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <div style={{ width: 10, height: 10, background: "var(--color-warn)", borderRadius: 2, boxShadow: "0 0 5px var(--color-warn)" }} />
+                                  <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontWeight: 600 }}>NON-BILLABLE</span>
+                                </div>
+                              </div>
+                              <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>24 HOUR SCALE</span>
+                            </div>
+                          </div>
 
-                      {(() => {
-                        const days = [];
-                        const currMonth = calDate.getMonth();
-                        const start = new Date(calDate);
-                        let loopCount = 0;
-
-                        if (calView === 'week') {
-                          const day = start.getDay();
-                          start.setDate(start.getDate() - day);
-                          loopCount = 7;
-                        } else {
-                          start.setDate(1);
-                          start.setDate(start.getDate() - start.getDay());
-                          loopCount = 42;
-                        }
-
-                        const runner = new Date(start);
-
-                        for (let i = 0; i < loopCount; i++) {
-                          const dateNum = runner.getDate();
-                          const isToday = runner.toDateString() === new Date().toDateString();
-                          const isDiffMonth = runner.getMonth() !== currMonth && calView === 'month';
-                          const dayOfWeek = runner.getDay();
-                          const hasShift = (dayOfWeek !== 0 && dayOfWeek !== 6);
-                          const hasMeeting = (dayOfWeek === 2);
-
-                          // Generate Chips
-                          let chips = null;
-                          if (!isDiffMonth) {
-                            if (hasShift) {
-                              if (calView === 'week') {
-                                chips = dailyEvents.map((ev, idx) => (
-                                  <div key={idx} className="cal-chip" style={{ background: ev.bg, color: ev.color }}>{ev.title}</div>
-                                ));
-                              } else {
-                                chips = (
-                                  <>
-                                    <div className="cal-chip chip-shift">09:00 - 06:00</div>
-                                    {hasMeeting && <div className="cal-chip chip-event">Team Sync</div>}
-                                  </>
+                          <div className="gantt-chart-container">
+                            <div className="grid-lines">
+                              {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24].map(h => (
+                                <div key={h} className="grid-line" style={{ left: `${(h / 24) * 100}%` }} />
+                              ))}
+                            </div>
+                            <div className="timeline-header">
+                              {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24].map(h => {
+                                const lab = h === 0 || h === 24 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+                                return (
+                                  <div key={h} className="time-marker" style={{ left: `${(h / 24) * 100}%`, transform: "translateX(-50%)" }}>{lab}</div>
                                 );
-                              }
-                            } else if (hasMeeting && calView === 'month') {
-                              chips = <div className="cal-chip chip-event">Team Sync</div>;
-                            }
+                              })}
+                            </div>
+
+                            <div id="gantt-body">
+                              {timesheetDays.map((day) => (
+                                day.activities.map((act: any, idx: number) => {
+                                  if (!act.start_time || !act.end_time) return null;
+                                  const s = new Date(act.start_time);
+                                  let e = new Date(act.end_time);
+
+                                  // Parse minutes
+                                  const startMin = s.getHours() * 60 + s.getMinutes();
+                                  let endMin = e.getHours() * 60 + e.getMinutes();
+
+                                  if (endMin < startMin) endMin += 1440; // Overnight
+
+                                  const totalMin = 1440;
+                                  const left = (startMin / totalMin) * 100;
+                                  const width = ((endMin - startMin) / totalMin) * 100;
+
+                                  return (
+                                    <div key={`${day.date}-${idx}`} className="gantt-row">
+                                      <div className="gantt-label" title={act.activity_name}>{act.activity_name}</div>
+                                      <div className="gantt-track">
+                                        <div className="gantt-bar bar-B" style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}>
+                                          <div className="gantt-tooltip">
+                                            <strong>{s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )
+                                })
+                              ))}
+                              {(!timesheetDays.length || !timesheetDays.some(d => d.activities && d.activities.length > 0)) && (
+                                <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)", position: "absolute", top: "50%", left: 0, width: "100%", transform: "translateY(-50%)" }}>
+                                  <div style={{ marginBottom: 10, fontSize: "1.5rem", opacity: 0.5 }}>📊</div>
+                                  No activity data recorded yet.
+                                  {activeSection === 'timesheet' && (
+                                    <div style={{ marginTop: 10, fontSize: "0.8rem" }}>(Clock in to start tracking)</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* RIGHT PANEL: LOGS */}
+                      <div className="ts-right">
+                        <div className="glass-card" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", padding: 0 }}>
+                          <div className="section-title" style={{ padding: 20 }}>Detailed Logs</div>
+                          <div className="table-container" style={{ flex: 1, overflowY: "auto" }}>
+                            <table className="data-table">
+                              <thead>
+                                <tr>
+                                  <th>Date</th>
+                                  <th>Activity Name</th>
+                                  <th>Start</th>
+                                  <th>End</th>
+                                  <th>Duration</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {timesheetDays.map(day => (
+                                  day.activities.map((act: any, idx: number) => (
+                                    <tr key={`${day.date}-${idx}-tr`}>
+                                      <td>{new Date(day.date).toLocaleDateString()}</td>
+                                      <td style={{ fontWeight: 600 }}>{act.activity_name}</td>
+                                      <td>{act.start_time ? new Date(act.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}</td>
+                                      <td>{act.end_time ? new Date(act.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "..."}</td>
+                                      <td>{act.total_hours ? act.total_hours.toFixed(2) + "h" : "-"}</td>
+                                    </tr>
+                                  ))
+                                ))}
+                                {timesheetDays.length === 0 && (
+                                  <tr><td colSpan={5} style={{ textAlign: "center", padding: 20, color: "var(--text-muted)" }}>No logs found.</td></tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <div className="ts-status-bar">
+                          <div className="ts-status-info">
+                            <div className="label-sm" style={{ marginBottom: 4 }}>TIMESHEET STATUS</div>
+                            <div className="status-badge warn"><span className="dot" /> DRAFT</div>
+                          </div>
+                          <button className="ts-submit-btn">
+                            <span style={{ marginRight: 8 }}>📤</span>
+                            Submit for Review
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeSection === 'calendar' && (
+                    <div className="glass-card" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: 25 }}>
+                      {/* Header */}
+                      <div className="calendar-header-bar">
+                        <div className="cal-controls">
+                          <button className="cal-nav-btn" onClick={() => calNavigate(-1)}>❮</button>
+                          <span style={{ minWidth: 180, textAlign: "center", fontFamily: "var(--font-main)", fontWeight: 700, fontSize: "1.1rem", textTransform: "uppercase", letterSpacing: 1 }}>
+                            {getCalendarTitle()}
+                          </span>
+                          <button className="cal-nav-btn" onClick={() => calNavigate(1)}>❯</button>
+                        </div>
+
+                        <div className="cal-toggles">
+                          <button className={`cal-view-btn ${calView === 'week' ? 'active' : ''}`} onClick={() => setCalView('week')}>Week</button>
+                          <button className={`cal-view-btn ${calView === 'month' ? 'active' : ''}`} onClick={() => setCalView('month')}>Month</button>
+                        </div>
+                      </div>
+
+                      {/* Grid */}
+                      <div className={`calendar-grid view-${calView}`}>
+                        {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+                          <div key={d} className="cal-day-header">{d}</div>
+                        ))}
+
+                        {(() => {
+                          const days = [];
+                          const currMonth = calDate.getMonth();
+                          const start = new Date(calDate);
+                          let loopCount = 0;
+
+                          if (calView === 'week') {
+                            const day = start.getDay();
+                            start.setDate(start.getDate() - day);
+                            loopCount = 7;
+                          } else {
+                            start.setDate(1);
+                            start.setDate(start.getDate() - start.getDay());
+                            loopCount = 42;
                           }
 
-                          days.push(
-                            <div
-                              key={i}
-                              className={`cal-day ${isDiffMonth ? 'diff-month' : ''} ${hasShift && !isDiffMonth ? 'is-scheduled' : ''} ${isToday ? 'today' : ''}`}
-                            >
-                              <div className="cal-date-num">{dateNum}</div>
-                              {chips}
-                            </div>
-                          );
-                          runner.setDate(runner.getDate() + 1);
-                        }
-                        return days;
-                      })()}
-                    </div>
-                  </div>
-                )}
+                          const runner = new Date(start);
 
+                          for (let i = 0; i < loopCount; i++) {
+                            const dateNum = runner.getDate();
+                            const isToday = runner.toDateString() === new Date().toDateString();
+                            const isDiffMonth = runner.getMonth() !== currMonth && calView === 'month';
+                            const dayOfWeek = runner.getDay();
+                            const hasShift = (dayOfWeek !== 0 && dayOfWeek !== 6);
+                            const hasMeeting = (dayOfWeek === 2);
+
+                            // Generate Chips
+                            let chips = null;
+                            if (!isDiffMonth) {
+                              if (hasShift) {
+                                if (calView === 'week') {
+                                  chips = dailyEvents.map((ev, idx) => (
+                                    <div key={idx} className="cal-chip" style={{ background: ev.bg, color: ev.color }}>{ev.title}</div>
+                                  ));
+                                } else {
+                                  chips = (
+                                    <>
+                                      <div className="cal-chip chip-shift">09:00 - 06:00</div>
+                                      {hasMeeting && <div className="cal-chip chip-event">Team Sync</div>}
+                                    </>
+                                  );
+                                }
+                              } else if (hasMeeting && calView === 'month') {
+                                chips = <div className="cal-chip chip-event">Team Sync</div>;
+                              }
+                            }
+
+                            days.push(
+                              <div
+                                key={i}
+                                className={`cal-day ${isDiffMonth ? 'diff-month' : ''} ${hasShift && !isDiffMonth ? 'is-scheduled' : ''} ${isToday ? 'today' : ''}`}
+                              >
+                                <div className="cal-date-num">{dateNum}</div>
+                                {chips}
+                              </div>
+                            );
+                            runner.setDate(runner.getDate() + 1);
+                          }
+                          return days;
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {activeSection === 'analytics' && (
+                    <div className="section-view fade-in">
+                      {analyticsLoading ? (
+                        <div className="analytics-loading">
+                          <div className="spinner"></div>
+                          <span style={{ fontSize: "0.9rem", letterSpacing: 1, opacity: 0.7 }}>FETCHING DATA...</span>
+                        </div>
+                      ) : (
+                        <div className="analytics-content-enter" style={{ height: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
+                          <div className="stats-row">
+                            <div className="stat-box">
+                              <div className="label-sm" style={{ marginBottom: 5 }}>
+                                HOURS THIS WEEK
+                              </div>
+                              <div className="stat-big">
+                                {analyticsData?.summary?.totalHours?.toFixed(1) || "0.0"} <span style={{ fontSize: "1rem", color: "var(--text-main)" }}>Hrs</span>
+                              </div>
+                            </div>
+                            <div className="stat-box">
+                              <div className="label-sm" style={{ marginBottom: 5 }}>
+                                BILLABLE HOURS
+                              </div>
+                              <div className="stat-big" style={{ color: "var(--color-go)" }}>
+                                {analyticsData?.summary?.billableHours?.toFixed(1) || "0.0"} <span style={{ fontSize: "1rem", color: "var(--text-main)" }}>Hrs</span>
+                              </div>
+                            </div>
+                            <div className="stat-box" style={{ borderColor: "var(--accent-cyan)" }}>
+                              <div className="label-sm" style={{ marginBottom: 5 }}>
+                                WEEKLY ACTIVITY %
+                              </div>
+                              <div className="stat-big">
+                                {(() => {
+                                  const total = analyticsData?.summary?.totalHours || 0;
+                                  // Assuming 40h work week target for % calculation
+                                  const target = 40;
+                                  const pct = total > 0 ? (total / target) * 100 : 0;
+                                  return pct.toFixed(1);
+                                })()} <span style={{ fontSize: "1rem", color: "var(--text-main)" }}>%</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="glass-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: 25 }}>
+                            <div className="section-title">
+                              Hours Worked vs Target
+                              <button className="btn-generate-report" onClick={() => alert("Report generation feature coming soon!")}>
+                                <span style={{ marginRight: 8 }}>📄</span> Generate Report
+                              </button>
+                            </div>
+
+                            <div className="graph-container">
+                              {(() => {
+                                // Generate chart for current week (Mon-Sun)
+                                const days = [];
+                                const today = new Date();
+                                const TARGET_HOURS = 9;
+                                const MAX_SCALE = 12;
+
+                                // Calculate Monday of current week
+                                const currentDay = today.getDay(); // 0 is Sunday
+                                const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1); // adjust when day is sunday
+                                const monday = new Date(today.setDate(diff));
+
+                                for (let i = 0; i < 7; i++) {
+                                  const d = new Date(monday);
+                                  d.setDate(monday.getDate() + i);
+                                  const dateKey = d.toISOString().split('T')[0];
+                                  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                                  const hours = analyticsData?.dailyHours?.[dateKey] || 0;
+
+                                  // Calculate height
+                                  const actualHeight = Math.min((hours / MAX_SCALE) * 100, 100);
+                                  const targetHeight = (TARGET_HOURS / MAX_SCALE) * 100;
+
+                                  // Determine color
+                                  let barColor = "var(--bg-card)";
+                                  if (hours > 0) {
+                                    if (hours > TARGET_HOURS) barColor = "var(--accent-cyan)";
+                                    else if (hours >= TARGET_HOURS - 0.5) barColor = "var(--color-go)";
+                                    else if (hours > 5) barColor = "var(--color-warn)";
+                                    else barColor = "var(--color-urgent)";
+                                  }
+
+                                  days.push(
+                                    <div key={dateKey} className="bar-group">
+                                      {/* Target Marker moved to background to avoid z-index overlap issues if needed, but keeping absolute as per design */}
+                                      <div className="bar-target" style={{ height: `${targetHeight}%` }} />
+
+                                      <div className="bar" style={{ height: `${actualHeight}%`, background: barColor, zIndex: 2, opacity: 0.9 }} />
+
+                                      <div className="bar-label">{dayName}</div>
+
+                                      {hours > 0 && (
+                                        <div style={{ position: "absolute", bottom: `${actualHeight + 2}%`, color: "var(--text-main)", fontSize: "0.7rem", fontWeight: 700, zIndex: 3 }}>
+                                          {hours.toFixed(1)}h
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return days;
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </div>
+                {/* end section-animate */}
               </div>
             )}
           </div>
-        </main>
-      </div>
+        </main >
+      </div >
 
       {/* MODALS */}
-      {modalConfirm === "out" && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-title">Confirm Clock Out?</div>
-            <p style={{ color: "var(--text-muted)" }}>Are you sure you want to end your shift?</p>
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => setModalConfirm(null)}>Cancel</button>
-              <button className="btn-confirm" onClick={confirmClockOutFlow}>Clock Out</button>
+      {
+        modalConfirm === "out" && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header header-normal">
+                <span style={{ fontSize: "1.5rem" }}>🕒</span>
+                <span className="modal-title">CONFIRM CLOCK OUT</span>
+              </div>
+              <div className="modal-body">
+                <p className="modal-desc">
+                  Are you sure you want to end your shift?
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={() => setModalConfirm(null)}>CANCEL</button>
+                <button className="btn-standard" onClick={confirmClockOutFlow}>CLOCK OUT</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {showEarlyModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-title">Early Clock Out</div>
-            <p style={{ color: "var(--text-muted)", marginBottom: 15 }}>
-              You are clocking out before your schedule ends. Please provide a reason.
-            </p>
-            <input
-              className="input-rounded"
-              placeholder="Reason..."
-              value={reason}
-              onChange={onReasonChange}
-              onPaste={onReasonPaste}
-              onBeforeInput={(e: any) => onReasonBeforeInput(e)}
-            />
-            {reasonErr && <div style={{ color: "var(--color-urgent)", marginTop: 5, fontSize: "0.8rem" }}>{reasonErr}</div>}
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => setShowEarlyModal(false)}>Cancel</button>
-              <button className="btn-confirm" onClick={submitEarlyReason}>Submit</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {
+        showEarlyModal && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header header-urgent">
+                <span style={{ fontSize: "1.5rem" }}>⚠️</span>
+                <span className="modal-title" style={{ color: "var(--color-urgent)" }}>COMPLIANCE ALERT</span>
+              </div>
 
-      {showLogoutPrompt && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-title">Shift Ended</div>
-            <p style={{ marginBottom: 20, color: "var(--text-muted)" }}>Do you want to log out now?</p>
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => setShowLogoutPrompt(false)}>
-                Stay Here
-              </button>
-              <button className="btn-confirm" onClick={() => void doLogout()}>
-                Log Out
-              </button>
+              <div className="modal-body">
+                <p className="modal-desc">
+                  You are attempting to clock out before meeting the daily 9-hour requirement. This action will be logged.
+                </p>
+
+                <div className="modal-stats">
+                  <div className="stat-item">
+                    <span className="stat-label">CURRENT SESSION</span>
+                    <span className="stat-val val-urgent">{sessionDuration}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">TARGET DURATION</span>
+                    <span className="stat-val">09:00:00</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label-sm" style={{ color: "var(--color-urgent)", marginBottom: 8, display: "block" }}>
+                    COMPLIANCE JUSTIFICATION LOG
+                  </label>
+                  <input
+                    className={`input-rounded ${reasonShake ? "shake" : ""}`}
+                    placeholder="Enter reason for early log out..."
+                    value={reason}
+                    onChange={onReasonChange}
+                    onPaste={onReasonPaste}
+                    onBeforeInput={(e: any) => onReasonBeforeInput(e)}
+                    style={{ borderColor: "var(--color-urgent)", background: "rgba(248, 49, 47, 0.05)" }}
+                  />
+                  {reasonErr && <div style={{ color: "var(--color-urgent)", marginTop: 5, fontSize: "0.8rem" }}>{reasonErr}</div>}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={() => setShowEarlyModal(false)}>CANCEL</button>
+                <button className="btn-urgent" onClick={submitEarlyReason}>CONFIRM EARLY EXIT</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
+
+      {
+        showLogoutPrompt && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header header-normal">
+                <span style={{ fontSize: "1.5rem" }}>👋</span>
+                <span className="modal-title">SHIFT ENDED</span>
+              </div>
+              <div className="modal-body">
+                <p className="modal-desc">
+                  Do you want to log out now?
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={() => setShowLogoutPrompt(false)}>
+                  STAY HERE
+                </button>
+                <button className="btn-standard" onClick={() => void doLogout()}>
+                  LOG OUT
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
     </>
   );
 }
