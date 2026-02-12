@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ActivityTracker from "@/app/components/ActivityTracker";
 import AnalyticsDashboard from "@/app/components/AnalyticsDashboard";
-import "./dashboard.css";
+import Calendar from "@/app/components/calendar";
 import "./dashboard.css";
 
 type ScheduleToday = {
@@ -49,6 +49,23 @@ function sanitizeReasonInput(raw: string) {
   return s;
 }
 
+/**
+ * ✅ NEW HELPER: Formats ISO strings to just Time (e.g., "09:00 AM")
+ * preventing the display of "1970-01-01"
+ */
+function formatShiftTime(isoString: string) {
+  if (!isoString) return "";
+  // If it's already a simple time (e.g. "09:00"), return it
+  if (!isoString.includes("T")) return isoString;
+  
+  const date = new Date(isoString);
+  return date.toLocaleTimeString([], { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+}
+
 function formatClockDigits(d: Date) {
   return d
     .toLocaleTimeString([], {
@@ -77,17 +94,8 @@ function formatDateLine(d: Date) {
 
 function formatScheduleRange(startISO?: string, endISO?: string) {
   if (!startISO || !endISO) return "NO SCHEDULE TODAY";
-  const s = new Date(startISO).toLocaleTimeString([], {
-    hour12: true,
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const e = new Date(endISO).toLocaleTimeString([], {
-    hour12: true,
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return `${s} — ${e}`.toUpperCase();
+  // Updated to use the new helper
+  return `${formatShiftTime(startISO)} — ${formatShiftTime(endISO)}`.toUpperCase();
 }
 
 function formatDuration(ms: number) {
@@ -182,13 +190,41 @@ export default function DashboardPage() {
   const [calView, setCalView] = useState<"week" | "month">("week");
   const [calDate, setCalDate] = useState(() => new Date());
 
-  const dailyEvents = [
-    { title: 'Shift Start / Email', color: 'var(--accent-cyan)', bg: 'rgba(0, 242, 255, 0.15)' },
-    { title: 'Team Standup', color: 'var(--color-warn)', bg: 'rgba(251, 176, 110, 0.15)' },
-    { title: 'Lunch Break', color: 'var(--text-muted)', bg: 'rgba(139, 155, 180, 0.15)' },
-    { title: 'Deep Work: Project Alpha', color: 'var(--accent-blue)', bg: 'rgba(15, 52, 166, 0.25)' },
-    { title: 'End of Day Report', color: 'var(--accent-cyan)', bg: 'rgba(0, 242, 255, 0.15)' }
-  ];
+  /* --- CALENDAR STATE & FETCH --- */
+  const [calendar, setCalendar] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    const fetchCalendar = async () => {
+      if (!userProfile?.user_id) return;
+
+      try {
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+
+        // ✅ Corrected URL Path
+        const res = await fetch(`/api/calendar?userId=${userProfile.user_id}&year=${year}&month=${month}`);
+        
+        if (!res.ok) {
+           console.error("Calendar API returned error:", res.status);
+           return;
+        }
+
+        const data = await res.json();
+
+        const map: Record<string, any> = {};
+        if (Array.isArray(data)) {
+          data.forEach((item: any) => {
+            map[item.date] = item;
+          });
+        }
+        setCalendar(map);
+      } catch (err) {
+        console.error("Failed to fetch calendar", err);
+      }
+    };
+
+    fetchCalendar();
+  }, [userProfile?.user_id, calDate]);
 
   const calNavigate = (dir: number) => {
     const next = new Date(calDate);
@@ -210,7 +246,6 @@ export default function DashboardPage() {
     }
     return `${monthNames[calDate.getMonth()]} ${calDate.getFullYear()}`;
   };
-
 
   // tick clock (UI)
   useEffect(() => {
@@ -297,7 +332,7 @@ export default function DashboardPage() {
     fetchLogs();
   }, [fetchLogs]);
 
-  // ✅ DAILY SENTIMENT GATE (safety net even if user navigates directly)
+  // ✅ DAILY SENTIMENT GATE
   useEffect(() => {
     if (loading) return;
 
@@ -525,24 +560,11 @@ export default function DashboardPage() {
 
   /* --- REAL LEDGER DATA REPLACES MOCK --- */
   const ledgerRows = useMemo(() => {
-    // Flatten all activities from all days or just find today's
     const todayStr = new Date().toISOString().split('T')[0];
     const todayDay = timesheetDays.find(d => d.date === todayStr);
 
-    if (!todayDay) {
-      // If we are clocked in but api hasn't updated or returns nothing for today logic?
-      // Fallback for immediate feedback if needed, but let's stick to valid data
-      // If clocked in, show at least the CLOCK IN event if not present in API yet?
-      // For now, let's just map the API data.
-      if (isClockedIn) {
-        // Show pending/session logs if API doesn't have them yet? 
-        // Realistically, the API should have them.
-        return [];
-      }
-      return [];
-    }
+    if (!todayDay) return [];
 
-    // Combine Clocks and Activities for the Ledger
     const rows: { code: string; activity: string; start: string; end: string; sort: number; endAccent: boolean }[] = [];
 
     // Clocks
@@ -551,8 +573,8 @@ export default function DashboardPage() {
         rows.push({
           code: "SYS",
           activity: "CLOCK IN",
-          start: new Date(c.clock_in_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }),
-          end: c.clock_out_time ? new Date(c.clock_out_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }) : "...",
+          start: formatShiftTime(c.clock_in_time),
+          end: c.clock_out_time ? formatShiftTime(c.clock_out_time) : "...",
           sort: new Date(c.clock_in_time).getTime(),
           endAccent: true
         });
@@ -561,8 +583,8 @@ export default function DashboardPage() {
         rows.push({
           code: "SYS",
           activity: "CLOCK OUT",
-          start: new Date(c.clock_out_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }),
-          end: "", // Event point
+          start: formatShiftTime(c.clock_out_time),
+          end: "",
           sort: new Date(c.clock_out_time).getTime(),
           endAccent: true
         });
@@ -572,16 +594,16 @@ export default function DashboardPage() {
     // Activities
     todayDay.activities.forEach((a: any) => {
       rows.push({
-        code: "ACT", // we could use billable status B/NB
+        code: "ACT", 
         activity: a.activity_name || "Unknown",
-        start: a.start_time ? new Date(a.start_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }) : "",
-        end: a.end_time ? new Date(a.end_time).toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }) : "...",
+        start: a.start_time ? formatShiftTime(a.start_time) : "",
+        end: a.end_time ? formatShiftTime(a.end_time) : "...",
         sort: a.start_time ? new Date(a.start_time).getTime() : 0,
         endAccent: false
       });
     });
 
-    return rows.sort((a, b) => b.sort - a.sort); // Descending
+    return rows.sort((a, b) => b.sort - a.sort);
   }, [timesheetDays, isClockedIn]);
 
   const profileNameText = useMemo(() => {
@@ -972,7 +994,6 @@ export default function DashboardPage() {
 
                   {activeSection === 'calendar' && (
                     <div className="glass-card" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", padding: 25 }}>
-                      {/* Header */}
                       <div className="calendar-header-bar">
                         <div className="cal-controls">
                           <button className="cal-nav-btn" onClick={() => calNavigate(-1)}>❮</button>
@@ -988,7 +1009,6 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      {/* Grid */}
                       <div className={`calendar-grid view-${calView}`}>
                         {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
                           <div key={d} className="cal-day-header">{d}</div>
@@ -1016,38 +1036,50 @@ export default function DashboardPage() {
                             const dateNum = runner.getDate();
                             const isToday = runner.toDateString() === new Date().toDateString();
                             const isDiffMonth = runner.getMonth() !== currMonth && calView === 'month';
-                            const dayOfWeek = runner.getDay();
-                            const hasShift = (dayOfWeek !== 0 && dayOfWeek !== 6);
-                            const hasMeeting = (dayOfWeek === 2);
+                            
+                            const year = runner.getFullYear();
+                            const monthStr = String(runner.getMonth() + 1).padStart(2, "0");
+                            const dayStr = String(dateNum).padStart(2, "0");
+                            const dateKey = `${year}-${monthStr}-${dayStr}`;
 
-                            // Generate Chips
-                            let chips = null;
-                            if (!isDiffMonth) {
-                              if (hasShift) {
-                                if (calView === 'week') {
-                                  chips = dailyEvents.map((ev, idx) => (
-                                    <div key={idx} className="cal-chip" style={{ background: ev.bg, color: ev.color }}>{ev.title}</div>
-                                  ));
-                                } else {
-                                  chips = (
-                                    <>
-                                      <div className="cal-chip chip-shift">09:00 - 06:00</div>
-                                      {hasMeeting && <div className="cal-chip chip-event">Team Sync</div>}
-                                    </>
-                                  );
-                                }
-                              } else if (hasMeeting && calView === 'month') {
-                                chips = <div className="cal-chip chip-event">Team Sync</div>;
-                              }
-                            }
+                            const dayData = calendar[dateKey];
 
                             days.push(
                               <div
                                 key={i}
-                                className={`cal-day ${isDiffMonth ? 'diff-month' : ''} ${hasShift && !isDiffMonth ? 'is-scheduled' : ''} ${isToday ? 'today' : ''}`}
+                                className={`cal-day ${isDiffMonth ? 'diff-month' : ''} ${dayData && !dayData.off ? 'is-scheduled' : ''} ${isToday ? 'today' : ''}`}
                               >
                                 <div className="cal-date-num">{dateNum}</div>
-                                {chips}
+                                
+                                {!isDiffMonth && dayData && (
+                                  dayData.off ? (
+                                    <div className="cal-chip" style={{ opacity: 0.5, background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>
+                                      Off
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="cal-chip chip-shift">
+                                        {dayData.shift_name}
+                                      </div>
+                                      {calView === 'week' ? (
+                                        <>
+                                          <div className="cal-chip" style={{ background: 'rgba(0, 242, 255, 0.1)', color: 'var(--accent-cyan)' }}>
+                                            {formatShiftTime(dayData.start_time)} - {formatShiftTime(dayData.end_time)}
+                                          </div>
+                                          {dayData.activity && (
+                                            <div className="cal-chip" style={{ background: 'rgba(15, 52, 166, 0.2)', color: 'var(--accent-blue)' }}>
+                                              {dayData.activity}
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <div className="cal-chip" style={{ fontSize: '0.65rem', opacity: 0.8 }}>
+                                          {formatShiftTime(dayData.start_time)}
+                                        </div>
+                                      )}
+                                    </>
+                                  )
+                                )}
                               </div>
                             );
                             runner.setDate(runner.getDate() + 1);
@@ -1057,7 +1089,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
-
                   {activeSection === 'analytics' && (
                     <div className="section-view fade-in">
                       {analyticsLoading ? (
