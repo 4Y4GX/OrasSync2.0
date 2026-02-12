@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     await prisma.d_tbltime_log.update({
       where: { tlog_id: activeActivity.tlog_id },
       data: {
-        end_time: currentTime.toTimeString().split(' ')[0],
+        end_time: currentTime, // Pass Date object directly for TIME field
         total_hours: Math.round(totalHours * 100) / 100,
       },
     });

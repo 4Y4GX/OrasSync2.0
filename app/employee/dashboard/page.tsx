@@ -25,6 +25,17 @@ type UserProfile = {
   streak_count: number | null;
 };
 
+type LedgerActivity = {
+  tlog_id: number;
+  activity_code: string;
+  activity_name: string;
+  is_billable: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  total_hours: number | null;
+  log_date: string;
+};
+
 /**
  * ✅ Strong emoji blocking:
  * - \p{Extended_Pictographic} catches most emoji pictographs
@@ -88,6 +99,9 @@ function formatScheduleRange(startISO?: string, endISO?: string) {
   return `${s} — ${e}`.toUpperCase();
 }
 
+// Grace period in minutes - allows clock-in up to X minutes before shift starts
+const CLOCK_IN_GRACE_PERIOD_MINUTES = 15;
+
 function formatDuration(ms: number) {
   if (ms < 0) ms = 0;
   const totalSeconds = Math.floor(ms / 1000);
@@ -106,6 +120,32 @@ function validateReasonClient(reason: string) {
   if (r.length > 180) return "Reason too long (max 180 chars)";
   if (!ALLOWED_REASON_CHARS.test(r)) return "Only letters, spaces, . and , are allowed";
   return null;
+}
+
+// Helper to convert UTC time string (HH:MM:SS) to local time display
+function formatUTCTimeToLocal(utcTimeStr: string | null, logDate: string | Date): string {
+  if (!utcTimeStr) return "—";
+  try {
+    const date = new Date(logDate);
+    const [hours, minutes, seconds] = utcTimeStr.split(':').map(Number);
+    
+    const utcDate = new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      hours,
+      minutes,
+      seconds || 0
+    ));
+    
+    return utcDate.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return utcTimeStr;
+  }
 }
 
 function initialsFrom(profile: UserProfile | null) {
@@ -168,6 +208,9 @@ export default function DashboardPage() {
   // Active section for navigation
   const [activeSection, setActiveSection] = useState<"dashboard" | "analytics">("dashboard");
 
+  // Activity ledger state
+  const [ledgerActivities, setLedgerActivities] = useState<LedgerActivity[]>([]);
+
   // tick clock (UI)
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 1000);
@@ -208,6 +251,28 @@ export default function DashboardPage() {
     } finally {
       setActionBusy(false);
       window.location.href = "/login";
+    }
+  }, [isClockedIn]);
+
+  // Fetch activity ledger
+  const fetchActivityLedger = useCallback(async () => {
+    if (!isClockedIn) {
+      setLedgerActivities([]);
+      return;
+    }
+
+    try {
+      // Add timestamp to bust browser cache
+      const res = await fetch(`/api/employee/activity/ledger?t=${Date.now()}`, { 
+        cache: "no-store",
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLedgerActivities(data.activities || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch activity ledger:", error);
     }
   }, [isClockedIn]);
 
@@ -254,6 +319,13 @@ export default function DashboardPage() {
     })();
   }, [loading, router]);
 
+  // Fetch activity ledger when clocked in
+  useEffect(() => {
+    if (!loading) {
+      fetchActivityLedger();
+    }
+  }, [loading, isClockedIn, fetchActivityLedger]);
+
   const scheduleText = useMemo(() => {
     if (!scheduleToday.hasSchedule || !scheduleToday.shift) return "NO SCHEDULE TODAY";
     return formatScheduleRange(scheduleToday.shift.start_time, scheduleToday.shift.end_time);
@@ -264,7 +336,36 @@ export default function DashboardPage() {
     [scheduleToday.hasSchedule]
   );
 
-  const canClockIn = scheduleToday.hasSchedule && !loading && !actionBusy;
+  // Check if current time is within the allowed clock-in window
+  const clockInTimeStatus = useMemo(() => {
+    if (!scheduleToday.hasSchedule || !scheduleToday.shift?.start_time || !scheduleToday.shift?.end_time) {
+      return { canClockIn: false, reason: "No schedule today. Clock in is disabled until a schedule is uploaded." };
+    }
+
+    const shiftStart = new Date(scheduleToday.shift.start_time);
+    const shiftEnd = new Date(scheduleToday.shift.end_time);
+    const earliestClockIn = new Date(shiftStart.getTime() - CLOCK_IN_GRACE_PERIOD_MINUTES * 60 * 1000);
+
+    if (now < earliestClockIn) {
+      const startTimeFormatted = shiftStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      return {
+        canClockIn: false,
+        reason: `Your shift starts at ${startTimeFormatted}. You can clock in starting ${CLOCK_IN_GRACE_PERIOD_MINUTES} minutes before your shift.`
+      };
+    }
+
+    if (now > shiftEnd) {
+      const endTimeFormatted = shiftEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      return {
+        canClockIn: false,
+        reason: `Your shift ended at ${endTimeFormatted}. Clock in is no longer available.`
+      };
+    }
+
+    return { canClockIn: true, reason: null };
+  }, [scheduleToday, now]);
+
+  const canClockIn = clockInTimeStatus.canClockIn && !loading && !actionBusy;
 
   const sessionDuration = useMemo(() => {
     if (!isClockedIn || !clockInTimeRef.current) return "00:00:00";
@@ -441,21 +542,34 @@ export default function DashboardPage() {
   }, [profileMenuOpen]);
 
   const ledgerRows = useMemo(() => {
-  if (!isClockedIn || !clockInTimeRef.current) return [];
+    if (!isClockedIn || !clockInTimeRef.current) return [];
 
-  // Use the actual clock-in time from the ref
-  const clockInDate = new Date(clockInTimeRef.current);
-  const t = clockInDate.toLocaleTimeString([], {
-    hour12: true,
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+    // Use the actual clock-in time from the ref
+    const clockInDate = new Date(clockInTimeRef.current);
+    const clockInTimeDisplay = clockInDate.toLocaleTimeString([], {
+      hour12: true,
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
-  return [
-  //  { code: "B", activity: "Work/Email", start: t, end: "…", endAccent: false },
-    { code: "SYS", activity: "CLOCK IN", start: t, end: "…", endAccent: true },
-  ];
-}, [isClockedIn]); // Remove 'now' from dependencies since we don't need it to update
+    // Start with clock-in entry
+    const rows: { code: string; activity: string; start: string; end: string; endAccent: boolean }[] = [
+      { code: "SYS", activity: "CLOCK IN", start: clockInTimeDisplay, end: "—", endAccent: false },
+    ];
+
+    // Add activities from ledger
+    for (const act of ledgerActivities) {
+      rows.push({
+        code: act.activity_code,
+        activity: act.activity_name,
+        start: formatUTCTimeToLocal(act.start_time, act.log_date),
+        end: act.end_time ? formatUTCTimeToLocal(act.end_time, act.log_date) : "…",
+        endAccent: !act.end_time, // highlight active activities
+      });
+    }
+
+    return rows;
+  }, [isClockedIn, ledgerActivities]);
 
 
   const profileNameText = useMemo(() => {
@@ -638,14 +752,14 @@ export default function DashboardPage() {
                   className="clockin-btn"
                   disabled={!canClockIn}
                   onClick={() => setModalConfirm("in")}
-                  title={!scheduleToday.hasSchedule ? "No schedule today" : ""}
+                  title={clockInTimeStatus.reason ?? ""}
                 >
                   CLOCK IN
                 </button>
 
-                {!scheduleToday.hasSchedule && (
+                {clockInTimeStatus.reason && (
                   <div className="inline-warn">
-                    No schedule today. Clock in is disabled until a schedule is uploaded.
+                    {clockInTimeStatus.reason}
                   </div>
                 )}
               </div>
@@ -722,7 +836,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="action-panel">
-                  <ActivityTracker isClockedIn={isClockedIn} />
+                  <ActivityTracker isClockedIn={isClockedIn} onActivityChange={fetchActivityLedger} />
 
                   <div className="spacer" style={{ margin: '1.5rem 0' }} />
 

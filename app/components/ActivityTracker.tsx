@@ -35,6 +35,35 @@ function formatDuration(ms: number) {
     .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+// Convert UTC time string (HH:MM:SS) to local time display
+function formatUTCTimeToLocal(utcTimeStr: string, logDate: Date | string): string {
+  try {
+    // Parse the log_date and UTC time
+    const date = new Date(logDate);
+    const [hours, minutes, seconds] = utcTimeStr.split(':').map(Number);
+    
+    // Create a UTC date object
+    const utcDate = new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      hours,
+      minutes,
+      seconds || 0
+    ));
+    
+    // Format in local time
+    return utcDate.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  } catch {
+    return utcTimeStr;
+  }
+}
+
 export default function ActivityTracker({ isClockedIn, onActivityChange }: ActivityTrackerProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [currentActivity, setCurrentActivity] = useState<CurrentActivity | null>(null);
@@ -83,12 +112,21 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
           setCurrentActivity(data.currentActivity);
           setSelectedActivityId(data.currentActivity.activity_id.toString());
           
-          // Calculate start time timestamp
+          // Calculate start time timestamp - API returns UTC time
           const startDate = new Date(data.currentActivity.log_date);
           const startTimeStr = data.currentActivity.start_time;
-          const [hours, minutes, seconds] = startTimeStr.split(':');
-          startDate.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds || '0'));
-          setActivityStartTime(startDate.getTime());
+          const [hours, minutes, seconds] = startTimeStr.split(':').map(Number);
+          
+          // Create UTC date since start_time from API is in UTC
+          const utcStartTime = Date.UTC(
+            startDate.getUTCFullYear(),
+            startDate.getUTCMonth(),
+            startDate.getUTCDate(),
+            hours,
+            minutes,
+            seconds || 0
+          );
+          setActivityStartTime(utcStartTime);
         } else {
           setCurrentActivity(null);
           setActivityStartTime(null);
@@ -241,7 +279,7 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
             </div>
             <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>
               {currentActivity.is_billable ? '💰 Billable' : '📝 Non-billable'} · 
-              Started at {currentActivity.start_time} · 
+              Started at {formatUTCTimeToLocal(currentActivity.start_time, currentActivity.log_date)} · 
               Duration: {activityDuration}
             </div>
           </div>

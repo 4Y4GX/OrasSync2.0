@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     await prisma.d_tbltime_log.update({
       where: { tlog_id: activeActivity.tlog_id },
       data: {
-        end_time: currentTime.toTimeString().split(' ')[0],
+        end_time: currentTime, // Pass Date object directly for TIME field
         total_hours: Math.round(totalHours * 100) / 100,
       },
     });
@@ -107,16 +107,17 @@ export async function POST(request: Request) {
     });
 
     // Start new activity
+    // Note: For TIME fields, Prisma expects Date objects - it will extract just the time portion
     const newActivity = await prisma.d_tbltime_log.create({
       data: {
         user_id: user.user_id,
         activity_id: parseInt(activity_id),
         log_date: shiftDate,
-        start_time: currentTime.toTimeString().split(' ')[0],
+        start_time: currentTime, // Pass Date object directly for TIME field
         end_time: null,
         total_hours: null,
-        dept_id_at_log: userDetails?.dept_id || 0,
-        supervisor_id_at_log: userDetails?.supervisor_id || '',
+        dept_id_at_log: userDetails?.dept_id ?? null,
+        supervisor_id_at_log: userDetails?.supervisor_id ?? null, // Must be null or valid user_id (FK constraint)
         approval_status: "PENDING",
         clock_id: activeShift.clock_id,
         shift_date: shiftDate,

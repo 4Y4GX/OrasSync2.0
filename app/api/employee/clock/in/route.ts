@@ -9,6 +9,9 @@ function startOfDay(d: Date) {
   return x;
 }
 
+// Grace period in minutes - allows clock-in up to X minutes before shift starts
+const CLOCK_IN_GRACE_PERIOD_MINUTES = 15;
+
 export async function POST() {
   const user = await getUserFromCookie();
   if (!user) {
@@ -28,6 +31,33 @@ export async function POST() {
   }
 
   const now = new Date();
+
+  // Validate that current time is within the scheduled shift time
+  const shiftStart = new Date(scheduleToday.shift.start_time);
+  const shiftEnd = new Date(scheduleToday.shift.end_time);
+
+  // Allow clock-in X minutes before shift starts (grace period)
+  const earliestClockIn = new Date(shiftStart.getTime() - CLOCK_IN_GRACE_PERIOD_MINUTES * 60 * 1000);
+
+  if (now < earliestClockIn) {
+    const startTimeFormatted = shiftStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return NextResponse.json(
+      {
+        message: `Cannot clock in yet. Your shift starts at ${startTimeFormatted}. You can clock in starting ${CLOCK_IN_GRACE_PERIOD_MINUTES} minutes before your shift.`,
+      },
+      { status: 400 }
+    );
+  }
+
+  if (now > shiftEnd) {
+    const endTimeFormatted = shiftEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return NextResponse.json(
+      {
+        message: `Cannot clock in. Your shift ended at ${endTimeFormatted}.`,
+      },
+      { status: 400 }
+    );
+  }
   const shiftDate = startOfDay(now);
 
   try {
