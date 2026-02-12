@@ -34,13 +34,20 @@ export default function AdminUserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [metadata, setMetadata] = useState<Metadata | null>(null);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   
+  // FILTERS STATE (Restored)
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  
   // MODAL STATES
-  const [showModal, setShowModal] = useState(false); // Edit Form
-  const [showConfirmModal, setShowConfirmModal] = useState(false); // Save Confirmation
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); // DELETE CONFIRMATION (New)
-  const [showResultModal, setShowResultModal] = useState(false); // Success/Fail Messages
+  const [showModal, setShowModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
   
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [resultMessage, setResultMessage] = useState({ title: "", text: "", type: "success" });
@@ -66,15 +73,23 @@ export default function AdminUserManagement() {
     setLoading(true);
     setSelectedUserIds([]); 
     try {
-        // Exclude DEACTIVATED users from the main list so "Soft Delete" actually hides them
-        const res = await fetch(`/api/admin/users/list?limit=50&status_exclude=DEACTIVATED`); 
+        const params = new URLSearchParams({
+            limit: "50",
+            status_exclude: "DEACTIVATED",
+            search: search,          // Connected
+            role: roleFilter,        // Connected
+            status: statusFilter     // Connected
+        });
+
+        const res = await fetch(`/api/admin/users/list?${params}`); 
         const data = await res.json();
         if (res.ok) setUsers(data.users || []);
     } catch (e) { console.error(e); } 
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadUsers(); }, []);
+  // Reload when filters change
+  useEffect(() => { loadUsers(); }, [search, roleFilter, statusFilter]);
 
   // --- HELPER: Sanitization ---
   const sanitizeInput = (value: string, type: 'text' | 'email' | 'userid') => {
@@ -86,7 +101,6 @@ export default function AdminUserManagement() {
       }
   };
 
-  // --- SELECTION LOGIC ---
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.checked) setSelectedUserIds([]);
   };
@@ -95,7 +109,6 @@ export default function AdminUserManagement() {
     setSelectedUserIds(prev => prev.includes(userId) ? [] : [userId]);
   };
 
-  // --- HANDLERS ---
   const handleOpenEdit = () => {
     if (selectedUserIds.length !== 1) return;
     const user = users.find(u => u.user_id === selectedUserIds[0]);
@@ -133,14 +146,13 @@ export default function AdminUserManagement() {
     setShowModal(true);
   };
 
-  // --- DELETE FLOW ---
   const handleDeleteClick = () => {
     if (selectedUserIds.length !== 1) return;
-    setShowDeleteConfirm(true); // Open the Confirmation Modal
+    setShowDeleteConfirm(true); 
   };
 
   const executeDelete = async () => {
-    setShowDeleteConfirm(false); // Close confirm modal
+    setShowDeleteConfirm(false); 
     const userIdToDelete = selectedUserIds[0];
 
     try {
@@ -151,7 +163,6 @@ export default function AdminUserManagement() {
         const data = await res.json();
 
         if (res.ok) {
-            // UI REMOVAL: Filter out the deleted user immediately
             setUsers(prev => prev.filter(u => u.user_id !== userIdToDelete));
             setSelectedUserIds([]); 
             
@@ -179,7 +190,6 @@ export default function AdminUserManagement() {
     }
   };
 
-  // --- SAVE FLOW ---
   const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowConfirmModal(true);
@@ -193,7 +203,6 @@ export default function AdminUserManagement() {
 
     const payload: any = { ...formData };
     
-    // Clean dates
     const cleanDate = (d: string) => (d && d.trim() !== "" ? d : null);
     
     payload.hire_date = cleanDate(formData.hire_date);
@@ -241,6 +250,7 @@ export default function AdminUserManagement() {
     }
   };
 
+  // UI STYLES
   const darkSelectStyle = {
       backgroundColor: '#333',
       color: '#fff',
@@ -249,13 +259,22 @@ export default function AdminUserManagement() {
       borderRadius: '4px'
   };
 
+  // For the search/filter inputs to match the dark theme
+  const darkInputStyle = {
+      backgroundColor: '#222',
+      color: '#fff',
+      border: '1px solid #444',
+      padding: '10px',
+      borderRadius: '6px',
+      minWidth: '200px'
+  };
+
   return (
     <div className="user-management-section">
       <div className="glass-card" style={{ marginBottom: "1.5rem", padding: "1rem" }}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <div className="section-title" style={{margin:0}}>User Management</div>
             <div style={{display:'flex', gap:'10px'}}>
-                {/* DELETE BUTTON */}
                 <button 
                     className="btn-action" 
                     onClick={handleDeleteClick}
@@ -270,7 +289,6 @@ export default function AdminUserManagement() {
                     Delete User
                 </button>
 
-                {/* EDIT BUTTON */}
                 <button 
                     className="btn-action" 
                     onClick={handleOpenEdit}
@@ -284,13 +302,47 @@ export default function AdminUserManagement() {
                     Edit User
                 </button>
 
-                {/* ADD BUTTON */}
                 <button className="btn-add admin-btn" onClick={handleOpenCreate}>
                     + Add User
                 </button>
             </div>
         </div>
       </div>
+
+      {/* --- RESTORED SEARCH & FILTER BAR --- */}
+      <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
+          <input
+            type="text"
+            placeholder="Search users (ID, Name, Dept, Role)..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ ...darkInputStyle, flex: 1 }}
+          />
+
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            style={darkSelectStyle}
+          >
+            <option value="">All Roles</option>
+            {metadata?.roles?.map((role) => (
+              <option key={role.role_id} value={role.role_id}>
+                {role.role_name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={darkSelectStyle}
+          >
+            <option value="">All Statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="DISABLED">Disabled</option>
+          </select>
+      </div>
+      {/* ---------------------------------- */}
 
       <div className="glass-card">
         <div className="table-container" style={{ maxHeight: "600px", overflowX: "auto" }}>
@@ -473,15 +525,19 @@ export default function AdminUserManagement() {
         </div>
       )}
 
-      {/* CONFIRMATION MODAL (SAVE) */}
+      {/* CONFIRMATION MODAL */}
       {showConfirmModal && (
         <div className="modal-overlay" style={{zIndex: 2000, backgroundColor: 'rgba(0,0,0,0.8)'}}>
             <div className="glass-card" style={{width: '350px', textAlign: 'center', border: '1px solid #444'}}>
                 <h3 style={{marginBottom:'1rem', color:'#fff'}}>Confirm Updates</h3>
-                <p style={{marginBottom:'2rem', color:'#aaa'}}>Are you sure you want to apply these changes?</p>
+                <p style={{marginBottom:'2rem', color:'#aaa'}}>Are you sure you want to apply these changes to the database?</p>
                 <div style={{display:'flex', justifyContent:'center', gap:'1rem'}}>
-                    <button className="btn-action" onClick={() => setShowConfirmModal(false)} style={{background: '#444'}}>No</button>
-                    <button className="btn-action" onClick={executeSave} style={{background: 'var(--color-go)'}}>Yes, Save</button>
+                    <button className="btn-action" onClick={() => setShowConfirmModal(false)} style={{background: '#444'}}>
+                        No, Go Back
+                    </button>
+                    <button className="btn-action" onClick={executeSave} style={{background: 'var(--color-go)'}}>
+                        Yes, Update
+                    </button>
                 </div>
             </div>
         </div>
@@ -510,10 +566,21 @@ export default function AdminUserManagement() {
       {showResultModal && (
         <div className="modal-overlay" style={{zIndex: 3000, backgroundColor: 'rgba(0,0,0,0.8)'}}>
             <div className="glass-card" style={{width: '350px', textAlign: 'center', border: resultMessage.type === 'success' ? '1px solid var(--color-go)' : '1px solid #ef4444'}}>
-                <div style={{fontSize: '3rem', marginBottom: '1rem'}}>{resultMessage.type === 'success' ? '✅' : '❌'}</div>
+                <div style={{fontSize: '3rem', marginBottom: '1rem'}}>
+                    {resultMessage.type === 'success' ? '✅' : '❌'}
+                </div>
                 <h3 style={{marginBottom:'0.5rem', color:'#fff'}}>{resultMessage.title}</h3>
                 <p style={{marginBottom:'2rem', color:'#aaa'}}>{resultMessage.text}</p>
-                <button className="btn-action" onClick={() => setShowResultModal(false)} style={{width: '100%', background: '#333'}}>Close</button>
+                <button 
+                    className="btn-action" 
+                    onClick={() => setShowResultModal(false)} 
+                    style={{
+                        background: resultMessage.type === 'success' ? 'var(--color-go)' : '#ef4444', 
+                        width: '100%'
+                    }}
+                >
+                    Close
+                </button>
             </div>
         </div>
       )}
