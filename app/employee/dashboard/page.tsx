@@ -966,7 +966,7 @@ export default function DashboardPage() {
                                       <td style={{ fontWeight: 600 }}>{act.activity_name}</td>
                                       <td>{act.start_time ? new Date(act.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}</td>
                                       <td>{act.end_time ? new Date(act.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "..."}</td>
-                                      <td>{act.total_hours ? act.total_hours.toFixed(2) + "h" : "-"}</td>
+                                      <td>{act.total_hours ? Number(act.total_hours).toFixed(2) + "h" : "-"}</td>
                                     </tr>
                                   ))
                                 ))}
