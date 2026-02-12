@@ -130,6 +130,7 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [isClockedIn, setIsClockedIn] = useState(false);
+  const [ledgerData, setLedgerData] = useState<any[]>([]); // ✅ NEW: State for ledger data
 
   const [scheduleToday, setScheduleToday] = useState<ScheduleToday>({
     hasSchedule: false,
@@ -253,6 +254,31 @@ export default function DashboardPage() {
       } catch {}
     })();
   }, [loading, router]);
+
+  // ✅ NEW: Fetch ledger data when clocked in
+  useEffect(() => {
+    if (!isClockedIn) {
+      setLedgerData([]);
+      return;
+    }
+
+    const fetchLedger = async () => {
+      try {
+        const res = await fetch("/api/employee/activity/ledger", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        setLedgerData(data.ledger || []);
+      } catch (error) {
+        console.error("Failed to fetch ledger:", error);
+      }
+    };
+
+    fetchLedger();
+
+    // Refresh ledger every 5 seconds while clocked in
+    const interval = setInterval(fetchLedger, 5000);
+    return () => clearInterval(interval);
+  }, [isClockedIn]);
 
   const scheduleText = useMemo(() => {
     if (!scheduleToday.hasSchedule || !scheduleToday.shift) return "NO SCHEDULE TODAY";
@@ -440,20 +466,20 @@ export default function DashboardPage() {
     };
   }, [profileMenuOpen]);
 
+  // ✅ UPDATED: Use real ledger data instead of hardcoded mock data
   const ledgerRows = useMemo(() => {
-    const t = now.toLocaleTimeString([], {
-      hour12: true,
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    if (!isClockedIn || ledgerData.length === 0) {
+      return [];
+    }
 
-    if (!isClockedIn) return [];
-
-    return [
-      { code: "B", activity: "Work/Email", start: t, end: "…", endAccent: false },
-      { code: "SYS", activity: "CLOCK IN", start: t, end: t, endAccent: true },
-    ];
-  }, [isClockedIn, now]);
+    return ledgerData.map((log) => ({
+      code: log.activity_code,
+      activity: log.activity_name,
+      start: log.start_time,
+      end: log.end_time,
+      endAccent: log.is_active, // Highlight if currently active
+    }));
+  }, [isClockedIn, ledgerData]);
 
   const profileNameText = useMemo(() => {
     const n =
@@ -705,14 +731,34 @@ export default function DashboardPage() {
                         </tr>
                       </thead>
                       <tbody id="ledger-body">
-                        {ledgerRows.map((r, idx) => (
-                          <tr key={idx}>
-                            <td>{r.code}</td>
-                            <td style={{ fontWeight: 700 }}>{r.activity}</td>
-                            <td>{r.start}</td>
-                            <td className={r.endAccent ? "td-accent" : ""}>{r.end}</td>
+                        {ledgerRows.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} style={{ textAlign: "center", opacity: 0.6 }}>
+                              No activities logged yet. Start an activity to begin tracking.
+                            </td>
                           </tr>
-                        ))}
+                        ) : (
+                          ledgerRows.map((r, idx) => (
+                            <tr key={idx}>
+                              <td>{r.code}</td>
+                              <td style={{ fontWeight: 700 }}>{r.activity}</td>
+                              <td>
+                                {r.start ? new Date(`2000-01-01T${r.start}`).toLocaleTimeString([], {
+                                  hour12: true,
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }) : "—"}
+                              </td>
+                              <td className={r.endAccent ? "td-accent" : ""}>
+                                {r.end === "…" ? "…" : r.end ? new Date(`2000-01-01T${r.end}`).toLocaleTimeString([], {
+                                  hour12: true,
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }) : "—"}
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
