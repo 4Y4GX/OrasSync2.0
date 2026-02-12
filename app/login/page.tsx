@@ -109,6 +109,7 @@ export default function LoginPage() {
 
       localStorage.setItem("user_id", data.user.user_id);
       localStorage.setItem("user_name", data.user.name ?? "");
+      console.log("LOGIN CLIENT DEBUG: Redirecting to:", data.redirect, "Role:", data.user.role_id);
       router.push(data.redirect);
     } catch {
       setError("CONNECTION ERROR");

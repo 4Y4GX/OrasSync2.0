@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 const ROLE_EMPLOYEE = 1;
+const ROLE_SUPERVISOR = 2;
 const ROLE_ADMIN = 3;
 
 async function verifySession(token: string) {
@@ -17,9 +18,10 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
   const isEmployeeArea = pathname.startsWith("/employee");
+  const isSupervisorArea = pathname.startsWith("/supervisor");
   const isAdminArea = pathname.startsWith("/admin");
 
-  if (!isEmployeeArea && !isAdminArea) return NextResponse.next();
+  if (!isEmployeeArea && !isSupervisorArea && !isAdminArea) return NextResponse.next();
 
   const token = req.cookies.get("timea_session")?.value;
   if (!token) {
@@ -39,9 +41,17 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if (isEmployeeArea && roleId !== ROLE_EMPLOYEE) {
+    // Allow Supervisors (2) to access Employee areas (like sentiment)
+    if (isEmployeeArea && roleId !== ROLE_EMPLOYEE && roleId !== ROLE_SUPERVISOR) {
       const url = req.nextUrl.clone();
       url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/login";
+      return NextResponse.redirect(url);
+    }
+
+    if (isSupervisorArea && roleId !== ROLE_SUPERVISOR) {
+      const url = req.nextUrl.clone();
+      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/login"; // Fallback
+      if (roleId === ROLE_EMPLOYEE) url.pathname = "/employee/dashboard";
       return NextResponse.redirect(url);
     }
 

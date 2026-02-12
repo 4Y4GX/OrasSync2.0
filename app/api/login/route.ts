@@ -102,12 +102,17 @@ export async function POST(req: Request) {
     }
 
     const roleId = Number(userProfile.role_id ?? 0);
+    console.log("LOGIN DEBUG: User:", userProfile.email, "Role:", roleId);
 
     // default redirect
-    let redirect = roleId === 3 ? "/admin/dashboard" : "/employee/dashboard";
+    let redirect = "/employee/dashboard";
+    if (roleId === 3) redirect = "/admin/dashboard";
+    if (roleId === 2) redirect = "/supervisor/dashboard";
 
-    // ✅ Daily sentiment gate for employees
-    if (roleId === 1) {
+    console.log("LOGIN DEBUG: Initial Redirect:", redirect);
+
+    // ✅ Daily sentiment gate for employees AND supervisors
+    if (roleId === 1 || roleId === 2) {
       const now = new Date();
       const dayStart = startOfDay(now);
       const dayEnd = endOfDay(now);
@@ -120,8 +125,12 @@ export async function POST(req: Request) {
         select: { sentiment_id: true },
       });
 
+      console.log("LOGIN DEBUG: Sentiment Done?", !!done);
+
       if (!done) redirect = "/employee/sentiment";
     }
+
+    console.log("LOGIN DEBUG: Final Redirect:", redirect);
 
     // ✅ Create session cookie
     const token = await signSession({

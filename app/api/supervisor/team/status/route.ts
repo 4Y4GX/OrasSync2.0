@@ -49,7 +49,7 @@ export async function GET() {
               is_sentiment_done: true,
             },
           },
-          D_tbltime_log: {
+          D_tbltime_log_D_tbltime_log_user_idToD_tbluser: {
             where: {
               log_date: todayDate,
               end_time: null, // Active activity
@@ -100,7 +100,7 @@ export async function GET() {
               is_sentiment_done: true,
             },
           },
-          D_tbltime_log: {
+          D_tbltime_log_D_tbltime_log_user_idToD_tbluser: {
             where: {
               log_date: todayDate,
               end_time: null, // Active activity
@@ -124,7 +124,7 @@ export async function GET() {
     // Calculate status for each member
     const teamStatus = teamMembers.map((member) => {
       const clockLog = member.D_tblclock_log[0];
-      const activeActivity = member.D_tbltime_log[0];
+      const activeActivity = (member as any).D_tbltime_log_D_tbltime_log_user_idToD_tbluser[0];
 
       let status = "Offline";
       let hoursToday = 0;
@@ -133,12 +133,12 @@ export async function GET() {
       if (clockLog) {
         if (clockLog.clock_out_time) {
           status = "Clocked Out";
-          const clockIn = new Date(clockLog.clock_in_time);
+          const clockIn = new Date(clockLog.clock_in_time!);
           const clockOut = new Date(clockLog.clock_out_time);
           hoursToday = (clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60);
         } else {
           status = "Working";
-          const clockIn = new Date(clockLog.clock_in_time);
+          const clockIn = new Date(clockLog.clock_in_time!);
           const now = new Date();
           hoursToday = (now.getTime() - clockIn.getTime()) / (1000 * 60 * 60);
 
