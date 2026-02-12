@@ -140,8 +140,8 @@ model D_tblsentiment_log {
 model D_tblshift_template {
   shift_id                                                                          Int                    @id @default(autoincrement())
   shift_name                                                                        String?                @db.VarChar(30)
-  start_time                                                                        Time?                  @db.Time(0)
-  end_time                                                                          Time?                  @db.Time(0)
+  start_time                                                                        DateTime?              @db.Time(0)
+  end_time                                                                          DateTime?              @db.Time(0)
   description                                                                       String?                @db.VarChar(100)
   D_tblweekly_schedule_D_tblweekly_schedule_friday_shift_idToD_tblshift_template    D_tblweekly_schedule[] @relation("D_tblweekly_schedule_friday_shift_idToD_tblshift_template")
   D_tblweekly_schedule_D_tblweekly_schedule_monday_shift_idToD_tblshift_template    D_tblweekly_schedule[] @relation("D_tblweekly_schedule_monday_shift_idToD_tblshift_template")
