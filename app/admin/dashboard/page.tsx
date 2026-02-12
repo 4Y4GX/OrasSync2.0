@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import '../../styles/dashboard.css';
 import '../../styles/admin.css';
-import AdminUserManagement from '@/app/components/AdminUserManagement';
-import ExcelImportExport from '@/app/components/ExcelImportExport';
+import AdminUserManagement from '../../components/AdminUserManagement'; 
+import ExcelImportExport from '../../components/ExcelImportExport';
+import AnalyticsView from '../../components/AnalyticsView'; // New Component
 
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState('users');
@@ -19,7 +20,8 @@ export default function AdminDashboard() {
         <div className="brand-logo">ORASync</div>
 
         <ul className="nav-links">
-          {['users', 'import-export', 'departments', 'audit', 'system', 'settings'].map(section => (
+          {/* UPDATED: Replaced 'settings' with 'analytics' */}
+          {['users', 'import-export', 'departments', 'system', 'analytics'].map(section => (
             <li 
               key={section}
               className={`nav-item ${activeSection === section ? 'active' : ''}`}
@@ -50,7 +52,9 @@ export default function AdminDashboard() {
 
       <main className="workspace-panel">
         <div className="top-bar">
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>Admin Dashboard</h1>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 600 }}>
+            {activeSection === 'analytics' ? 'System Analytics' : 'Admin Dashboard'}
+          </h1>
           <button 
             className="theme-btn" 
             onClick={() => setLightMode(!lightMode)}
@@ -73,117 +77,19 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {activeSection === 'departments' && (
+          {activeSection === 'analytics' && (
             <div className="section-view active fade-in">
-              <div className="glass-card">
-                <div className="section-title">Department Management</div>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
-                  Department management features coming soon. Use User Management to assign users to departments.
-                </p>
-              </div>
+              <AnalyticsView />
             </div>
           )}
 
-          {activeSection === 'audit' && (
+          {/* Placeholders */}
+          {['departments', 'system'].includes(activeSection) && (
             <div className="section-view active fade-in">
-              <div className="glass-card">
-                <div className="section-title">Audit Log</div>
-                <div className="table-container" style={{ maxHeight: '600px' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Timestamp</th>
-                        <th>User</th>
-                        <th>Action</th>
-                        <th>Table</th>
-                        <th>Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Array.from({ length: 50 }).map((_, i) => (
-                        <tr key={i}>
-                          <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
-                            2024-02-06 {String(Math.floor(Math.random() * 24)).padStart(2, '0')}:{String(Math.floor(Math.random() * 60)).padStart(2, '0')}:00
-                          </td>
-                          <td>admin</td>
-                          <td><span className="action-badge">UPDATE</span></td>
-                          <td>D_tbluser</td>
-                          <td>Modified user status</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'system' && (
-            <div className="section-view active fade-in">
-              <div className="stats-row">
-                <div className="stat-box">
-                  <div className="label-sm">Database Size</div>
-                  <div className="stat-big admin-accent">2.4 GB</div>
-                </div>
-                <div className="stat-box">
-                  <div className="label-sm">API Calls (24h)</div>
-                  <div className="stat-big admin-accent">45.2K</div>
-                </div>
-                <div className="stat-box">
-                  <div className="label-sm">System Uptime</div>
-                  <div className="stat-big" style={{ color: 'var(--color-go)' }}>99.9%</div>
-                </div>
-              </div>
-
-              <div className="glass-card">
-                <div className="section-title">System Configuration</div>
-                <div className="config-grid">
-                  <div className="config-item">
-                    <span className="config-label">Session Timeout</span>
-                    <input type="text" className="input-rounded" defaultValue="8 hours" />
-                  </div>
-                  <div className="config-item">
-                    <span className="config-label">Max Failed Logins</span>
-                    <input type="number" className="input-rounded" defaultValue="3" />
-                  </div>
-                  <div className="config-item">
-                    <span className="config-label">Data Retention (days)</span>
-                    <input type="number" className="input-rounded" defaultValue="365" />
-                  </div>
-                </div>
-                <button className="btn-action btn-standard" style={{ marginTop: '20px' }}>
-                  Save Configuration
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeSection === 'settings' && (
-            <div className="section-view active fade-in">
-              <div className="glass-card">
-                <div className="section-title">Admin Settings</div>
-                <div className="settings-row">
-                  <span>Maintenance Mode</span>
-                  <label className="toggle-switch">
-                    <input type="checkbox" />
-                    <span className="slider"></span>
-                  </label>
-                </div>
-                <div className="settings-row">
-                  <span>Audit Logging</span>
-                  <label className="toggle-switch">
-                    <input type="checkbox" defaultChecked />
-                    <span className="slider"></span>
-                  </label>
-                </div>
-                <div className="settings-row">
-                  <span>Two-Factor Authentication</span>
-                  <label className="toggle-switch">
-                    <input type="checkbox" defaultChecked />
-                    <span className="slider"></span>
-                  </label>
-                </div>
-              </div>
+               <div className="glass-card">
+                 <div className="section-title">{activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}</div>
+                 <p style={{color: 'var(--text-muted)'}}>Module loading...</p>
+               </div>
             </div>
           )}
         </div>

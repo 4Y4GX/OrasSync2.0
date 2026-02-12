@@ -13,7 +13,8 @@ function sha256(text: string): string {
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
-    if (!user || user.role_id !== 4) {
+    // CHANGED: Now checking for role_id 3 (Admin)
+    if (!user || user.role_id !== 3) {
       return NextResponse.json({ message: "Unauthorized. Admin access required." }, { status: 403 });
     }
 

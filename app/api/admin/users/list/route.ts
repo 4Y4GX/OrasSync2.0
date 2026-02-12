@@ -7,8 +7,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    // 1. Authentication Check
     const user = await getUserFromCookie();
-    if (!user || user.role_id !== 4) {
+    
+    // CHANGED: Checks for role_id 3 (Admin)
+    if (!user || user.role_id !== 3) {
+      console.error("Access Denied: User is not admin or not logged in", user);
       return NextResponse.json({ message: "Unauthorized. Admin access required." }, { status: 403 });
     }
 
@@ -21,7 +25,7 @@ export async function GET(request: Request) {
 
     const skip = (page - 1) * limit;
 
-    // Build where clause
+    // 2. Build Search Query
     const where: any = {};
 
     if (search) {
@@ -41,17 +45,17 @@ export async function GET(request: Request) {
       where.account_status = statusFilter;
     }
 
-    // Get total count
+    // 3. Execute Query with ALL required relations
     const total = await prisma.d_tbluser.count({ where });
 
-    // Get users with relations
     const users = await prisma.d_tbluser.findMany({
       where,
       include: {
         D_tblrole: true,
         D_tblposition: true,
         D_tbldepartment: true,
-        D_tblteam: true,
+        D_tblteam: true, // Added Team relation
+        // Fetch Supervisor Name
         D_tbluser_D_tbluser_supervisor_idToD_tbluser: {
           select: {
             user_id: true,
@@ -59,6 +63,7 @@ export async function GET(request: Request) {
             last_name: true,
           },
         },
+        // Fetch Manager Name
         D_tbluser_D_tbluser_manager_idToD_tbluser: {
           select: {
             user_id: true,
@@ -82,7 +87,8 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error("List users error:", error);
-    return NextResponse.json({ message: "Failed to fetch users" }, { status: 500 });
+    // This logs the ACTUAL error to your terminal/command prompt
+    console.error("CRITICAL ERROR in /api/admin/users/list:", error);
+    return NextResponse.json({ message: "Failed to fetch users. Check server logs." }, { status: 500 });
   }
 }
