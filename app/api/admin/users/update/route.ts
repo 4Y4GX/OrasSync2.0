@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,16 @@ export async function PUT(request: Request) {
     const updatedUser = await prisma.d_tbluser.update({
       where: { user_id },
       data: updateData,
+    });
+
+    logAudit({
+      type: "audit",
+      event: "USER_UPDATED",
+      color: "blue",
+      data: {
+        targetId: user_id,
+        updates: Object.keys(updateData).join(", ")
+      }
     });
 
     // Create audit log

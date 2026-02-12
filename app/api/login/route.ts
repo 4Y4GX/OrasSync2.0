@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signSession, sessionCookieOptions } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -70,6 +71,18 @@ export async function POST(req: Request) {
             last_failed_attempt: new Date(),
           },
         });
+        logAudit({
+          type: "audit",
+          event: "LOGIN_FAILED",
+          color: "orange",
+          data: {
+            email,
+            reason: "Invalid Password",
+            attempt: `${attempts}/3`
+          }
+        });
+
+
         return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
       }
 
@@ -145,6 +158,17 @@ export async function POST(req: Request) {
 
     const cookie = sessionCookieOptions();
     res.cookies.set(cookie.name, token, cookie);
+
+    logAudit({
+      type: "audit",
+      event: "LOGIN_SUCCESS",
+      color: "green",
+      data: {
+        userId: userProfile.user_id,
+        email: userProfile.email,
+        role: roleId === 3 ? "Admin" : roleId === 2 ? "Manager" : "Employee"
+      }
+    });
 
     return res;
   } catch (error) {

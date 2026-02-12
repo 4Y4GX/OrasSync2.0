@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,18 @@ export async function POST(request: Request) {
         old_value: null,
         new_value: `Rejected ${tlog_ids.length} timesheet(s): ${reason}`,
       },
+    });
+
+    logAudit({
+      type: "audit",
+      event: "TIMESHEET_REJECTED",
+      color: "red",
+      data: {
+        managerId: user.user_id,
+        count: tlog_ids.length,
+        reason: reason,
+        role: user.role_id === 2 ? "Supervisor" : "Manager"
+      }
     });
 
     return NextResponse.json({

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createRecoveryToken, recoveryCookieName } from "@/lib/recoverySession";
+import { logAudit } from "@/lib/audit";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -121,7 +122,7 @@ export async function POST(request: Request) {
           where: { otp_id: latestLog.otp_id },
           data: { attempts: nextAttempts },
         });
-      } catch {}
+      } catch { }
 
       if (nextAttempts >= maxAttemptsPerOtp && auth?.is_disabled) {
         const { start, end } = todayRange();
@@ -167,7 +168,17 @@ export async function POST(request: Request) {
         where: { user_id: userId },
         data: { question_attempts: 0 },
       });
-    } catch {}
+    } catch { }
+
+    logAudit({
+      type: "audit",
+      event: "OTP_VERIFIED",
+      color: "green",
+      data: {
+        userId: userId,
+        action: flow === "recovery" ? "Ready for password reset" : "Device Verification"
+      }
+    });
 
     const res = NextResponse.json({ message: "OK" }, { status: 200 });
 

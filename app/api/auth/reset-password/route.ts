@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { recoveryCookieName, verifyRecoveryToken } from "@/lib/recoverySession";
 
 export async function POST(request: Request) {
@@ -52,7 +53,17 @@ export async function POST(request: Request) {
       },
     });
 
-    const res = NextResponse.json({ message: "OK" }, { status: 200 });
+    logAudit({
+      type: "audit",
+      event: "PASSWORD_RESET",
+      color: "green",
+      data: {
+        userId: userId,
+        action: "Password Reset from Recovery Flow"
+      }
+    });
+
+    const res = NextResponse.json({ message: "Password updated successfully" }, { status: 200 });
 
     // ✅ clear recovery session cookie after successful reset
     res.cookies.set(recoveryCookieName(), "", {

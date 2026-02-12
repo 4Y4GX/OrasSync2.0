@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import { recoveryCookieName, verifyRecoveryToken, upgradeRecoveryTokenStage } from "@/lib/recoverySession";
 
 async function createIncidentIfMissing(userId: string) {
@@ -22,7 +23,7 @@ async function createIncidentIfMissing(userId: string) {
         created_at: new Date(),
       },
     });
-  } catch {}
+  } catch { }
 }
 
 // POST: Verify answer using recovery session

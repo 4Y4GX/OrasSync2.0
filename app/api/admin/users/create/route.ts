@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
           is_first_login: true,
           failed_attempts: 0,
           is_disabled: false,
-          questions_attempt: 0,
+          question_attempts: 0,
         },
       });
 
@@ -123,6 +124,17 @@ export async function POST(request: Request) {
         old_value: null,
         new_value: `Created user: ${user_id} (${email})`,
       },
+    });
+
+    logAudit({
+      type: "audit",
+      event: "USER_CREATED",
+      color: "green",
+      data: {
+        adminId: user.user_id,
+        targetEmail: result.email,
+        roleId: result.role_id
+      }
     });
 
     return NextResponse.json({

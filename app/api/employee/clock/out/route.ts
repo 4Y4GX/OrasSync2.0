@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
 import { getTodayShiftForUser } from "@/lib/schedule";
+import { logAudit } from "@/lib/audit";
 
 // Stronger emoji blocking
 const EMOJI_LIKE = /[\p{Extended_Pictographic}\uFE0F\u200D]/gu;
@@ -144,6 +145,18 @@ export async function POST(req: Request) {
       });
     }
   }
+
+  logAudit({
+    type: "audit",
+    event: "CLOCK_OUT",
+    color: "neutral",
+    data: {
+      userId: user.user_id,
+      time: now.toLocaleTimeString(),
+      early: isEarly ? "Yes" : "No",
+      reason: isEarly ? reason : "N/A"
+    }
+  });
 
   return NextResponse.json({
     message: "Clock out successful",

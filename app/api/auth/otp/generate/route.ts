@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -100,6 +101,16 @@ export async function POST(request: Request) {
     // Normal OTP generation
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     console.log(`[AUTH] Generated OTP for ${raw}: ${otpCode}`);
+    logAudit({
+      type: "audit",
+      event: "OTP_GENERATED",
+      color: "blue",
+      data: {
+        identifier: raw,
+        type: "Password Reset/Recovery",
+        code: otpCode
+      }
+    });
 
     await prisma.d_tblotp_log.create({
       data: {

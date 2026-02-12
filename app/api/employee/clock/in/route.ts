@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
 import { getTodayShiftForUser } from "@/lib/schedule";
+import { logAudit } from "@/lib/audit";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -45,6 +46,17 @@ export async function POST() {
         active_key: "ACTIVE",
       },
       select: { clock_id: true, clock_in_time: true, shift_date: true },
+    });
+
+    logAudit({
+      type: "audit",
+      event: "CLOCK_IN",
+      color: "green",
+      data: {
+        userId: user.user_id,
+        time: now.toLocaleTimeString(),
+        shiftDate: shiftDate.toISOString().split("T")[0]
+      }
     });
 
     return NextResponse.json({

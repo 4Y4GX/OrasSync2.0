@@ -1,0 +1,5 @@
+{"type":"audit","event":"OTP_GENERATED","color":"blue","data":{"identifier":"jane.doe@gmail.com","type":"Password Reset/Recovery"},"timestamp":"2026-02-12T15:27:04.595Z"}
+{"type":"audit","event":"OTP_GENERATED","color":"blue","data":{"identifier":"jane.doe@gmail.com","type":"Password Reset/Recovery","code":"475955"},"timestamp":"2026-02-12T15:35:11.573Z"}
+{"type":"audit","event":"OTP_GENERATED","color":"blue","data":{"identifier":"jane.doe@gmail.com","type":"Password Reset/Recovery","code":"600931"},"timestamp":"2026-02-12T15:52:44.365Z"}
+{"type":"audit","event":"OTP_VERIFIED","color":"green","data":{"userId":"emp02","action":"Ready for password reset"},"timestamp":"2026-02-12T15:53:07.380Z"}
+{"type":"audit","event":"PASSWORD_RESET","color":"green","data":{"userId":"emp02","action":"Password Reset from Recovery Flow"},"timestamp":"2026-02-12T15:53:47.426Z"}

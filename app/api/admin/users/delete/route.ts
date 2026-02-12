@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,17 @@ export async function DELETE(request: Request) {
       data: {
         is_disabled: true,
       },
+    });
+
+    logAudit({
+      type: "audit",
+      event: "USER_DELETED",
+      color: "red",
+      data: {
+        adminId: user.user_id,
+        targetId: user_id,
+        targetEmail: existingUser.email
+      }
     });
 
     // Create audit log

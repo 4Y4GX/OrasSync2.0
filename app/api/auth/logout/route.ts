@@ -1,6 +1,7 @@
 // app/api/auth/logout/route.ts
 import { NextResponse } from "next/server";
 import { sessionCookieOptions } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
 
 export async function POST() {
   const res = NextResponse.json({ message: "Logged out" });
@@ -13,6 +14,15 @@ export async function POST() {
     secure: opts.secure,
     path: opts.path,
     maxAge: 0,
+  });
+
+  logAudit({
+    type: "audit",
+    event: "LOGOUT",
+    color: "neutral",
+    data: {
+      action: "User Logged Out"
+    }
   });
 
   return res;
