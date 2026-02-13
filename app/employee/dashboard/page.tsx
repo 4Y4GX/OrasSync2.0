@@ -57,12 +57,12 @@ function formatShiftTime(isoString: string) {
   if (!isoString) return "";
   // If it's already a simple time (e.g. "09:00"), return it
   if (!isoString.includes("T")) return isoString;
-  
+
   const date = new Date(isoString);
-  return date.toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    hour12: true 
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
   });
 }
 
@@ -140,6 +140,7 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [isClockedIn, setIsClockedIn] = useState(false);
+  const [ledgerData, setLedgerData] = useState<any[]>([]); // ✅ NEW: State for ledger data
 
   const [scheduleToday, setScheduleToday] = useState<ScheduleToday>({
     hasSchedule: false,
@@ -203,10 +204,10 @@ export default function DashboardPage() {
 
         // ✅ Corrected URL Path
         const res = await fetch(`/api/calendar?userId=${userProfile.user_id}&year=${year}&month=${month}`);
-        
+
         if (!res.ok) {
-           console.error("Calendar API returned error:", res.status);
-           return;
+          console.error("Calendar API returned error:", res.status);
+          return;
         }
 
         const data = await res.json();
@@ -347,6 +348,31 @@ export default function DashboardPage() {
       } catch { }
     })();
   }, [loading, router]);
+
+  // ✅ NEW: Fetch ledger data when clocked in
+  useEffect(() => {
+    if (!isClockedIn) {
+      setLedgerData([]);
+      return;
+    }
+
+    const fetchLedger = async () => {
+      try {
+        const res = await fetch("/api/employee/activity/ledger", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        setLedgerData(data.ledger || []);
+      } catch (error) {
+        console.error("Failed to fetch ledger:", error);
+      }
+    };
+
+    fetchLedger();
+
+    // Refresh ledger every 5 seconds while clocked in
+    const interval = setInterval(fetchLedger, 5000);
+    return () => clearInterval(interval);
+  }, [isClockedIn]);
 
   const scheduleText = useMemo(() => {
     if (!scheduleToday.hasSchedule || !scheduleToday.shift) return "NO SCHEDULE TODAY";
@@ -560,51 +586,20 @@ export default function DashboardPage() {
 
   /* --- REAL LEDGER DATA REPLACES MOCK --- */
   const ledgerRows = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayDay = timesheetDays.find(d => d.date === todayStr);
+    // Return empty if not clocked in or no data
+    if (!isClockedIn || !ledgerData || ledgerData.length === 0) {
+      return [];
+    }
 
-    if (!todayDay) return [];
-
-    const rows: { code: string; activity: string; start: string; end: string; sort: number; endAccent: boolean }[] = [];
-
-    // Clocks
-    todayDay.clocks.forEach((c: any) => {
-      if (c.clock_in_time) {
-        rows.push({
-          code: "SYS",
-          activity: "CLOCK IN",
-          start: formatShiftTime(c.clock_in_time),
-          end: c.clock_out_time ? formatShiftTime(c.clock_out_time) : "...",
-          sort: new Date(c.clock_in_time).getTime(),
-          endAccent: true
-        });
-      }
-      if (c.clock_out_time) {
-        rows.push({
-          code: "SYS",
-          activity: "CLOCK OUT",
-          start: formatShiftTime(c.clock_out_time),
-          end: "",
-          sort: new Date(c.clock_out_time).getTime(),
-          endAccent: true
-        });
-      }
-    });
-
-    // Activities
-    todayDay.activities.forEach((a: any) => {
-      rows.push({
-        code: "ACT", 
-        activity: a.activity_name || "Unknown",
-        start: a.start_time ? formatShiftTime(a.start_time) : "",
-        end: a.end_time ? formatShiftTime(a.end_time) : "...",
-        sort: a.start_time ? new Date(a.start_time).getTime() : 0,
-        endAccent: false
-      });
-    });
-
-    return rows.sort((a, b) => b.sort - a.sort);
-  }, [timesheetDays, isClockedIn]);
+    return ledgerData.map((log: any) => ({
+      code: log.activity_code || "ACT",
+      activity: log.activity_name || "Unknown",
+      start: log.start_time ? formatShiftTime(log.start_time) : "",
+      end: log.end_time ? formatShiftTime(log.end_time) : "...",
+      endAccent: !!log.is_active,
+      // Optional: sort if needed, assuming data comes compliant or we map specific fields
+    }));
+  }, [isClockedIn, ledgerData]);
 
   const profileNameText = useMemo(() => {
     const n =
@@ -1036,7 +1031,7 @@ export default function DashboardPage() {
                             const dateNum = runner.getDate();
                             const isToday = runner.toDateString() === new Date().toDateString();
                             const isDiffMonth = runner.getMonth() !== currMonth && calView === 'month';
-                            
+
                             const year = runner.getFullYear();
                             const monthStr = String(runner.getMonth() + 1).padStart(2, "0");
                             const dayStr = String(dateNum).padStart(2, "0");
@@ -1050,7 +1045,7 @@ export default function DashboardPage() {
                                 className={`cal-day ${isDiffMonth ? 'diff-month' : ''} ${dayData && !dayData.off ? 'is-scheduled' : ''} ${isToday ? 'today' : ''}`}
                               >
                                 <div className="cal-date-num">{dateNum}</div>
-                                
+
                                 {!isDiffMonth && dayData && (
                                   dayData.off ? (
                                     <div className="cal-chip" style={{ opacity: 0.5, background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>
