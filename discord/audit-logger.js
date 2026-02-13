@@ -153,16 +153,78 @@ async function showTableSelection(interaction, isUpdate) {
     }
 }
 
+// Configuration for detailed views
+const MODEL_CONFIG = {
+    'D_tbluser': {
+        include: {
+            D_tblrole: true,
+            D_tblposition: true,
+            D_tbldepartment: true,
+            D_tblteam: true,
+            D_tbluser_D_tbluser_supervisor_idToD_tbluser: true, // Supervisor
+            D_tbluser_D_tbluser_manager_idToD_tbluser: true,    // Manager
+            D_tbluser_authentication: true
+        },
+        format: (r) => ({
+            "User ID": r.user_id,
+            "Full Name": `${r.first_name} ${r.last_name}`,
+            "Email": r.email,
+            "Role": r.D_tblrole?.role_name || r.role_id || 'N/A',
+            "Position": r.D_tblposition?.pos_name || r.pos_id || 'N/A',
+            "Department": r.D_tbldepartment?.dept_name || r.dept_id || 'N/A',
+            "Team": r.D_tblteam?.team_name || r.team_id || 'N/A',
+            "Account Status": r.account_status,
+            "Supervisor": formatUserRef(r.D_tbluser_D_tbluser_supervisor_idToD_tbluser),
+            "Manager": formatUserRef(r.D_tbluser_D_tbluser_manager_idToD_tbluser),
+            "Password Hash": r.D_tbluser_authentication?.password_hash ? `\`${r.D_tbluser_authentication.password_hash.substring(0, 20)}...\`` : 'N/A',
+            "Created At": r.account_created_at
+        })
+    },
+    'D_tbltime_log': {
+        include: {
+            D_tbluser_D_tbltime_log_user_idToD_tbluser: true,
+            D_tblactivity: true
+        },
+        format: (r) => ({
+            "Log ID": r.tlog_id,
+            "User": formatUserRef(r.D_tbluser_D_tbltime_log_user_idToD_tbluser),
+            "Activity": r.D_tblactivity?.activity_name || r.activity_id,
+            "Date": r.log_date,
+            "Start": r.start_time,
+            "End": r.end_time,
+            "Total Hours": r.total_hours,
+            "Status": r.approval_status
+        })
+    }
+};
+
+function formatUserRef(u) {
+    if (!u) return 'None';
+    return `${u.first_name} ${u.last_name} (${u.user_id})`;
+}
+
 async function handleTableView(interaction, tableName, page) {
     const REC_PER_PAGE = 1; // 1 Record per page for "Card View" style
+
+    // Defer interaction immediately to prevent timeout
+    try {
+        if (!interaction.deferred && !interaction.replied) {
+            if (interaction.isButton() || interaction.isStringSelectMenu()) {
+                await interaction.deferUpdate();
+            } else {
+                await interaction.deferReply({ ephemeral: true });
+            }
+        }
+    } catch (e) {
+        console.error("Error deferring interaction:", e);
+        return;
+    }
 
     // @ts-ignore
     const model = prisma[tableName]; // Dynamic access
 
     if (!model) {
-        if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: `❌ Model ${tableName} not found via Prisma.`, ephemeral: true });
-        }
+        await interaction.editReply({ content: `❌ Model ${tableName} not found via Prisma.`, components: [], embeds: [] });
         return;
     }
 
@@ -191,21 +253,23 @@ async function handleTableView(interaction, tableName, page) {
                         .setStyle(ButtonStyle.Secondary)
                 );
 
-            const responseData = { embeds: [embed], components: [buttons] };
-            if (interaction.isStringSelectMenu() || interaction.isButton()) {
-                await interaction.update(responseData);
-            } else {
-                await interaction.reply(responseData);
-            }
+            await interaction.editReply({ embeds: [embed], components: [buttons], content: '' });
             return;
         }
+
+        // Use configuration if available
+        const config = MODEL_CONFIG[tableName] || {};
 
         const data = await model.findMany({
             take: REC_PER_PAGE,
             skip: page * REC_PER_PAGE,
+            include: config.include || undefined
         });
 
-        const record = data[0]; // Since we are showing 1 record per page for cleaner UI
+        const rawRecord = data[0]; // Since we are showing 1 record per page for cleaner UI
+
+        // Format record if config exists, otherwise use raw
+        const record = config.format ? config.format(rawRecord) : rawRecord;
 
         const embed = new EmbedBuilder()
             .setTitle(`🗄️ ${tableName}`)
@@ -217,18 +281,30 @@ async function handleTableView(interaction, tableName, page) {
         // Format fields nicely
         for (const [k, v] of Object.entries(record)) {
             let val = v;
-            if (val instanceof Date) val = val.toLocaleString(); // Better date format
+            if (val instanceof Date) val = `<t:${Math.floor(val.getTime() / 1000)}:f>`; // Discord timestamp
             if (val === null) val = '*null*';
+            if (val === undefined) val = 'N/A';
 
             let strVal = String(val);
-            // If value is very long, truncate or put in a separate field? 
-            // Let's standard truncate for inline feel
-            if (strVal.length > 200) strVal = strVal.substring(0, 197) + '...';
+            let isInline = true;
+
+            // Special formatting for long text or code blocks
+            if ((k.toLowerCase().includes('hash') || k.toLowerCase().includes('id')) && strVal.length > 20) {
+                strVal = `\`${strVal}\``;
+                isInline = false; // Long IDs/Hashes on own line
+            }
+
+            // If value is very long, truncate or formatted block
+            if (strVal.length > 50) {
+                isInline = false;
+            }
+
+            if (strVal.length > 1024) strVal = strVal.substring(0, 1021) + '...';
 
             embed.addFields({
                 name: k,
                 value: strVal,
-                inline: true // Grid layout
+                inline: isInline
             });
         }
 
@@ -250,24 +326,20 @@ async function handleTableView(interaction, tableName, page) {
                     .setDisabled(page >= totalPages - 1)
             );
 
-        const responseData = {
+        await interaction.editReply({
             content: '',
             embeds: [embed],
             components: [buttons]
-        };
+        });
 
-        if (interaction.isStringSelectMenu() || interaction.isButton()) {
-            await interaction.update(responseData);
-        } else {
-            await interaction.reply(responseData);
-        }
     } catch (err) {
         console.error("Error fetching data:", err);
-        const errResponse = { content: '❌ Failed to fetch data.', components: [] };
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(errResponse);
-        } else {
-            await interaction.reply(errResponse);
+        const errResponse = { content: '❌ Failed to fetch data.', components: [], embeds: [] };
+        // We can safely use editReply here since we deferred earlier
+        try {
+            await interaction.editReply(errResponse);
+        } catch (e) {
+            console.error("Failed to send error response:", e);
         }
     }
 }
