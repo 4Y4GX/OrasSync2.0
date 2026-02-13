@@ -3,3 +3,14 @@
 {"type":"audit","event":"OTP_GENERATED","color":"blue","data":{"identifier":"jane.doe@gmail.com","type":"Password Reset/Recovery","code":"600931"},"timestamp":"2026-02-12T15:52:44.365Z"}
 {"type":"audit","event":"OTP_VERIFIED","color":"green","data":{"userId":"emp02","action":"Ready for password reset"},"timestamp":"2026-02-12T15:53:07.380Z"}
 {"type":"audit","event":"PASSWORD_RESET","color":"green","data":{"userId":"emp02","action":"Password Reset from Recovery Flow"},"timestamp":"2026-02-12T15:53:47.426Z"}
+{"type":"audit","event":"LOGIN_SUCCESS","color":"green","data":{"userId":"emp02","email":"jane.doe@gmail.com","role":"Employee"},"timestamp":"2026-02-13T06:21:45.679Z"}
+{"type":"audit","event":"CLOCK_OUT","color":"neutral","data":{"userId":"emp02","time":"2:27:43 PM","early":"Yes","reason":"asd"},"timestamp":"2026-02-13T06:27:48.248Z"}
+{"type":"audit","event":"LOGOUT","color":"neutral","data":{"action":"User Logged Out"},"timestamp":"2026-02-13T06:28:15.332Z"}
+{"type":"audit","event":"LOGIN_SUCCESS","color":"green","data":{"userId":"emp01","email":"john.doe@gmail.com","role":"Employee"},"timestamp":"2026-02-13T06:28:29.967Z"}
+{"type":"audit","event":"CLOCK_OUT","color":"neutral","data":{"userId":"emp01","time":"2:29:06 PM","early":"Yes","reason":"TwentyFive Hours what"},"timestamp":"2026-02-13T06:29:12.468Z"}
+{"type":"audit","event":"LOGOUT","color":"neutral","data":{"action":"User Logged Out"},"timestamp":"2026-02-13T06:29:14.031Z"}
+{"type":"audit","event":"OTP_GENERATED","color":"blue","data":{"identifier":"john.doe@gmail.com","type":"Password Reset/Recovery","code":"787770"},"timestamp":"2026-02-13T06:29:33.321Z"}
+{"type":"audit","event":"OTP_VERIFIED","color":"green","data":{"userId":"emp01","action":"Ready for password reset"},"timestamp":"2026-02-13T06:30:04.569Z"}
+{"type":"audit","event":"PASSWORD_RESET","color":"green","data":{"userId":"emp01","action":"Password Reset from Recovery Flow"},"timestamp":"2026-02-13T06:30:29.498Z"}
+{"type":"audit","event":"LOGIN_SUCCESS","color":"green","data":{"userId":"2","email":"supervisor@orasync.com","role":"Employee"},"timestamp":"2026-02-13T06:31:16.148Z"}
+{"type":"audit","event":"LOGOUT","color":"neutral","data":{"action":"User Logged Out"},"timestamp":"2026-02-13T06:32:18.913Z"}
