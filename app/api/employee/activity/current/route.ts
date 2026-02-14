@@ -12,17 +12,13 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Get current date in local timezone
-    const now = new Date();
-    const shiftDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    // Check if user is clocked in
+    // Check if user is clocked in (don't filter by shift_date to avoid timezone issues)
     const activeShift = await prisma.d_tblclock_log.findFirst({
       where: {
         user_id: user.user_id,
-        shift_date: shiftDate,
         clock_out_time: null,
       },
+      orderBy: { clock_in_time: "desc" },
     });
 
     if (!activeShift) {

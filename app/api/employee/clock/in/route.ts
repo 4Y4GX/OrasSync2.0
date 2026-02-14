@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
 import { getTodayShiftForUser } from "@/lib/schedule";
-
-function startOfDay(d: Date) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
+import { getNowInTimezone, getTodayInTimezone } from "@/lib/timezone";
 
 export async function POST() {
   const user = await getUserFromCookie();
@@ -27,8 +22,9 @@ export async function POST() {
     );
   }
 
-  const now = new Date();
-  const shiftDate = startOfDay(now);
+  // Use fixed Asia/Manila timezone (server-enforced, cannot be manipulated by client)
+  const now = getNowInTimezone();
+  const shiftDate = getTodayInTimezone();
 
   try {
     const created = await prisma.d_tblclock_log.create({

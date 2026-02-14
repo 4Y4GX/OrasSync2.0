@@ -8,15 +8,16 @@ export function formatTimeHHMM(input: string | Date): string {
 }
 
 // Convert a Date stored as TIME(0) into "today at that time"
+// Use UTC methods because Prisma returns TIME values as UTC-based Date objects
 function timeToToday(timeValue: Date): Date {
   const now = new Date();
   return new Date(
     now.getFullYear(),
     now.getMonth(),
     now.getDate(),
-    timeValue.getHours(),
-    timeValue.getMinutes(),
-    timeValue.getSeconds(),
+    timeValue.getUTCHours(),
+    timeValue.getUTCMinutes(),
+    timeValue.getUTCSeconds(),
     0
   );
 }

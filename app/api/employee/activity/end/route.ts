@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getNowInTimezone, getTimeForStorage } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +13,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Get current date in local timezone
-    const now = new Date();
-    const shiftDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Use fixed Asia/Manila timezone (server-enforced, cannot be manipulated by client)
+    const now = getNowInTimezone();
+    const timeForStorage = getTimeForStorage();
 
-    // Check if user is clocked in
+    // Check if user is clocked in (don't filter by shift_date to avoid timezone issues)
     const activeShift = await prisma.d_tblclock_log.findFirst({
       where: {
         user_id: user.user_id,
-        shift_date: shiftDate,
         clock_out_time: null,
       },
+      orderBy: { clock_in_time: "desc" },
     });
 
     if (!activeShift) {
@@ -50,15 +51,24 @@ export async function POST(request: Request) {
     }
 
     // End the activity
-    const currentTime = new Date();
-    const startTime = new Date(`${shiftDate.toISOString().split('T')[0]}T${activeActivity.start_time}`);
-    const durationMs = currentTime.getTime() - startTime.getTime();
+    // activeActivity.start_time is a Date from TIME(0) - extract time and combine with shift date
+    const st = activeActivity.start_time as Date;
+    const shiftDate = activeShift.shift_date!;
+    const startTime = new Date(
+      shiftDate.getFullYear(),
+      shiftDate.getMonth(),
+      shiftDate.getDate(),
+      st.getUTCHours(),
+      st.getUTCMinutes(),
+      st.getUTCSeconds()
+    );
+    const durationMs = now.getTime() - startTime.getTime();
     const totalHours = durationMs / (1000 * 60 * 60);
 
     await prisma.d_tbltime_log.update({
       where: { tlog_id: activeActivity.tlog_id },
       data: {
-        end_time: currentTime.toTimeString().split(' ')[0],
+        end_time: timeForStorage,
         total_hours: Math.round(totalHours * 100) / 100,
       },
     });
@@ -78,7 +88,7 @@ export async function POST(request: Request) {
         activity_code: activity?.activity_code,
         total_hours: Math.round(totalHours * 100) / 100,
         start_time: activeActivity.start_time,
-        end_time: currentTime.toTimeString().split(' ')[0],
+        end_time: now.toTimeString().split(' ')[0],
       },
     });
   } catch (error) {

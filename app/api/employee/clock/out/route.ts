@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
 import { getTodayShiftForUser } from "@/lib/schedule";
+import { getNowInTimezone } from "@/lib/timezone";
 
 // Stronger emoji blocking
 const EMOJI_LIKE = /[\p{Extended_Pictographic}\uFE0F\u200D]/gu;
@@ -54,7 +55,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "No active shift" }, { status: 400 });
   }
 
-  const now = new Date();
+  // Use fixed Asia/Manila timezone (server-enforced, cannot be manipulated by client)
+  const now = getNowInTimezone();
   const scheduleToday = await getTodayShiftForUser(user.user_id);
 
   // If no schedule exists, allow clock-out without early reason

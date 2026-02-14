@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getNowInTimezone, getTimeForStorage } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -19,17 +20,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Activity ID is required" }, { status: 400 });
     }
 
-    // Get current date in local timezone
-    const now = new Date();
-    const shiftDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Use fixed Asia/Manila timezone (server-enforced, cannot be manipulated by client)
+    const now = getNowInTimezone();
+    const timeForStorage = getTimeForStorage();
 
-    // Check if user is clocked in
+    // Check if user is clocked in (don't filter by shift_date to avoid timezone issues)
     const activeShift = await prisma.d_tblclock_log.findFirst({
       where: {
         user_id: user.user_id,
-        shift_date: shiftDate,
         clock_out_time: null,
       },
+      orderBy: { clock_in_time: "desc" },
     });
 
     if (!activeShift) {
@@ -51,15 +52,24 @@ export async function POST(request: Request) {
 
     // If there's an active activity, end it first
     if (activeActivity) {
-      const currentTime = new Date();
-      const startTime = new Date(`${shiftDate.toISOString().split('T')[0]}T${activeActivity.start_time}`);
-      const durationMs = currentTime.getTime() - startTime.getTime();
+      // activeActivity.start_time is a Date from TIME(0) - extract time and combine with shift date
+      const st = activeActivity.start_time as Date;
+      const shiftDate = activeShift.shift_date!;
+      const startTime = new Date(
+        shiftDate.getFullYear(),
+        shiftDate.getMonth(),
+        shiftDate.getDate(),
+        st.getUTCHours(),
+        st.getUTCMinutes(),
+        st.getUTCSeconds()
+      );
+      const durationMs = now.getTime() - startTime.getTime();
       const totalHours = durationMs / (1000 * 60 * 60);
 
       await prisma.d_tbltime_log.update({
         where: { tlog_id: activeActivity.tlog_id },
         data: {
-          end_time: currentTime.toTimeString().split(' ')[0],
+          end_time: timeForStorage,
           total_hours: Math.round(totalHours * 100) / 100,
         },
       });
@@ -79,15 +89,15 @@ export async function POST(request: Request) {
       data: {
         user_id: user.user_id,
         activity_id: parseInt(activity_id),
-        log_date: shiftDate,
-        start_time: now.toTimeString().split(' ')[0],
+        log_date: activeShift.shift_date!,
+        start_time: timeForStorage,
         end_time: null,
         total_hours: null,
         dept_id_at_log: userDetails?.dept_id || 0,
         supervisor_id_at_log: userDetails?.supervisor_id || '',
         approval_status: "PENDING",
         clock_id: activeShift.clock_id,
-        shift_date: shiftDate,
+        shift_date: activeShift.shift_date!,
       },
     });
 
@@ -108,8 +118,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Start activity error:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { message: "Failed to start activity" },
+      { message: "Failed to start activity", error: errorMessage },
       { status: 500 }
     );
   }

@@ -123,13 +123,26 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
 
       if (res.ok) {
         setMessage("Activity started successfully");
-        await loadCurrentActivity();
+        // Update current activity from response and reset timer to now
+        const activity = data.activity;
+        setCurrentActivity({
+          tlog_id: activity.tlog_id,
+          activity_id: parseInt(selectedActivityId),
+          activity_name: activity.activity_name,
+          activity_code: activity.activity_code,
+          is_billable: activity.is_billable,
+          start_time: new Date().toISOString(),
+          log_date: new Date(),
+        });
+        setActivityStartTime(Date.now());
         onActivityChange?.();
       } else {
-        setMessage(data.message || "Failed to start activity");
+        const errDetail = data.error ? `: ${data.error}` : '';
+        setMessage((data.message || "Failed to start activity") + errDetail);
       }
     } catch (error) {
-      setMessage("Failed to start activity");
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setMessage(`Failed to start activity: ${errMsg}`);
       console.error(error);
     } finally {
       setLoading(false);
@@ -161,7 +174,18 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
 
       if (res.ok) {
         setMessage("Activity switched successfully");
-        await loadCurrentActivity();
+        // Update current activity from response and reset timer to now
+        const activity = data.new_activity;
+        setCurrentActivity({
+          tlog_id: activity.tlog_id,
+          activity_id: parseInt(selectedActivityId),
+          activity_name: activity.activity_name,
+          activity_code: activity.activity_code,
+          is_billable: activity.is_billable,
+          start_time: new Date().toISOString(),
+          log_date: new Date(),
+        });
+        setActivityStartTime(Date.now());
         onActivityChange?.();
       } else {
         setMessage(data.message || "Failed to switch activity");

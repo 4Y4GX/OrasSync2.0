@@ -160,8 +160,8 @@ export default function DashboardPage() {
   // ✅ Logout prompt modal after clock-out
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
 
-  // for timers
-  const clockInTimeRef = useRef<number | null>(null);
+  // for timers - clock in time as state for reactive updates
+  const [clockInTime, setClockInTime] = useState<number | null>(null);
 
   // theme
   const [lightMode, setLightMode] = useState(false);
@@ -317,7 +317,7 @@ export default function DashboardPage() {
         const cin = data?.activeShift?.clock_in_time
           ? new Date(data.activeShift.clock_in_time).getTime()
           : null;
-        clockInTimeRef.current = cin;
+        setClockInTime(cin);
 
         setScheduleToday({
           hasSchedule: !!data?.scheduleToday?.hasSchedule,
@@ -387,9 +387,9 @@ export default function DashboardPage() {
   const canClockIn = scheduleToday.hasSchedule && !loading && !actionBusy;
 
   const sessionDuration = useMemo(() => {
-    if (!isClockedIn || !clockInTimeRef.current) return "00:00:00";
-    return formatDuration(Date.now() - clockInTimeRef.current);
-  }, [isClockedIn, now]);
+    if (!isClockedIn || !clockInTime) return "00:00:00";
+    return formatDuration(Date.now() - clockInTime);
+  }, [isClockedIn, clockInTime, now]);
 
   const targetHours = useMemo(() => {
     if (
@@ -426,7 +426,7 @@ export default function DashboardPage() {
 
       const clockIn = data?.activeShift?.clock_in_time;
       setIsClockedIn(true);
-      clockInTimeRef.current = clockIn ? new Date(clockIn).getTime() : Date.now();
+      setClockInTime(clockIn ? new Date(clockIn).getTime() : Date.now());
     } finally {
       setActionBusy(false);
     }
@@ -452,7 +452,7 @@ export default function DashboardPage() {
         }
 
         setIsClockedIn(false);
-        clockInTimeRef.current = null;
+        setClockInTime(null);
 
         setReason("");
         setReasonErr("");
@@ -837,9 +837,14 @@ export default function DashboardPage() {
 
                             <div style={{ marginTop: "auto" }}>
                               <div className="label-sm">SESSION STATUS</div>
-                              <div className="session-status-box" style={{ marginBottom: 20 }}>
+                              <div className="session-status-box" style={{ marginBottom: 10 }}>
                                 CLOCKED IN
                               </div>
+                              {clockInTime && (
+                                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 20 }}>
+                                  Since {new Date(clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                </div>
+                              )}
 
                               <button
                                 className="btn-ap-danger"

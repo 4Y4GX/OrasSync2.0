@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// Format TIME field (stored as UTC Date) to HH:MM string
+function formatTimeField(timeValue: Date | null): string | null {
+  if (!timeValue) return null;
+  const hours = timeValue.getUTCHours();
+  const minutes = timeValue.getUTCMinutes();
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
 
@@ -56,8 +64,8 @@ export async function GET(req: Request) {
       date: date.toISOString().split("T")[0],
       off: !shift,
       shift_name: shift?.shift_name ?? null,
-      start_time: shift?.start_time ?? null,
-      end_time: shift?.end_time ?? null,
+      start_time: shift ? formatTimeField(shift.start_time) : null,
+      end_time: shift ? formatTimeField(shift.end_time) : null,
       activity: shift?.description ?? null,
     });
   }
