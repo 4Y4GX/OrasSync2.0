@@ -15,17 +15,39 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || "week"; // week, month, year
     const userId = searchParams.get("user_id") || user.user_id;
+    const startDateParam = searchParams.get("startDate"); // Optional: YYYY-MM-DD
 
     // Calculate date range
     const today = new Date();
-    const startDate = new Date(today);
+    today.setHours(23, 59, 59, 999); // End of today
+    let startDate: Date;
+    let endDate: Date = today;
     
     if (period === "week") {
-      startDate.setDate(today.getDate() - 7);
+      if (startDateParam) {
+        // Use provided start date (expected to be a Monday)
+        const [year, month, day] = startDateParam.split('-').map(Number);
+        startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        // Get Monday of current week
+        startDate = new Date(today);
+        const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        startDate.setDate(today.getDate() - diff);
+        startDate.setHours(0, 0, 0, 0);
+      }
     } else if (period === "month") {
+      startDate = new Date(today);
       startDate.setMonth(today.getMonth() - 1);
     } else if (period === "year") {
+      startDate = new Date(today);
       startDate.setFullYear(today.getFullYear() - 1);
+    } else {
+      startDate = new Date(today);
+      startDate.setDate(today.getDate() - 7);
     }
 
     // Get user's time logs
@@ -34,7 +56,7 @@ export async function GET(request: Request) {
         user_id: userId,
         log_date: {
           gte: startDate,
-          lte: today,
+          lte: endDate,
         },
       },
       include: {
@@ -59,7 +81,10 @@ export async function GET(request: Request) {
     // Daily hours for chart
     const dailyHours: { [key: string]: number } = {};
     timeLogs.forEach(log => {
-      const dateKey = log.log_date.toISOString().split('T')[0];
+      if (!log.log_date) return;
+      // Use local date methods to match how dates are stored
+      const d = new Date(log.log_date);
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       dailyHours[dateKey] = (dailyHours[dateKey] || 0) + (log.total_hours?.toNumber() || 0);
     });
 
@@ -69,7 +94,7 @@ export async function GET(request: Request) {
         user_id: userId,
         shift_date: {
           gte: startDate,
-          lte: today,
+          lte: endDate,
         },
       },
     });

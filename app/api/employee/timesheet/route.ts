@@ -2,11 +2,20 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
 
+// Use local methods for date extraction (dates stored in local timezone)
 function toYMD(d: Date) {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+// Format TIME field to HH:MM string (times stored as UTC with local values)
+function formatTime(t: Date | null): string | null {
+  if (!t) return null;
+  const hh = String(t.getUTCHours()).padStart(2, "0");
+  const mm = String(t.getUTCMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
 function parseYMD(s: string | null) {
@@ -31,6 +40,8 @@ function endOfDay(d: Date) {
 
 type TimesheetDay = {
   date: string;
+  shift_id: number | null;
+  shift_name: string | null;
   clocks: Array<{
     clock_id: number;
     shift_date: Date | null;
@@ -43,8 +54,8 @@ type TimesheetDay = {
     tlog_id: number;
     activity_id: number | null;
     activity_name: string | null;
-    start_time: Date | null;
-    end_time: Date | null;
+    start_time: string | null;  // HH:MM format
+    end_time: string | null;    // HH:MM format
     total_hours: any;
     approval_status: any;
     rejection_reason: string | null;
@@ -140,6 +151,46 @@ export async function GET(req: Request) {
       },
     });
 
+    // 4) Fetch user's weekly schedule and shift templates for shift info
+    const weeklySchedule = await prisma.d_tblweekly_schedule.findFirst({
+      where: {
+        user_id: String(userId),
+        is_active: true,
+      },
+    });
+
+    const shiftTemplates = await prisma.d_tblshift_template.findMany();
+    const shiftMap: Record<number, { shift_id: number; shift_name: string | null }> = {};
+    shiftTemplates.forEach((s) => {
+      shiftMap[s.shift_id] = { shift_id: s.shift_id, shift_name: s.shift_name };
+    });
+
+    // Helper to get shift info for a given date (YYYY-MM-DD format)
+    function getShiftForDate(dateStr: string): { shift_id: number | null; shift_name: string | null } {
+      if (!weeklySchedule) return { shift_id: null, shift_name: null };
+      
+      // Parse YYYY-MM-DD using local timezone (consistent with how dates are stored)
+      const [yearStr, monthStr, dayStr] = dateStr.split('-');
+      const date = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
+      const weekday = date.getDay();
+      
+      let shiftId: number | null = null;
+      switch (weekday) {
+        case 0: shiftId = weeklySchedule.sunday_shift_id; break;
+        case 1: shiftId = weeklySchedule.monday_shift_id; break;
+        case 2: shiftId = weeklySchedule.tuesday_shift_id; break;
+        case 3: shiftId = weeklySchedule.wednesday_shift_id; break;
+        case 4: shiftId = weeklySchedule.thursday_shift_id; break;
+        case 5: shiftId = weeklySchedule.friday_shift_id; break;
+        case 6: shiftId = weeklySchedule.saturday_shift_id; break;
+      }
+      
+      if (shiftId && shiftMap[shiftId]) {
+        return shiftMap[shiftId];
+      }
+      return { shift_id: shiftId, shift_name: null };
+    }
+
     // Pre-group activities by day (so we don't filter inside a loop)
     const activitiesByDay = new Map<string, TimesheetDay["activities"]>();
     for (const t of timeLogs) {
@@ -150,8 +201,8 @@ export async function GET(req: Request) {
         tlog_id: t.tlog_id,
         activity_id: t.activity_id ?? null,
         activity_name: t.D_tblactivity?.activity_name ?? null,
-        start_time: t.start_time ?? null,
-        end_time: t.end_time ?? null,
+        start_time: formatTime(t.start_time),
+        end_time: formatTime(t.end_time),
         total_hours: t.total_hours,
         approval_status: t.approval_status,
         rejection_reason: t.rejection_reason ?? null,
@@ -170,10 +221,13 @@ export async function GET(req: Request) {
           : new Date();
 
       const dayKey = toYMD(dayDate);
+      const shiftInfo = getShiftForDate(dayKey);
 
       if (!dayMap.has(dayKey)) {
         dayMap.set(dayKey, {
           date: dayKey,
+          shift_id: shiftInfo.shift_id,
+          shift_name: shiftInfo.shift_name,
           clocks: [],
           activities: activitiesByDay.get(dayKey) ?? [],
         });
@@ -192,7 +246,14 @@ export async function GET(req: Request) {
     // Include days that have activities but no clock logs (optional but good)
     for (const [dayKey, acts] of activitiesByDay.entries()) {
       if (!dayMap.has(dayKey)) {
-        dayMap.set(dayKey, { date: dayKey, clocks: [], activities: acts });
+        const shiftInfo = getShiftForDate(dayKey);
+        dayMap.set(dayKey, { 
+          date: dayKey, 
+          shift_id: shiftInfo.shift_id,
+          shift_name: shiftInfo.shift_name,
+          clocks: [], 
+          activities: acts 
+        });
       }
     }
 

@@ -183,9 +183,12 @@ export default function DashboardPage() {
   /* --- ANALYTICS STATE --- */
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsWeekOffset, setAnalyticsWeekOffset] = useState(0); // 0 = current week, -1 = last week, etc.
 
   /* --- TIMESHEET STATE --- */
   const [timesheetDays, setTimesheetDays] = useState<any[]>([]);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitMsg, setSubmitMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   /* --- CALENDAR STATE --- */
   const [calView, setCalView] = useState<"week" | "month">("week");
@@ -303,6 +306,57 @@ export default function DashboardPage() {
       console.error("Failed to fetch timesheet", e);
     }
   }, []);
+
+  // Submit Timesheet for Review
+  const submitTimesheet = useCallback(async () => {
+    // Collect all pending tlog_ids from timesheetDays
+    const allTlogIds: number[] = [];
+    for (const day of timesheetDays) {
+      for (const act of day.activities || []) {
+        if (act.approval_status === "PENDING" && act.tlog_id) {
+          allTlogIds.push(act.tlog_id);
+        }
+      }
+    }
+
+    if (allTlogIds.length === 0) {
+      setSubmitMsg({ type: "error", text: "No pending time logs to submit" });
+      return;
+    }
+
+    setSubmitLoading(true);
+    setSubmitMsg(null);
+
+    try {
+      const res = await fetch("/api/employee/timesheet/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tlog_ids: allTlogIds }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Build summary message
+        const shiftSummary = (data.by_shift || [])
+          .map((s: any) => `${s.shift_name}: ${s.logs_submitted} log(s)`)
+          .join(", ");
+        setSubmitMsg({
+          type: "success",
+          text: `Submitted ${data.submitted_count} log(s) for review. ${shiftSummary}`,
+        });
+        // Refresh timesheet data
+        await fetchLogs();
+      } else {
+        setSubmitMsg({ type: "error", text: data.message || "Submission failed" });
+      }
+    } catch (e) {
+      console.error("Submit timesheet error:", e);
+      setSubmitMsg({ type: "error", text: "Failed to submit timesheet" });
+    } finally {
+      setSubmitLoading(false);
+    }
+  }, [timesheetDays, fetchLogs]);
 
   // Load status on mount
   useEffect(() => {
@@ -470,6 +524,9 @@ export default function DashboardPage() {
   const confirmClockOutFlow = () => {
     if (actionBusy) return;
 
+    // Close the confirmation modal first
+    setModalConfirm(null);
+
     if (!scheduleToday.hasSchedule || !scheduleToday.shift?.end_time) {
       void doClockOut("");
       return;
@@ -569,7 +626,15 @@ export default function DashboardPage() {
     const fetchAnalytics = async () => {
       setAnalyticsLoading(true);
       try {
-        const res = await fetch("/api/analytics/dashboard?period=week");
+        // Calculate the Monday of the selected week
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const currentMonday = new Date(today);
+        currentMonday.setDate(today.getDate() - diff + (analyticsWeekOffset * 7));
+        const startDate = currentMonday.toISOString().split('T')[0];
+        
+        const res = await fetch(`/api/analytics/dashboard?period=week&startDate=${startDate}`);
         if (res.ok) {
           const data = await res.json();
           setAnalyticsData(data);
@@ -582,7 +647,7 @@ export default function DashboardPage() {
     };
 
     void fetchAnalytics();
-  }, [activeSection]);
+  }, [activeSection, analyticsWeekOffset]);
 
   /* --- REAL LEDGER DATA REPLACES MOCK --- */
   const ledgerRows = useMemo(() => {
@@ -902,12 +967,15 @@ export default function DashboardPage() {
                               {timesheetDays.map((day) => (
                                 day.activities.map((act: any, idx: number) => {
                                   if (!act.start_time || !act.end_time) return null;
-                                  const s = new Date(act.start_time);
-                                  let e = new Date(act.end_time);
-
-                                  // Parse minutes
-                                  const startMin = s.getHours() * 60 + s.getMinutes();
-                                  let endMin = e.getHours() * 60 + e.getMinutes();
+                                  
+                                  // Parse HH:MM string format
+                                  const parseTime = (t: string) => {
+                                    const [hh, mm] = t.split(':').map(Number);
+                                    return hh * 60 + mm;
+                                  };
+                                  
+                                  const startMin = parseTime(act.start_time);
+                                  let endMin = parseTime(act.end_time);
 
                                   if (endMin < startMin) endMin += 1440; // Overnight
 
@@ -921,7 +989,7 @@ export default function DashboardPage() {
                                       <div className="gantt-track">
                                         <div className="gantt-bar bar-B" style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}>
                                           <div className="gantt-tooltip">
-                                            <strong>{s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
+                                            <strong>{act.start_time} - {act.end_time}</strong>
                                           </div>
                                         </div>
                                       </div>
@@ -951,27 +1019,44 @@ export default function DashboardPage() {
                             <table className="data-table">
                               <thead>
                                 <tr>
-                                  <th>Date</th>
+                                  <th style={{ minWidth: 130 }}>Date</th>
                                   <th>Activity Name</th>
                                   <th>Start</th>
                                   <th>End</th>
                                   <th>Duration</th>
+                                  <th>Status</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {timesheetDays.map(day => (
                                   day.activities.map((act: any, idx: number) => (
                                     <tr key={`${day.date}-${idx}-tr`}>
-                                      <td>{new Date(day.date).toLocaleDateString()}</td>
+                                      <td>{day.date}</td>
                                       <td style={{ fontWeight: 600 }}>{act.activity_name}</td>
-                                      <td>{act.start_time ? new Date(act.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}</td>
-                                      <td>{act.end_time ? new Date(act.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "..."}</td>
+                                      <td>{act.start_time || "-"}</td>
+                                      <td>{act.end_time || "..."}</td>
                                       <td>{act.total_hours ? Number(act.total_hours).toFixed(2) + "h" : "-"}</td>
+                                      <td>
+                                        <span style={{
+                                          padding: "2px 8px",
+                                          borderRadius: 4,
+                                          fontSize: "0.75rem",
+                                          fontWeight: 600,
+                                          backgroundColor: act.approval_status === "PENDING" ? "rgba(234, 179, 8, 0.2)" : 
+                                                          act.approval_status === "SUPERVISOR_APPROVED" ? "rgba(34, 197, 94, 0.2)" :
+                                                          act.approval_status === "REJECTED" ? "rgba(239, 68, 68, 0.2)" : "rgba(100, 100, 100, 0.2)",
+                                          color: act.approval_status === "PENDING" ? "#eab308" :
+                                                 act.approval_status === "SUPERVISOR_APPROVED" ? "#22c55e" :
+                                                 act.approval_status === "REJECTED" ? "#ef4444" : "#888",
+                                        }}>
+                                          {act.approval_status || "—"}
+                                        </span>
+                                      </td>
                                     </tr>
                                   ))
                                 ))}
                                 {timesheetDays.length === 0 && (
-                                  <tr><td colSpan={5} style={{ textAlign: "center", padding: 20, color: "var(--text-muted)" }}>No logs found.</td></tr>
+                                  <tr><td colSpan={6} style={{ textAlign: "center", padding: 20, color: "var(--text-muted)" }}>No logs found.</td></tr>
                                 )}
                               </tbody>
                             </table>
@@ -982,10 +1067,27 @@ export default function DashboardPage() {
                           <div className="ts-status-info">
                             <div className="label-sm" style={{ marginBottom: 4 }}>TIMESHEET STATUS</div>
                             <div className="status-badge warn"><span className="dot" /> DRAFT</div>
+                            {submitMsg && (
+                              <div style={{ 
+                                marginTop: 8, 
+                                padding: "6px 10px", 
+                                borderRadius: 6, 
+                                fontSize: "0.85rem",
+                                backgroundColor: submitMsg.type === "success" ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)",
+                                color: submitMsg.type === "success" ? "#22c55e" : "#ef4444",
+                              }}>
+                                {submitMsg.text}
+                              </div>
+                            )}
                           </div>
-                          <button className="ts-submit-btn">
-                            <span style={{ marginRight: 8 }}>📤</span>
-                            Submit for Review
+                          <button 
+                            className="ts-submit-btn" 
+                            onClick={submitTimesheet}
+                            disabled={submitLoading}
+                            style={{ opacity: submitLoading ? 0.6 : 1 }}
+                          >
+                            <span style={{ marginRight: 8 }}>{submitLoading ? "⏳" : "📤"}</span>
+                            {submitLoading ? "Submitting..." : "Submit for Review"}
                           </button>
                         </div>
                       </div>
@@ -1134,23 +1236,59 @@ export default function DashboardPage() {
                           <div className="glass-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: 25 }}>
                             <div className="section-title">
                               Hours Worked vs Target
-                              <button className="btn-generate-report" onClick={() => alert("Report generation feature coming soon!")}>
-                                <span style={{ marginRight: 8 }}>📄</span> Generate Report
-                              </button>
+                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <button 
+                                  className="cal-nav-btn" 
+                                  onClick={() => setAnalyticsWeekOffset(prev => prev - 1)}
+                                  style={{ padding: "6px 12px" }}
+                                >
+                                  ◀
+                                </button>
+                                <span style={{ minWidth: 140, textAlign: "center", fontSize: "0.85rem", fontWeight: 600 }}>
+                                  {(() => {
+                                    const today = new Date();
+                                    const dayOfWeek = today.getDay();
+                                    const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                                    const monday = new Date(today);
+                                    monday.setDate(today.getDate() - diff + (analyticsWeekOffset * 7));
+                                    const sunday = new Date(monday);
+                                    sunday.setDate(monday.getDate() + 6);
+                                    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                    return `${fmt(monday)} - ${fmt(sunday)}`;
+                                  })()}
+                                </span>
+                                <button 
+                                  className="cal-nav-btn" 
+                                  onClick={() => setAnalyticsWeekOffset(prev => Math.min(prev + 1, 0))}
+                                  disabled={analyticsWeekOffset >= 0}
+                                  style={{ padding: "6px 12px", opacity: analyticsWeekOffset >= 0 ? 0.4 : 1 }}
+                                >
+                                  ▶
+                                </button>
+                                {analyticsWeekOffset !== 0 && (
+                                  <button 
+                                    onClick={() => setAnalyticsWeekOffset(0)}
+                                    style={{ fontSize: "0.75rem", padding: "4px 10px", borderRadius: 4, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer" }}
+                                  >
+                                    Today
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             <div className="graph-container">
                               {(() => {
-                                // Generate chart for current week (Mon-Sun)
+                                // Generate chart for selected week (Mon-Sun)
                                 const days = [];
                                 const today = new Date();
                                 const TARGET_HOURS = 9;
                                 const MAX_SCALE = 12;
 
-                                // Calculate Monday of current week
+                                // Calculate Monday of selected week
                                 const currentDay = today.getDay(); // 0 is Sunday
-                                const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1); // adjust when day is sunday
-                                const monday = new Date(today.setDate(diff));
+                                const diff = currentDay === 0 ? 6 : currentDay - 1; // adjust when day is sunday
+                                const monday = new Date(today);
+                                monday.setDate(today.getDate() - diff + (analyticsWeekOffset * 7));
 
                                 for (let i = 0; i < 7; i++) {
                                   const d = new Date(monday);

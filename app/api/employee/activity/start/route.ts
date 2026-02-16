@@ -75,12 +75,13 @@ export async function POST(request: Request) {
       });
     }
 
-    // Get user's current department and supervisor
+    // Get user's current department, supervisor, and manager
     const userDetails = await prisma.d_tbluser.findUnique({
       where: { user_id: user.user_id },
       select: {
         dept_id: true,
         supervisor_id: true,
+        manager_id: true,
       },
     });
 
@@ -94,6 +95,8 @@ export async function POST(request: Request) {
         end_time: null,
         total_hours: null,
         dept_id_at_log: userDetails?.dept_id || 0,
+        supervisor_id: userDetails?.supervisor_id || null,
+        manager_id: userDetails?.manager_id || null,
         supervisor_id_at_log: userDetails?.supervisor_id || '',
         approval_status: "PENDING",
         clock_id: activeShift.clock_id,

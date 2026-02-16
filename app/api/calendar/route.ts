@@ -60,8 +60,11 @@ export async function GET(req: Request) {
 
     const shift = shiftId ? shiftMap[shiftId.toString()] : null;
 
+    // Use local date components to avoid timezone shift issues
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
     results.push({
-      date: date.toISOString().split("T")[0],
+      date: dateStr,
       off: !shift,
       shift_name: shift?.shift_name ?? null,
       start_time: shift ? formatTimeField(shift.start_time) : null,
