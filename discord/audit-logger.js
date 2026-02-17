@@ -65,6 +65,10 @@ client.once("ready", async () => {
 
     startDatabasePolling();
     startDashboardRefreshLoop();
+
+    // 📂 Start File Watchers (Legacy/Direct Log Support)
+    startWatching(AUDIT_LOG_FILE, 'audit');
+    startWatching(RAW_LOG_FILE, 'raw');
 });
 
 // Models to expose
