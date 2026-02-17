@@ -34,11 +34,14 @@ export default function AdminUserManagement() {
   const [users, setUsers] = useState<User[]>([]);
   const [metadata, setMetadata] = useState<Metadata | null>(null);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   
-  // FILTERS STATE (Restored)
+  const [targetUserId, setTargetUserId] = useState<string | null>(null);
+  
+  // TAB & STATS STATE
+  const [activeTab, setActiveTab] = useState<"ACTIVE" | "DEACTIVATED">("ACTIVE");
+  const [stats, setStats] = useState({ total: 0, active: 0 });
+
+  // FILTERS STATE
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -49,7 +52,7 @@ export default function AdminUserManagement() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
   
-  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [modalMode, setModalMode] = useState<"create" | "edit">("edit");
   const [resultMessage, setResultMessage] = useState({ title: "", text: "", type: "success" });
 
   const [formData, setFormData] = useState({
@@ -57,7 +60,6 @@ export default function AdminUserManagement() {
     hire_date: "", original_hire_date: "", resignation_date: "", original_resignation_date: ""
   });
 
-  // Load Metadata Safely
   useEffect(() => {
     fetch("/api/admin/metadata")
       .then(res => {
@@ -68,30 +70,44 @@ export default function AdminUserManagement() {
       .catch(err => console.error("Metadata Error:", err));
   }, []);
 
-  // Load Users
   const loadUsers = async () => {
     setLoading(true);
-    setSelectedUserIds([]); 
     try {
         const params = new URLSearchParams({
             limit: "50",
-            status_exclude: "DEACTIVATED",
-            search: search,          // Connected
-            role: roleFilter,        // Connected
-            status: statusFilter     // Connected
+            search: search,
+            role: roleFilter,
         });
+
+        // TABS LOGIC
+        if (activeTab === "ACTIVE") {
+            params.append("status_exclude", "DEACTIVATED");
+            if (statusFilter) params.append("status", statusFilter);
+        } else {
+            params.append("status", "DEACTIVATED");
+        }
 
         const res = await fetch(`/api/admin/users/list?${params}`); 
         const data = await res.json();
-        if (res.ok) setUsers(data.users || []);
+        
+        if (res.ok) {
+            const fetchedUsers = data.users || [];
+            setUsers(fetchedUsers);
+            
+            // Cache HUD stats ONLY when on ACTIVE tab and not searching/filtering
+            if (activeTab === "ACTIVE" && !search && !roleFilter && !statusFilter) {
+                setStats({
+                    total: data.pagination.total,
+                    active: fetchedUsers.filter((u: User) => u.account_status === "ACTIVE").length
+                });
+            }
+        }
     } catch (e) { console.error(e); } 
     finally { setLoading(false); }
   };
 
-  // Reload when filters change
-  useEffect(() => { loadUsers(); }, [search, roleFilter, statusFilter]);
+  useEffect(() => { loadUsers(); }, [search, roleFilter, statusFilter, activeTab]);
 
-  // --- HELPER: Sanitization ---
   const sanitizeInput = (value: string, type: 'text' | 'email' | 'userid') => {
       if (!value) return "";
       switch(type) {
@@ -101,20 +117,19 @@ export default function AdminUserManagement() {
       }
   };
 
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.checked) setSelectedUserIds([]);
+  const handleOpenCreate = () => {
+    setModalMode("create");
+    setFormData({
+        user_id: "", first_name: "", last_name: "", email: "", role_id: "", pos_id: "", dept_id: "", team_id: "", supervisor_id: "", manager_id: "", account_status: "ACTIVE", password: "",
+        hire_date: new Date().toISOString().split('T')[0],
+        original_hire_date: "", resignation_date: "", original_resignation_date: ""
+    });
+    setShowModal(true);
   };
 
-  const handleSelectUser = (userId: string) => {
-    setSelectedUserIds(prev => prev.includes(userId) ? [] : [userId]);
-  };
-
-  const handleOpenEdit = () => {
-    if (selectedUserIds.length !== 1) return;
-    const user = users.find(u => u.user_id === selectedUserIds[0]);
-    if (!user) return;
-
+  const handleOpenEdit = (user: User) => {
     setModalMode("edit");
+    setTargetUserId(user.user_id);
     setFormData({
         user_id: user.user_id,
         first_name: user.first_name || "",
@@ -136,35 +151,20 @@ export default function AdminUserManagement() {
     setShowModal(true);
   };
 
-  const handleOpenCreate = () => {
-    setModalMode("create");
-    setFormData({
-        user_id: "", first_name: "", last_name: "", email: "", role_id: "", pos_id: "", dept_id: "", team_id: "", supervisor_id: "", manager_id: "", account_status: "ACTIVE", password: "",
-        hire_date: new Date().toISOString().split('T')[0],
-        original_hire_date: "", resignation_date: "", original_resignation_date: ""
-    });
-    setShowModal(true);
-  };
-
-  const handleDeleteClick = () => {
-    if (selectedUserIds.length !== 1) return;
-    setShowDeleteConfirm(true); 
-  };
-
   const executeDelete = async () => {
     setShowDeleteConfirm(false); 
-    const userIdToDelete = selectedUserIds[0];
+    if (!targetUserId) return;
 
     try {
-        const res = await fetch(`/api/admin/users/delete?user_id=${userIdToDelete}`, {
+        const res = await fetch(`/api/admin/users/delete?user_id=${targetUserId}`, {
             method: "DELETE",
         });
 
         const data = await res.json();
 
         if (res.ok) {
-            setUsers(prev => prev.filter(u => u.user_id !== userIdToDelete));
-            setSelectedUserIds([]); 
+            setUsers(prev => prev.filter(u => u.user_id !== targetUserId));
+            setTargetUserId(null); 
             
             setResultMessage({
                 title: "User Deactivated",
@@ -225,16 +225,16 @@ export default function AdminUserManagement() {
 
         if (res.ok) {
             setShowModal(false);
-            loadUsers();
+            loadUsers(); 
             setResultMessage({
                 title: "Success",
-                text: "User records updated successfully.",
+                text: `User successfully ${modalMode === "create" ? "created" : "updated"}.`,
                 type: "success"
             });
             setShowResultModal(true);
         } else {
             setResultMessage({
-                title: "Update Failed",
+                title: `${modalMode === "create" ? "Creation" : "Update"} Failed`,
                 text: data.message || "An unknown error occurred.",
                 type: "error"
             });
@@ -250,7 +250,6 @@ export default function AdminUserManagement() {
     }
   };
 
-  // UI STYLES
   const darkSelectStyle = {
       backgroundColor: '#333',
       color: '#fff',
@@ -259,7 +258,6 @@ export default function AdminUserManagement() {
       borderRadius: '4px'
   };
 
-  // For the search/filter inputs to match the dark theme
   const darkInputStyle = {
       backgroundColor: '#222',
       color: '#fff',
@@ -271,58 +269,49 @@ export default function AdminUserManagement() {
 
   return (
     <div className="user-management-section">
-      <div className="glass-card" style={{ marginBottom: "1.5rem", padding: "1rem" }}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-            <div className="section-title" style={{margin:0}}>User Management</div>
-            <div style={{display:'flex', gap:'10px'}}>
-                <button 
-                    className="btn-action" 
-                    onClick={handleDeleteClick}
-                    disabled={selectedUserIds.length !== 1}
-                    style={{
-                        opacity: selectedUserIds.length !== 1 ? 0.5 : 1, 
-                        cursor: selectedUserIds.length !== 1 ? 'not-allowed' : 'pointer',
-                        background: '#ef4444', 
-                        color: 'white'
-                    }}
-                >
-                    Delete User
-                </button>
+      
+      <div className="hud-row" style={{ display: "flex", gap: "1.5rem", marginBottom: "2rem" }}>
+        <div className="hud-card" style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '1.5rem', position: 'relative', overflow: 'hidden' }}>
+          <div className="hud-label" style={{ fontSize: '0.75rem', fontWeight: 800, color: '#aaa', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
+            Total Users
+          </div>
+          <div className="hud-val" style={{ fontSize: '2.5rem', fontWeight: 700, color: '#ef4444' }}>
+            {stats.total}
+          </div>
+          <div className="hud-bg-icon" style={{ position: 'absolute', right: '20px', bottom: '10px', fontSize: '3rem', opacity: 0.05 }}>👤</div>
+        </div>
 
-                <button 
-                    className="btn-action" 
-                    onClick={handleOpenEdit}
-                    disabled={selectedUserIds.length !== 1}
-                    style={{
-                        opacity: selectedUserIds.length !== 1 ? 0.5 : 1, 
-                        cursor: selectedUserIds.length !== 1 ? 'not-allowed' : 'pointer',
-                        background: 'var(--color-primary)'
-                    }}
-                >
-                    Edit User
-                </button>
-
-                <button className="btn-add admin-btn" onClick={handleOpenCreate}>
-                    + Add User
-                </button>
-            </div>
+        <div className="hud-card" style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px', padding: '1.5rem', position: 'relative', overflow: 'hidden' }}>
+          <div className="hud-label" style={{ fontSize: '0.75rem', fontWeight: 800, color: '#aaa', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
+            Active Users
+          </div>
+          <div className="hud-val" style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--color-go)' }}>
+            {stats.active}
+          </div>
+          <div className="hud-bg-icon" style={{ position: 'absolute', right: '20px', bottom: '10px', fontSize: '3rem', opacity: 0.05 }}>✓</div>
         </div>
       </div>
 
-      {/* --- RESTORED SEARCH & FILTER BAR --- */}
-      <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-          <input
-            type="text"
-            placeholder="Search users (ID, Name, Dept, Role)..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ ...darkInputStyle, flex: 1 }}
-          />
+      <div className="glass-card" style={{ marginBottom: "1.5rem", padding: "1rem" }}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <div className="section-title" style={{margin:0}}>User Management</div>
+        </div>
+      </div>
 
+      {/* REORGANIZED FILTERS & SEARCH BAR */}
+      <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
+          
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            style={darkSelectStyle}
+            style={{ 
+                ...darkSelectStyle, 
+                padding: '10px 15px', 
+                borderRadius: '6px', 
+                flex: 1,              
+                minWidth: '220px',    
+                maxWidth: '300px'     
+            }}
           >
             <option value="">All Roles</option>
             {metadata?.roles?.map((role) => (
@@ -332,25 +321,114 @@ export default function AdminUserManagement() {
             ))}
           </select>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={darkSelectStyle}
-          >
-            <option value="">All Statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="DISABLED">Disabled</option>
-          </select>
+          {activeTab === "ACTIVE" && (
+            <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{ 
+                    ...darkSelectStyle, 
+                    padding: '10px 15px', 
+                    borderRadius: '6px', 
+                    flex: 1, 
+                    minWidth: '220px', 
+                    maxWidth: '300px' 
+                }}
+            >
+                <option value="">All Statuses</option>
+                <option value="ACTIVE">Active</option>
+                <option value="DISABLED">Disabled</option>
+            </select>
+          )}
+
+          {/* Search bar width increased slightly to fit the placeholder perfectly */}
+          <input
+            type="text"
+            placeholder="Search users (Name, Email, Dept, Role)..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ 
+                ...darkInputStyle, 
+                width: '360px', // Adjusted to 360px to comfortably fit the placeholder
+                flex: 'none'    
+            }}
+          />
       </div>
-      {/* ---------------------------------- */}
 
       <div className="glass-card">
+        
+        {/* ADD USER BUTTON */}
+        {activeTab === "ACTIVE" && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1rem' }}>
+                <button 
+                    onClick={handleOpenCreate}
+                    style={{
+                        backgroundColor: '#10b981', 
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '6px 16px', 
+                        borderRadius: '6px', 
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)' 
+                    }}
+                >
+                    + Add User
+                </button>
+            </div>
+        )}
+
+        {/* TABS NAVIGATION */}
+        <div style={{ display: "flex", alignItems: "center", marginBottom: "1.5rem", borderBottom: "1px solid #333" }}>
+          <button 
+            onClick={() => { setActiveTab("ACTIVE"); setStatusFilter(""); }}
+            style={{
+              flex: 1,
+              padding: "1rem",
+              backgroundColor: "transparent",
+              borderTopWidth: 0,
+              borderLeftWidth: 0,
+              borderRightWidth: 0,
+              borderBottom: activeTab === "ACTIVE" ? "3px solid var(--color-go)" : "3px solid transparent",
+              color: activeTab === "ACTIVE" ? "var(--color-go)" : "#aaa",
+              fontWeight: 800,
+              fontSize: "1rem",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              textTransform: "uppercase",
+              letterSpacing: "1px"
+            }}
+          >
+            Active Accounts
+          </button>
+
+          <button 
+            onClick={() => { setActiveTab("DEACTIVATED"); setStatusFilter(""); }}
+            style={{
+              flex: 1,
+              padding: "1rem",
+              backgroundColor: "transparent",
+              borderTopWidth: 0,
+              borderLeftWidth: 0,
+              borderRightWidth: 0,
+              borderBottom: activeTab === "DEACTIVATED" ? "3px solid #ef4444" : "3px solid transparent",
+              color: activeTab === "DEACTIVATED" ? "#ef4444" : "#aaa",
+              fontWeight: 800,
+              fontSize: "1rem",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              textTransform: "uppercase",
+              letterSpacing: "1px"
+            }}
+          >
+            Deactivated Accounts
+          </button>
+        </div>
+
+        {/* DATA TABLE */}
         <div className="table-container" style={{ maxHeight: "600px", overflowX: "auto" }}>
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{width: '40px'}}></th> 
-                <th>User ID</th>
                 <th>Name</th>
                 <th>Email</th>
                 <th>Role</th>
@@ -358,48 +436,75 @@ export default function AdminUserManagement() {
                 <th>Team</th>
                 <th>Position</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-                {users.map(user => (
-                    <tr key={user.user_id} className={selectedUserIds.includes(user.user_id) ? 'selected-row' : ''}>
-                        <td>
-                            <input 
-                                type="checkbox" 
-                                checked={selectedUserIds.includes(user.user_id)} 
-                                onChange={() => handleSelectUser(user.user_id)} 
-                            />
-                        </td>
-                        <td style={{fontFamily:'var(--font-mono)'}}>{user.user_id}</td>
-                        <td style={{fontWeight:600}}>{user.first_name} {user.last_name}</td>
-                        <td>{user.email}</td>
-                        <td>{user.D_tblrole?.role_name || "—"}</td>
-                        <td>{user.D_tbldepartment?.dept_name || "—"}</td>
-                        <td>{user.D_tblteam?.team_name || "—"}</td>
-                        <td>{user.D_tblposition?.pos_name || "—"}</td>
-                        <td>
-                            <span className={`status-badge-admin ${user.account_status === "ACTIVE" ? "active" : "disabled"}`}>
-                                {user.account_status}
-                            </span>
+                {loading ? (
+                    <tr>
+                        <td colSpan={8} style={{ textAlign: "center", padding: "2rem", color: "#aaa" }}>
+                            Loading users...
                         </td>
                     </tr>
-                ))}
+                ) : users.length === 0 ? (
+                    <tr>
+                        <td colSpan={8} style={{ textAlign: "center", padding: "2rem", color: "#aaa" }}>
+                            No users found in this category.
+                        </td>
+                    </tr>
+                ) : (
+                    users.map(user => (
+                        <tr key={user.user_id}>
+                            <td style={{fontWeight:600}}>{user.first_name} {user.last_name}</td>
+                            <td>{user.email}</td>
+                            <td>{user.D_tblrole?.role_name || "—"}</td>
+                            <td>{user.D_tbldepartment?.dept_name || "—"}</td>
+                            <td>{user.D_tblteam?.team_name || "—"}</td>
+                            <td>{user.D_tblposition?.pos_name || "—"}</td>
+                            <td>
+                                <span className={`status-badge-admin ${user.account_status === "ACTIVE" ? "active" : "disabled"}`}>
+                                    {user.account_status || "NULL"}
+                                </span>
+                            </td>
+                            <td>
+                                <button 
+                                    className="btn-mini" 
+                                    onClick={() => handleOpenEdit(user)}
+                                    style={{ 
+                                        backgroundColor: '#3b82f6',
+                                        color: '#ffffff', 
+                                        borderTopWidth: 0,
+                                        borderLeftWidth: 0,
+                                        borderRightWidth: 0,
+                                        borderBottomWidth: 0, 
+                                        padding: '6px 16px',
+                                        borderRadius: '6px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                    }}
+                                >
+                                    Edit
+                                </button>
+                            </td>
+                        </tr>
+                    ))
+                )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* EDIT FORM MODAL */}
+      {/* EDIT/CREATE FORM MODAL */}
       {showModal && (
         <div className="modal-overlay" style={{zIndex: 1000}}>
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{
-              width: "800px", maxWidth: "95vw", background: "#1a1a1a", border: "1px solid #333", color: "#eee"
+              width: "800px", maxWidth: "95vw", backgroundColor: "#1a1a1a", border: "1px solid #333", color: "#eee"
           }}>
             <div style={{display:'flex', justifyContent:'space-between', marginBottom:'20px'}}>
                 <div className="modal-title" style={{textTransform:'uppercase', letterSpacing:'1px'}}>
                     {modalMode === "create" ? "Add New Employee" : "Employee Details"}
                 </div>
-                <div style={{color:'#666'}}>{formData.user_id}</div>
             </div>
 
             <form onSubmit={handlePreSubmit}>
@@ -421,6 +526,18 @@ export default function AdminUserManagement() {
                     </div>
                 </div>
 
+                <div style={{marginBottom:'15px'}}>
+                    <label className="label-sm">Email Address</label>
+                    <input type="email" className="modal-input" value={formData.email} onChange={e => setFormData({...formData, email: sanitizeInput(e.target.value, 'email')})} required />
+                </div>
+                
+                {modalMode === "create" && (
+                    <div style={{marginBottom:'15px'}}>
+                        <label className="label-sm">Initial Password</label>
+                        <input type="password" className="modal-input" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+                    </div>
+                )}
+
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}>
                     <div>
                         <label className="label-sm">Account Status</label>
@@ -438,18 +555,6 @@ export default function AdminUserManagement() {
                         </select>
                     </div>
                 </div>
-
-                <div style={{marginBottom:'15px'}}>
-                    <label className="label-sm">Email Address</label>
-                    <input type="email" className="modal-input" value={formData.email} onChange={e => setFormData({...formData, email: sanitizeInput(e.target.value, 'email')})} required />
-                </div>
-                
-                {modalMode === "create" && (
-                    <div style={{marginBottom:'15px'}}>
-                        <label className="label-sm">Initial Password</label>
-                        <input type="password" className="modal-input" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
-                    </div>
-                )}
 
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}>
                      <div>
@@ -485,7 +590,7 @@ export default function AdminUserManagement() {
                     </div>
                 </div>
 
-                <div style={{background:'#222', padding:'15px', borderRadius:'8px', border:'1px solid #333'}}>
+                <div style={{backgroundColor:'#222', padding:'15px', borderRadius:'8px', border:'1px solid #333'}}>
                     <div style={{color:'#ef4444', fontSize:'0.75rem', fontWeight:'bold', marginBottom:'10px', textTransform:'uppercase'}}>Employment History</div>
                     
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'10px'}}>
@@ -518,51 +623,48 @@ export default function AdminUserManagement() {
 
                 <div className="modal-actions" style={{marginTop:'20px', justifyContent:'flex-end'}}>
                     <button type="button" className="modal-btn ghost" onClick={() => setShowModal(false)}>CLOSE</button>
-                    <button type="submit" className="modal-btn ok" style={{background:'#eee', color:'#000', fontWeight:'bold'}}>SAVE CHANGES</button>
+                    <button type="submit" className="modal-btn ok" style={{backgroundColor:'#eee', color:'#000', fontWeight:'bold'}}>SAVE CHANGES</button>
                 </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* CONFIRMATION MODAL */}
       {showConfirmModal && (
         <div className="modal-overlay" style={{zIndex: 2000, backgroundColor: 'rgba(0,0,0,0.8)'}}>
             <div className="glass-card" style={{width: '350px', textAlign: 'center', border: '1px solid #444'}}>
                 <h3 style={{marginBottom:'1rem', color:'#fff'}}>Confirm Updates</h3>
                 <p style={{marginBottom:'2rem', color:'#aaa'}}>Are you sure you want to apply these changes to the database?</p>
                 <div style={{display:'flex', justifyContent:'center', gap:'1rem'}}>
-                    <button className="btn-action" onClick={() => setShowConfirmModal(false)} style={{background: '#444'}}>
+                    <button className="btn-action" onClick={() => setShowConfirmModal(false)} style={{backgroundColor: '#444'}}>
                         No, Go Back
                     </button>
-                    <button className="btn-action" onClick={executeSave} style={{background: 'var(--color-go)'}}>
-                        Yes, Update
+                    <button className="btn-action" onClick={executeSave} style={{backgroundColor: 'var(--color-go)'}}>
+                        Yes, {modalMode === 'create' ? 'Create' : 'Update'}
                     </button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* DELETE CONFIRMATION MODAL */}
       {showDeleteConfirm && (
         <div className="modal-overlay" style={{zIndex: 2000, backgroundColor: 'rgba(0,0,0,0.8)'}}>
             <div className="glass-card" style={{width: '350px', textAlign: 'center', border: '1px solid #ef4444'}}>
                 <div style={{fontSize: '2rem', marginBottom: '1rem'}}>⚠️</div>
                 <h3 style={{marginBottom:'1rem', color:'#fff'}}>Deactivate User?</h3>
                 <p style={{marginBottom:'2rem', color:'#aaa'}}>
-                    Are you sure you want to deactivate <b style={{color: '#fff'}}>{selectedUserIds[0]}</b>?
+                    Are you sure you want to deactivate this user?
                     <br/><br/>
                     They will be removed from this list immediately.
                 </p>
                 <div style={{display:'flex', justifyContent:'center', gap:'1rem'}}>
-                    <button className="btn-action" onClick={() => setShowDeleteConfirm(false)} style={{background: '#444'}}>Cancel</button>
-                    <button className="btn-action" onClick={executeDelete} style={{background: '#ef4444', color: 'white'}}>Yes, Deactivate</button>
+                    <button className="btn-action" onClick={() => setShowDeleteConfirm(false)} style={{backgroundColor: '#444'}}>Cancel</button>
+                    <button className="btn-action" onClick={executeDelete} style={{backgroundColor: '#ef4444', color: 'white'}}>Yes, Deactivate</button>
                 </div>
             </div>
         </div>
       )}
 
-      {/* RESULT MODAL */}
       {showResultModal && (
         <div className="modal-overlay" style={{zIndex: 3000, backgroundColor: 'rgba(0,0,0,0.8)'}}>
             <div className="glass-card" style={{width: '350px', textAlign: 'center', border: resultMessage.type === 'success' ? '1px solid var(--color-go)' : '1px solid #ef4444'}}>
@@ -575,7 +677,7 @@ export default function AdminUserManagement() {
                     className="btn-action" 
                     onClick={() => setShowResultModal(false)} 
                     style={{
-                        background: resultMessage.type === 'success' ? 'var(--color-go)' : '#ef4444', 
+                        backgroundColor: resultMessage.type === 'success' ? 'var(--color-go)' : '#ef4444', 
                         width: '100%'
                     }}
                 >
