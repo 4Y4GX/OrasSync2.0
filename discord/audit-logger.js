@@ -28,17 +28,24 @@ const prisma = new PrismaClient();
 
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require("discord.js");
 
+// 📊 Live Dashboards Tracking
+const liveDashboards = new Map(); // interactionId -> { interaction, expiresAt }
+
 // Register Slash Command
 client.once("ready", async () => {
     console.log(`✅ Audit Bot (JS) Online as ${client.user.tag}`);
     console.log(`📡 Watching Audit Log: ${AUDIT_LOG_FILE}`);
     console.log(`📡 Watching Raw Log: ${RAW_LOG_FILE}`);
 
-    // Register /database command
+    // Register slash commands
     const commands = [
         {
             name: 'database',
             description: 'Explore the database (Read-Only)',
+        },
+        {
+            name: 'online',
+            description: 'View current status of all active users',
         },
     ];
 
@@ -56,8 +63,8 @@ client.once("ready", async () => {
         console.warn('⚠️ DISCORD_GUILD_ID not set in .env. Slash commands will NOT be registered.');
     }
 
-    startWatching(AUDIT_LOG_FILE, 'audit');
-    startWatching(RAW_LOG_FILE, 'raw');
+    startDatabasePolling();
+    startDashboardRefreshLoop();
 });
 
 // Models to expose
@@ -88,6 +95,8 @@ client.on('interactionCreate', async interaction => {
         if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'database') {
                 await showTableSelection(interaction, false);
+            } else if (interaction.commandName === 'online') {
+                await handleOnlineCommand(interaction);
             }
         } else if (interaction.isStringSelectMenu()) {
             if (interaction.customId === 'db_table_select') {
@@ -108,6 +117,14 @@ client.on('interactionCreate', async interaction => {
                 const pageStr = parts[3];
                 const page = parseInt(pageStr, 10);
                 await handleTableView(interaction, tableName, page);
+            } else if (interaction.customId === 'dashboard_refresh') {
+                // Re-register dashboard and manual refresh
+                liveDashboards.set(interaction.message.interaction?.id || interaction.id, {
+                    interaction,
+                    expiresAt: Date.now() + (60 * 60 * 1000)
+                });
+                const table = await generateUserStatusTable();
+                await interaction.update({ content: `\`\`\`\n${table}\n\`\`\`` });
             }
         }
     } catch (error) {
@@ -201,6 +218,160 @@ const MODEL_CONFIG = {
 function formatUserRef(u) {
     if (!u) return 'None';
     return `${u.first_name} ${u.last_name} (${u.user_id})`;
+}
+
+async function handleOnlineCommand(interaction) {
+    await interaction.deferReply();
+
+    const table = await generateUserStatusTable();
+    const dashboardText = `\`\`\`\n${table}\n\`\`\``;
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('dashboard_refresh')
+            .setLabel('Manual Refresh')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    await interaction.editReply({ content: dashboardText, components: [row] });
+
+    // Registry for Live Updates
+    liveDashboards.set(interaction.id, {
+        interaction,
+        expiresAt: Date.now() + (60 * 60 * 1000)
+    });
+}
+
+/**
+ * 🛠️ Generates the ASCII Status Table
+ */
+async function generateUserStatusTable() {
+    try {
+        // 1. Get all users who aren't explicitly deactivated
+        const users = await prisma.D_tbluser.findMany({
+            where: {
+                OR: [
+                    { account_status: 'ACTIVE' },
+                    { account_status: null }
+                ]
+            },
+            orderBy: { user_id: 'asc' }
+        });
+
+        // 2. Get currently clocked-in logs
+        const activeLogs = await prisma.D_tblclock_log.findMany({
+            where: { clock_out_time: null }
+        });
+
+        const onlineUserIds = new Set(activeLogs.map(log => log.user_id));
+
+        // 3. Build ASCII Table
+        let table = `╔════════════════════════════════════════╗\n`;
+        table += `║         👥 USER STATUS DASHBOARD       ║\n`;
+        table += `║         (Live • Auto-refreshes)        ║\n`;
+        table += `╠════════════════════════════════════════╣\n`;
+        table += `║ ID   | USER            | STATUS        ║\n`;
+        table += `╟──────┼─────────────────┼───────────────╢\n`;
+
+        for (const user of users) {
+            const name = `${user.first_name || ''} ${user.last_name || ''}`.trim().padEnd(15).substring(0, 15);
+            const id = user.user_id.padEnd(4).substring(0, 4);
+            const isOnline = onlineUserIds.has(user.user_id);
+            const status = isOnline ? '🟢 ONLINE ' : '🔴 OFFLINE';
+
+            table += `║ ${id} | ${name} | ${status}  ║\n`;
+        }
+
+        table += `╚════════════════════════════════════════╝\n`;
+        table += `Total Users: ${users.length}\n`;
+        table += `Last Sync: ${new Date().toLocaleTimeString()}`;
+
+        return table;
+    } catch (error) {
+        console.error("Error generating status table:", error);
+        return "❌ Error: Could not generate status table.";
+    }
+}
+
+/**
+ * 🔄 Live Refresh Loop for Online Dashboards
+ */
+function startDashboardRefreshLoop() {
+    console.log("🔄 Starting Live Dashboard Refresh Loop (15s)...");
+    setInterval(async () => {
+        if (liveDashboards.size === 0) return;
+
+        const table = await generateUserStatusTable();
+        const dashboardText = `\`\`\`\n${table}\n\`\`\``;
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('dashboard_refresh')
+                .setLabel('Manual Refresh')
+                .setStyle(ButtonStyle.Primary)
+        );
+
+        for (const [id, entry] of liveDashboards.entries()) {
+            // Check for expiration
+            if (Date.now() > entry.expiresAt) {
+                console.log(`🧹 Removing expired dashboard: ${id}`);
+                liveDashboards.delete(id);
+                continue;
+            }
+
+            try {
+                await entry.interaction.editReply({ content: dashboardText, components: [row] });
+            } catch (e) {
+                // If message deleted or interaction failed, try a standalone edit if possible
+                // or just cleanup
+                console.warn(`⚠️ Dashboard ${id} unreachable, removing from tracker.`);
+                liveDashboards.delete(id);
+            }
+        }
+    }, 15000); // 15 seconds refresh
+}
+
+/**
+ * 🛰️ Database Polling (Communication Bridge)
+ * This replaces the local file-watching system.
+ */
+function startDatabasePolling() {
+    console.log("📡 Starting Database Polling for logs...");
+    setInterval(async () => {
+        try {
+            // Fetch unsent logs
+            const logs = await prisma.D_tbldiscord_log.findMany({
+                where: { is_sent: false },
+                orderBy: { created_at: 'asc' },
+                take: 10
+            });
+
+            for (const log of logs) {
+                try {
+                    const data = JSON.parse(log.data);
+                    const timestamp = log.created_at;
+
+                    if (log.type === 'audit') {
+                        sendAuditLog({ ...data, event: log.event, color: log.color, timestamp });
+                    } else {
+                        // system/raw logs
+                        sendRawLog(`[${log.event}] ${log.color}: ${log.data}`);
+                    }
+
+                    // Mark as sent
+                    await prisma.D_tbldiscord_log.update({
+                        where: { log_id: log.log_id },
+                        data: { is_sent: true }
+                    });
+                } catch (e) {
+                    console.error("Error processing log item:", log.log_id, e);
+                }
+            }
+        } catch (error) {
+            // Silently fail or log to console - prevents crashing the bot on DB hiccups
+            console.error("Polling error:", error.message);
+        }
+    }, 3000); // Poll every 3 seconds
 }
 
 async function handleTableView(interaction, tableName, page) {

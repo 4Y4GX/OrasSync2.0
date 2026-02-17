@@ -1,25 +1,23 @@
-import fs from 'fs';
-import path from 'path';
+import { prisma } from './db';
 
 export type AuditEvent = {
-    type: "audit";
+    type: "audit" | "system";
     event: string;
     color: string;
     data: Record<string, any>;
 };
 
-export function logAudit(payload: AuditEvent) {
+export async function logAudit(payload: AuditEvent) {
     try {
-        const logDir = path.join(process.cwd(), 'logs');
-        if (!fs.existsSync(logDir)) {
-            fs.mkdirSync(logDir, { recursive: true });
-        }
-
-        const logFile = path.join(logDir, 'audit.log');
-        const line = JSON.stringify({ ...payload, timestamp: new Date().toISOString() }) + '\n';
-
-        fs.appendFileSync(logFile, line);
+        await prisma.D_tbldiscord_log.create({
+            data: {
+                type: payload.type || 'audit',
+                event: payload.event,
+                color: payload.color,
+                data: JSON.stringify(payload.data)
+            }
+        });
     } catch (error) {
-        console.error("Failed to write audit log:", error);
+        console.error("Failed to write to DB log:", error);
     }
 }

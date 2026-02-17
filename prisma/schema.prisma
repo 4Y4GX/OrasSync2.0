@@ -306,6 +306,16 @@ model D_tblweekly_schedule {
   @@index([wednesday_shift_id], map: "fk_ws_wed")
 }
 
+model D_tbldiscord_log {
+  log_id     Int      @id @default(autoincrement())
+  type       String   @db.VarChar(50)
+  event      String   @db.VarChar(100)
+  color      String   @db.VarChar(20)
+  data       String   @db.Text
+  created_at DateTime @default(now())
+  is_sent    Boolean  @default(false)
+}
+
 enum D_tblaccount_recovery_incident_incident_type {
   ACCOUNT_LOCKED_LOGIN_FAILURE
   RECOVERY_LOCKED_OTP_LIMIT_EXCEEDED
