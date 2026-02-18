@@ -121,14 +121,28 @@ client.on('interactionCreate', async interaction => {
                 const pageStr = parts[3];
                 const page = parseInt(pageStr, 10);
                 await handleTableView(interaction, tableName, page);
-            } else if (interaction.customId === 'dashboard_refresh') {
-                // Re-register dashboard and manual refresh
-                liveDashboards.set(interaction.message.interaction?.id || interaction.id, {
-                    interaction,
+            } else if (interaction.customId === 'dashboard_refresh' || interaction.customId.startsWith('dashboard_filter_')) {
+                // Handle dashboard interactions
+                const dashboardId = interaction.message.interaction?.id || interaction.message.id;
+                let entry = liveDashboards.get(dashboardId);
+
+                // If not in memory, create best-effort entry
+                if (!entry) {
+                    entry = { message: interaction.message, filter: 'ALL', expiresAt: Date.now() + (60 * 60 * 1000) };
+                }
+
+                if (interaction.customId === 'dashboard_filter_online') entry.filter = 'ONLINE';
+                if (interaction.customId === 'dashboard_filter_all') entry.filter = 'ALL';
+
+                // Update registry with latest filter and extend expiry
+                liveDashboards.set(dashboardId, {
+                    message: interaction.message,
+                    filter: entry.filter,
                     expiresAt: Date.now() + (60 * 60 * 1000)
                 });
-                const table = await generateUserStatusTable();
-                await interaction.update({ content: `\`\`\`\n${table}\n\`\`\`` });
+
+                const payload = await generateDashboardPayload(entry.filter);
+                await interaction.update({ content: '', ...payload });
             }
         }
     } catch (error) {
@@ -227,31 +241,29 @@ function formatUserRef(u) {
 async function handleOnlineCommand(interaction) {
     await interaction.deferReply();
 
-    const table = await generateUserStatusTable();
-    const dashboardText = `\`\`\`\n${table}\n\`\`\``;
+    const payload = await generateDashboardPayload('ALL');
 
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setCustomId('dashboard_refresh')
-            .setLabel('Manual Refresh')
-            .setStyle(ButtonStyle.Primary)
-    );
-
-    await interaction.editReply({ content: dashboardText, components: [row] });
+    // Send initial dashboard
+    const message = await interaction.editReply({
+        content: '',
+        ...payload
+    });
 
     // Registry for Live Updates
     liveDashboards.set(interaction.id, {
-        interaction,
+        message, // Store the Message object, not the interaction
+        filter: 'ALL',
         expiresAt: Date.now() + (60 * 60 * 1000)
     });
 }
 
 /**
- * 🛠️ Generates the ASCII Status Table
+ * 🛠️ Generates the Dashboard Payload (Embed + Components)
+ * @param {string} filter 'ALL' | 'ONLINE'
  */
-async function generateUserStatusTable() {
+async function generateDashboardPayload(filter = 'ALL') {
     try {
-        // 1. Get all users who aren't explicitly deactivated
+        // 1. Get all users
         const users = await prisma.D_tbluser.findMany({
             where: {
                 OR: [
@@ -264,38 +276,132 @@ async function generateUserStatusTable() {
 
         // 2. Get currently clocked-in logs
         const activeLogs = await prisma.D_tblclock_log.findMany({
-            where: { clock_out_time: null }
+            where: { clock_out_time: null },
+            include: { D_tbluser: true }
         });
 
         const onlineUserIds = new Set(activeLogs.map(log => log.user_id));
 
-        // 3. Build ASCII Table
-        let table = `╔════════════════════════════════════════╗\n`;
-        table += `║         👥 USER STATUS DASHBOARD       ║\n`;
-        table += `║         (Live • Auto-refreshes)        ║\n`;
-        table += `╠════════════════════════════════════════╣\n`;
-        table += `║ ID   | USER            | STATUS        ║\n`;
-        table += `╟──────┼─────────────────┼───────────────╢\n`;
-
-        for (const user of users) {
-            const name = `${user.first_name || ''} ${user.last_name || ''}`.trim().padEnd(15).substring(0, 15);
-            const id = user.user_id.padEnd(4).substring(0, 4);
-            const isOnline = onlineUserIds.has(user.user_id);
-            const status = isOnline ? '🟢 ONLINE ' : '🔴 OFFLINE';
-
-            table += `║ ${id} | ${name} | ${status}  ║\n`;
+        // 3. Filter Data
+        let displayedUsers = users;
+        if (filter === 'ONLINE') {
+            displayedUsers = users.filter(u => onlineUserIds.has(u.user_id));
         }
 
-        table += `╚════════════════════════════════════════╝\n`;
-        table += `Total Users: ${users.length}\n`;
-        table += `Last Sync: ${new Date().toLocaleTimeString()}`;
+        const onlineCount = onlineUserIds.size;
+        const totalCount = users.length;
+        const percentage = Math.round((onlineCount / totalCount) * 100) || 0;
 
-        return table;
+        // Progress Bar
+        const barLength = 20;
+        const filled = Math.round((barLength * percentage) / 100);
+        const empty = barLength - filled;
+        const progressBar = '█'.repeat(filled) + '░'.repeat(empty);
+
+        // Color based on load
+        const embedColor = percentage > 50 ? THEME.colors.success : THEME.colors.info;
+
+        // 4. Build Embed
+        const embed = new EmbedBuilder()
+            .setColor(embedColor)
+            .setFooter({ text: `SYSTEM ID: ${Date.now().toString(36).toUpperCase()} • AUTO-REFRESH: ACTIVE` });
+
+        // Header Section (ANSI)
+        let header = '```ansi\n';
+        header += `[1;34m📡 SYSTEM STATUS MONITOR[0m\n`;
+        header += `[1;30m========================================[0m\n`;
+        header += `[1;36mSYSTEM LOAD [0m [[1;32m${progressBar}[0m] [1;37m${percentage}%[0m\n`;
+        header += `[1;36mACTIVE UNITS[0m [1;37m${onlineCount}[0m / [1;37m${totalCount}[0m\n`;
+        header += '```';
+
+        embed.setDescription(header);
+
+        // User List Section
+        // Chunk users for display to handle limits (approx 15 users per chunk for nice display)
+        const USERS_PER_CHUNK = 15;
+        const chunks = [];
+        for (let i = 0; i < displayedUsers.length; i += USERS_PER_CHUNK) {
+            chunks.push(displayedUsers.slice(i, i + USERS_PER_CHUNK));
+        }
+
+        if (chunks.length === 0) {
+            embed.addFields({
+                name: '📋 UNIT LIST',
+                value: '```ansi\n[1;30m[NO UNITS FOUND][0m\n```'
+            });
+        } else {
+            chunks.forEach((chunk, index) => {
+                let listContent = '```ansi\n';
+                if (index === 0) {
+                    listContent += `[1;30mSTATUS   UNIT             TIME   [0m\n`;
+                    listContent += `[1;30m--------------------------------[0m\n`;
+                }
+
+                chunk.forEach(u => {
+                    const isOnline = onlineUserIds.has(u.user_id);
+                    // Name padding (max 16 chars)
+                    const name = `${u.first_name} ${u.last_name}`.substring(0, 16).padEnd(16);
+
+                    let status = `[1;31mOFFLINE[0m`;
+                    let time = `--   `;
+
+                    if (isOnline) {
+                        status = `[1;32mONLINE [0m`;
+                        const log = activeLogs.find(l => l.user_id === u.user_id);
+                        if (log) {
+                            const diffMins = Math.floor((Date.now() - new Date(log.clock_in_time).getTime()) / 60000);
+                            const h = Math.floor(diffMins / 60);
+                            const m = diffMins % 60;
+                            time = `${h}h${m}m`.padEnd(5);
+                        }
+                    }
+
+                    listContent += `${status}  [1;37m${name}[0m ${time}\n`;
+                });
+                listContent += '```';
+
+                embed.addFields({
+                    name: index === 0 ? (filter === 'ONLINE' ? '🟢 ONLINE UNITS' : '📋 ALL UNITS') : '\u200b',
+                    value: listContent,
+                    inline: false
+                });
+            });
+        }
+
+        // 5. Build Buttons
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('dashboard_refresh')
+                .setLabel('↻ REFRESH SYSTEM')
+                .setStyle(ButtonStyle.Secondary), // Typo in original code? Should be Secondary
+            new ButtonBuilder()
+                .setCustomId('dashboard_filter_all')
+                .setLabel('SHOW ALL UNITS')
+                .setStyle(filter === 'ALL' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                .setDisabled(filter === 'ALL'),
+            new ButtonBuilder()
+                .setCustomId('dashboard_filter_online')
+                .setLabel('SHOW ACTIVE ONLY')
+                .setStyle(filter === 'ONLINE' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                .setDisabled(filter === 'ONLINE')
+        );
+
+        // Fix typo safety if ButtonStyle.Seconday doesn't exist (it doesn't)
+        if (row.components[0].data.style === undefined) row.components[0].setStyle(ButtonStyle.Secondary);
+
+        return { embeds: [embed], components: [row] };
+
     } catch (error) {
-        console.error("Error generating status table:", error);
-        return "❌ Error: Could not generate status table.";
+        return null;
     }
 }
+
+async function generateUserStatusTable() {
+    // Legacy support wrapper, though we should switch callers to use generateDashboardPayload
+    const payload = await generateDashboardPayload('ALL');
+    return payload ? "Dashboard Updated" : "Error";
+}
+
 
 /**
  * 🔄 Live Refresh Loop for Online Dashboards
@@ -305,15 +411,14 @@ function startDashboardRefreshLoop() {
     setInterval(async () => {
         if (liveDashboards.size === 0) return;
 
-        const table = await generateUserStatusTable();
-        const dashboardText = `\`\`\`\n${table}\n\`\`\``;
+        // Determine unique filters needed to avoid re-generating for every single user if possible, 
+        // but for simplicity, we'll just generate based on each dashboard's preference.
+        // Optimization: Generate both 'ALL' and 'ONLINE' payloads once per tick.
 
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('dashboard_refresh')
-                .setLabel('Manual Refresh')
-                .setStyle(ButtonStyle.Primary)
-        );
+        const payloadAll = await generateDashboardPayload('ALL');
+        const payloadOnline = await generateDashboardPayload('ONLINE');
+
+        if (!payloadAll || !payloadOnline) return;
 
         for (const [id, entry] of liveDashboards.entries()) {
             // Check for expiration
@@ -323,11 +428,12 @@ function startDashboardRefreshLoop() {
                 continue;
             }
 
+            const payload = entry.filter === 'ONLINE' ? payloadOnline : payloadAll;
+
             try {
-                await entry.interaction.editReply({ content: dashboardText, components: [row] });
+                // Edit the message directly
+                await entry.message.edit({ content: '', ...payload });
             } catch (e) {
-                // If message deleted or interaction failed, try a standalone edit if possible
-                // or just cleanup
                 console.warn(`⚠️ Dashboard ${id} unreachable, removing from tracker.`);
                 liveDashboards.delete(id);
             }
@@ -356,7 +462,7 @@ function startDatabasePolling() {
                     const timestamp = log.created_at;
 
                     if (log.type === 'audit') {
-                        sendAuditLog({ ...data, event: log.event, color: log.color, timestamp });
+                        sendAuditLog({ data, event: log.event, color: log.color, timestamp });
                     } else {
                         // system/raw logs
                         sendRawLog(`[${log.event}] ${log.color}: ${log.data}`);
