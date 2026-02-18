@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getNowInTimezone, getTimeForStorage } from "@/lib/timezone";
+import { getTimeForStorage, calculateDurationMs } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +20,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Activity ID is required" }, { status: 400 });
     }
 
-    // Use fixed Asia/Manila timezone (server-enforced, cannot be manipulated by client)
-    const now = getNowInTimezone();
+    // Get time for storage in Manila timezone
     const timeForStorage = getTimeForStorage();
 
     // Check if user is clocked in (don't filter by shift_date to avoid timezone issues)
@@ -57,19 +56,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // End current activity
-    // activeActivity.start_time is a Date from TIME(0) - extract time and combine with shift date
+    // End current activity using Manila pseudo-time (avoids timezone issues)
     const st = activeActivity.start_time as Date;
     const shiftDate = activeShift.shift_date!;
-    const startTime = new Date(
-      shiftDate.getFullYear(),
-      shiftDate.getMonth(),
-      shiftDate.getDate(),
-      st.getUTCHours(),
-      st.getUTCMinutes(),
-      st.getUTCSeconds()
-    );
-    const durationMs = now.getTime() - startTime.getTime();
+    
+    const durationMs = calculateDurationMs(shiftDate, st);
     const totalHours = durationMs / (1000 * 60 * 60);
 
     await prisma.d_tbltime_log.update({

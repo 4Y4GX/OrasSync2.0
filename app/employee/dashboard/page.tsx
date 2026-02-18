@@ -162,6 +162,8 @@ export default function DashboardPage() {
 
   // for timers - clock in time as state for reactive updates
   const [clockInTime, setClockInTime] = useState<number | null>(null);
+  // Accumulated worked time from previous sessions today (in milliseconds)
+  const [accumulatedMs, setAccumulatedMs] = useState<number>(0);
 
   // theme
   const [lightMode, setLightMode] = useState(false);
@@ -196,6 +198,18 @@ export default function DashboardPage() {
 
   /* --- CALENDAR STATE & FETCH --- */
   const [calendar, setCalendar] = useState<Record<string, any>>({});
+
+  /* --- FUTURE ACTIVITY STATE --- */
+  const [futureSchedules, setFutureSchedules] = useState<Record<string, any[]>>({});
+  const [activityList, setActivityList] = useState<any[]>([]);
+  const [showFutureModal, setShowFutureModal] = useState(false);
+  const [futureModalDate, setFutureModalDate] = useState("");
+  const [futureModalActivity, setFutureModalActivity] = useState("");
+  const [futureModalStartTime, setFutureModalStartTime] = useState("");
+  const [futureModalEndTime, setFutureModalEndTime] = useState("");
+  const [futureModalError, setFutureModalError] = useState("");
+  const [futureModalSaving, setFutureModalSaving] = useState(false);
+  const [futureModalShiftTimes, setFutureModalShiftTimes] = useState<{ start: string; end: string } | null>(null);
 
   useEffect(() => {
     const fetchCalendar = async () => {
@@ -249,6 +263,201 @@ export default function DashboardPage() {
       return `${monthNames[start.getMonth()].substring(0, 3)} ${start.getDate()} — ${monthNames[end.getMonth()].substring(0, 3)} ${end.getDate()}, ${end.getFullYear()}`;
     }
     return `${monthNames[calDate.getMonth()]} ${calDate.getFullYear()}`;
+  };
+
+  // Fetch activities list for future scheduling
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        const res = await fetch("/api/employee/activity/list");
+        if (res.ok) {
+          const data = await res.json();
+          setActivityList(data.activities || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch activities", err);
+      }
+    };
+    fetchActivities();
+  }, []);
+
+  // Fetch future schedules
+  useEffect(() => {
+    const fetchFutureSchedules = async () => {
+      if (!userProfile?.user_id) return;
+      try {
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+        const res = await fetch(`/api/employee/schedule/future?userId=${userProfile.user_id}&year=${year}&month=${month}`);
+        if (res.ok) {
+          const data = await res.json();
+          const map: Record<string, any[]> = {};
+          if (data.schedules && Array.isArray(data.schedules)) {
+            data.schedules.forEach((schedule: any) => {
+              const dateKey = schedule.shift_date;
+              if (!map[dateKey]) map[dateKey] = [];
+              map[dateKey].push(schedule);
+            });
+          }
+          setFutureSchedules(map);
+        }
+      } catch (err) {
+        console.error("Failed to fetch future schedules", err);
+      }
+    };
+    fetchFutureSchedules();
+  }, [userProfile?.user_id, calDate]);
+
+  // Future activity modal handlers
+  const openFutureModal = (dateKey?: string) => {
+    setFutureModalError("");
+    setFutureModalActivity("");
+    setFutureModalStartTime("");
+    setFutureModalEndTime("");
+    
+    if (dateKey) {
+      setFutureModalDate(dateKey);
+      const dayData = calendar[dateKey];
+      if (dayData && !dayData.off) {
+        setFutureModalShiftTimes({ start: dayData.start_time, end: dayData.end_time });
+        setFutureModalStartTime(dayData.start_time);
+        setFutureModalEndTime(dayData.end_time);
+      }
+    } else {
+      setFutureModalDate("");
+      setFutureModalShiftTimes(null);
+    }
+    
+    setShowFutureModal(true);
+  };
+
+  const closeFutureModal = () => {
+    setShowFutureModal(false);
+    setFutureModalError("");
+    setFutureModalDate("");
+    setFutureModalActivity("");
+    setFutureModalStartTime("");
+    setFutureModalEndTime("");
+    setFutureModalShiftTimes(null);
+  };
+
+  // Close future modal on Escape key
+  useEffect(() => {
+    if (!showFutureModal) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeFutureModal();
+    };
+    
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showFutureModal]);
+
+  const handleFutureDateChange = (newDate: string) => {
+    setFutureModalDate(newDate);
+    setFutureModalError("");
+    
+    if (calendar[newDate]) {
+      const dayData = calendar[newDate];
+      if (!dayData.off && dayData.start_time && dayData.end_time) {
+        setFutureModalShiftTimes({ start: dayData.start_time, end: dayData.end_time });
+        setFutureModalStartTime(dayData.start_time);
+        setFutureModalEndTime(dayData.end_time);
+      } else {
+        setFutureModalShiftTimes(null);
+        setFutureModalStartTime("");
+        setFutureModalEndTime("");
+        setFutureModalError("No shift scheduled for this day");
+      }
+    } else {
+      setFutureModalShiftTimes(null);
+      setFutureModalStartTime("");
+      setFutureModalEndTime("");
+    }
+  };
+
+  const submitFutureActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFutureModalError("");
+
+    if (!futureModalDate || !futureModalActivity || !futureModalStartTime || !futureModalEndTime) {
+      setFutureModalError("Please fill in all fields");
+      return;
+    }
+
+    setFutureModalSaving(true);
+    try {
+      const res = await fetch("/api/employee/schedule/future", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activity_id: futureModalActivity,
+          shift_date: futureModalDate,
+          start_time: futureModalStartTime,
+          end_time: futureModalEndTime,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setFutureModalError(data.message || "Failed to save activity");
+        return;
+      }
+
+      // Refresh future schedules
+      const year = calDate.getFullYear();
+      const month = calDate.getMonth();
+      const refreshRes = await fetch(`/api/employee/schedule/future?userId=${userProfile?.user_id}&year=${year}&month=${month}`);
+      if (refreshRes.ok) {
+        const refreshData = await refreshRes.json();
+        const map: Record<string, any[]> = {};
+        if (refreshData.schedules && Array.isArray(refreshData.schedules)) {
+          refreshData.schedules.forEach((schedule: any) => {
+            const dateKey = schedule.shift_date;
+            if (!map[dateKey]) map[dateKey] = [];
+            map[dateKey].push(schedule);
+          });
+        }
+        setFutureSchedules(map);
+      }
+      closeFutureModal();
+    } catch (err) {
+      setFutureModalError("An error occurred while saving");
+    } finally {
+      setFutureModalSaving(false);
+    }
+  };
+
+  const deleteFutureActivity = async (ftsId: number) => {
+    if (!confirm("Are you sure you want to delete this scheduled activity?")) return;
+    
+    try {
+      const res = await fetch(`/api/employee/schedule/future?fts_id=${ftsId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        // Refresh future schedules
+        const year = calDate.getFullYear();
+        const month = calDate.getMonth();
+        const refreshRes = await fetch(`/api/employee/schedule/future?userId=${userProfile?.user_id}&year=${year}&month=${month}`);
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          const map: Record<string, any[]> = {};
+          if (refreshData.schedules && Array.isArray(refreshData.schedules)) {
+            refreshData.schedules.forEach((schedule: any) => {
+              const dateKey = schedule.shift_date;
+              if (!map[dateKey]) map[dateKey] = [];
+              map[dateKey].push(schedule);
+            });
+          }
+          setFutureSchedules(map);
+        }
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+    }
   };
 
   // tick clock (UI)
@@ -373,6 +582,9 @@ export default function DashboardPage() {
           : null;
         setClockInTime(cin);
 
+        // Set accumulated time from previous sessions today
+        setAccumulatedMs(data?.accumulatedMs ?? 0);
+
         setScheduleToday({
           hasSchedule: !!data?.scheduleToday?.hasSchedule,
           shift: data?.scheduleToday?.shift ?? null,
@@ -441,9 +653,17 @@ export default function DashboardPage() {
   const canClockIn = scheduleToday.hasSchedule && !loading && !actionBusy;
 
   const sessionDuration = useMemo(() => {
-    if (!isClockedIn || !clockInTime) return "00:00:00";
-    return formatDuration(Date.now() - clockInTime);
-  }, [isClockedIn, clockInTime, now]);
+    // If clocked in, show accumulated time + current session time
+    if (isClockedIn && clockInTime) {
+      const currentSessionMs = Date.now() - clockInTime;
+      return formatDuration(accumulatedMs + currentSessionMs);
+    }
+    // If not clocked in but have accumulated time today, show that
+    if (accumulatedMs > 0) {
+      return formatDuration(accumulatedMs);
+    }
+    return "00:00:00";
+  }, [isClockedIn, clockInTime, accumulatedMs, now]);
 
   const targetHours = useMemo(() => {
     if (
@@ -505,6 +725,12 @@ export default function DashboardPage() {
           return;
         }
 
+        // Add current session time to accumulated before clearing
+        if (clockInTime) {
+          const currentSessionMs = Date.now() - clockInTime;
+          setAccumulatedMs(prev => prev + currentSessionMs);
+        }
+
         setIsClockedIn(false);
         setClockInTime(null);
 
@@ -518,7 +744,7 @@ export default function DashboardPage() {
         setActionBusy(false);
       }
     },
-    [actionBusy]
+    [actionBusy, clockInTime]
   );
 
   const confirmClockOutFlow = () => {
@@ -745,43 +971,45 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {profileMenuOpen && (
-            <div className="profile-menu active">
-              <div
-                className="menu-item"
-                onClick={() => {
-                  setProfileMenuOpen(false);
-                  setServerMsg("Settings is UI-only for now.");
-                }}
-              >
-                <span className="menu-icon">⚙</span> Settings
+          <div ref={profileMenuWrapRef} style={{ position: "relative" }}>
+            {profileMenuOpen && (
+              <div className="profile-menu active">
+                <div
+                  className="menu-item"
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    setServerMsg("Settings is UI-only for now.");
+                  }}
+                >
+                  <span className="menu-icon">⚙</span> Settings
+                </div>
+                <div className="menu-divider" />
+                <div
+                  className="menu-item danger"
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    void doLogout();
+                  }}
+                >
+                  <span className="menu-icon">⎋</span> Log Out
+                </div>
               </div>
-              <div className="menu-divider" />
-              <div
-                className="menu-item danger"
-                onClick={() => {
-                  setProfileMenuOpen(false);
-                  void doLogout();
-                }}
-              >
-                <span className="menu-icon">⎋</span> Log Out
-              </div>
-            </div>
-          )}
+            )}
 
-          <div
-            className="profile-card"
-            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-            title="Click for menu"
-          >
-            <div className="streak-badge">🔥 {userProfile?.streak_count ?? 12} Day Streak</div>
-            <div className="avatar">{avatarText}</div>
-            <div className="profile-info">
-              <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--text-main)" }}>
-                {profileNameText || "User"}
-              </div>
-              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                {profileMetaText}
+            <div
+              className="profile-card"
+              onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+              title="Click for menu"
+            >
+              <div className="streak-badge">🔥 {userProfile?.streak_count ?? 12} Day Streak</div>
+              <div className="avatar">{avatarText}</div>
+              <div className="profile-info">
+                <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--text-main)" }}>
+                  {profileNameText || "User"}
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                  {profileMetaText}
+                </div>
               </div>
             </div>
           </div>
@@ -983,11 +1211,13 @@ export default function DashboardPage() {
                                   const left = (startMin / totalMin) * 100;
                                   const width = ((endMin - startMin) / totalMin) * 100;
 
+                                  const barClass = act.is_billable ? 'bar-B' : 'bar-NB';
+
                                   return (
                                     <div key={`${day.date}-${idx}`} className="gantt-row">
                                       <div className="gantt-label" title={act.activity_name}>{act.activity_name}</div>
                                       <div className="gantt-track">
-                                        <div className="gantt-bar bar-B" style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}>
+                                        <div className={`gantt-bar ${barClass}`} style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}>
                                           <div className="gantt-tooltip">
                                             <strong>{act.start_time} - {act.end_time}</strong>
                                           </div>
@@ -1105,9 +1335,14 @@ export default function DashboardPage() {
                           <button className="cal-nav-btn" onClick={() => calNavigate(1)}>❯</button>
                         </div>
 
-                        <div className="cal-toggles">
-                          <button className={`cal-view-btn ${calView === 'week' ? 'active' : ''}`} onClick={() => setCalView('week')}>Week</button>
-                          <button className={`cal-view-btn ${calView === 'month' ? 'active' : ''}`} onClick={() => setCalView('month')}>Month</button>
+                        <div style={{ display: "flex", gap: 15, alignItems: "center" }}>
+                          <button className="calendar-add-btn" onClick={() => openFutureModal()}>
+                            + Add Future Activity
+                          </button>
+                          <div className="cal-toggles">
+                            <button className={`cal-view-btn ${calView === 'week' ? 'active' : ''}`} onClick={() => setCalView('week')}>Week</button>
+                            <button className={`cal-view-btn ${calView === 'month' ? 'active' : ''}`} onClick={() => setCalView('month')}>Month</button>
+                          </div>
                         </div>
                       </div>
 
@@ -1121,6 +1356,8 @@ export default function DashboardPage() {
                           const currMonth = calDate.getMonth();
                           const start = new Date(calDate);
                           let loopCount = 0;
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
 
                           if (calView === 'week') {
                             const day = start.getDay();
@@ -1145,11 +1382,19 @@ export default function DashboardPage() {
                             const dateKey = `${year}-${monthStr}-${dayStr}`;
 
                             const dayData = calendar[dateKey];
+                            const dayFutureActivities = futureSchedules[dateKey] || [];
+                            const cellDate = new Date(runner);
+                            cellDate.setHours(0, 0, 0, 0);
+                            const isFutureDate = cellDate >= today;
+                            const hasShift = dayData && !dayData.off;
+                            const canAddActivity = isFutureDate && hasShift && !isDiffMonth;
 
                             days.push(
                               <div
                                 key={i}
-                                className={`cal-day ${isDiffMonth ? 'diff-month' : ''} ${dayData && !dayData.off ? 'is-scheduled' : ''} ${isToday ? 'today' : ''}`}
+                                className={`cal-day ${isDiffMonth ? 'diff-month' : ''} ${hasShift ? 'is-scheduled' : ''} ${isToday ? 'today' : ''} ${dayFutureActivities.length > 0 ? 'has-future-activity' : ''}`}
+                                onClick={() => canAddActivity && openFutureModal(dateKey)}
+                                style={{ cursor: canAddActivity ? 'pointer' : 'default' }}
                               >
                                 <div className="cal-date-num">{dateNum}</div>
 
@@ -1182,6 +1427,29 @@ export default function DashboardPage() {
                                     </>
                                   )
                                 )}
+
+                                {/* Future Activities */}
+                                {!isDiffMonth && dayFutureActivities.length > 0 && (
+                                  <div className="future-activities-list">
+                                    {dayFutureActivities.map((fs: any) => (
+                                      <div 
+                                        key={fs.fts_id} 
+                                        className="future-activity-item"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <span className="future-activity-name">{fs.activity_name}</span>
+                                        <span className="future-activity-time">{fs.start_time}-{fs.end_time}</span>
+                                        <button 
+                                          className="future-activity-delete" 
+                                          onClick={(e) => { e.stopPropagation(); deleteFutureActivity(fs.fts_id); }}
+                                          title="Delete"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             );
                             runner.setDate(runner.getDate() + 1);
@@ -1189,6 +1457,87 @@ export default function DashboardPage() {
                           return days;
                         })()}
                       </div>
+
+                      {/* Add Future Activity Modal */}
+                      {showFutureModal && (
+                        <div className="calendar-modal-overlay">
+                          <div className="calendar-modal">
+                            <div className="calendar-modal-header">
+                              <h3>Add Future Activity</h3>
+                              <button className="calendar-modal-close" onClick={closeFutureModal}>×</button>
+                            </div>
+                            <form onSubmit={submitFutureActivity} className="calendar-modal-form">
+                              <div className="calendar-modal-field">
+                                <label htmlFor="modal-date">Date</label>
+                                <input
+                                  type="date"
+                                  id="modal-date"
+                                  value={futureModalDate}
+                                  onChange={(e) => handleFutureDateChange(e.target.value)}
+                                  min={new Date().toISOString().split("T")[0]}
+                                  required
+                                />
+                                {futureModalShiftTimes && (
+                                  <span className="shift-time-hint">
+                                    Shift: {futureModalShiftTimes.start} - {futureModalShiftTimes.end}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="calendar-modal-field">
+                                <label htmlFor="modal-activity">Activity</label>
+                                <select
+                                  id="modal-activity"
+                                  value={futureModalActivity}
+                                  onChange={(e) => setFutureModalActivity(e.target.value)}
+                                  required
+                                >
+                                  <option value="">Select an activity</option>
+                                  {activityList.map((act: any) => (
+                                    <option key={act.activity_id} value={act.activity_id}>
+                                      {act.activity_name} ({act.activity_code})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="calendar-modal-time-row">
+                                <div className="calendar-modal-field">
+                                  <label htmlFor="modal-start-time">Start Time</label>
+                                  <input
+                                    type="time"
+                                    id="modal-start-time"
+                                    value={futureModalStartTime}
+                                    onChange={(e) => setFutureModalStartTime(e.target.value)}
+                                    required
+                                  />
+                                </div>
+                                <div className="calendar-modal-field">
+                                  <label htmlFor="modal-end-time">End Time</label>
+                                  <input
+                                    type="time"
+                                    id="modal-end-time"
+                                    value={futureModalEndTime}
+                                    onChange={(e) => setFutureModalEndTime(e.target.value)}
+                                    required
+                                  />
+                                </div>
+                              </div>
+
+                              {futureModalError && <div className="calendar-modal-error">{futureModalError}</div>}
+
+                              <div className="calendar-modal-actions">
+                                <button type="button" className="calendar-modal-cancel" onClick={closeFutureModal}>
+                                  Cancel
+                                </button>
+                                <button type="submit" className="calendar-modal-submit" disabled={futureModalSaving}>
+                                  {futureModalSaving ? "Saving..." : "Save Activity"}
+                                </button>
+                              </div>
+                            </form>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {activeSection === 'analytics' && (

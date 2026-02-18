@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getNowInTimezone, getTimeForStorage } from "@/lib/timezone";
+import { getTimeForStorage, calculateDurationMs, getManilaTimeComponents } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +12,6 @@ export async function POST(request: Request) {
     if (!user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
-
-    // Use fixed Asia/Manila timezone (server-enforced, cannot be manipulated by client)
-    const now = getNowInTimezone();
-    const timeForStorage = getTimeForStorage();
 
     // Check if user is clocked in (don't filter by shift_date to avoid timezone issues)
     const activeShift = await prisma.d_tblclock_log.findFirst({
@@ -50,19 +46,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // End the activity
-    // activeActivity.start_time is a Date from TIME(0) - extract time and combine with shift date
+    // End the activity using Manila pseudo-time for consistent duration calculation
     const st = activeActivity.start_time as Date;
     const shiftDate = activeShift.shift_date!;
-    const startTime = new Date(
-      shiftDate.getFullYear(),
-      shiftDate.getMonth(),
-      shiftDate.getDate(),
-      st.getUTCHours(),
-      st.getUTCMinutes(),
-      st.getUTCSeconds()
-    );
-    const durationMs = now.getTime() - startTime.getTime();
+    const timeForStorage = getTimeForStorage();
+    
+    // Calculate duration in Manila pseudo-time space (avoids timezone issues)
+    const durationMs = calculateDurationMs(shiftDate, st);
     const totalHours = durationMs / (1000 * 60 * 60);
 
     await prisma.d_tbltime_log.update({
@@ -80,6 +70,9 @@ export async function POST(request: Request) {
       })
       : null;
 
+    const manilaTime = getManilaTimeComponents();
+    const endTimeStr = `${String(manilaTime.hours).padStart(2, '0')}:${String(manilaTime.minutes).padStart(2, '0')}:${String(manilaTime.seconds).padStart(2, '0')}`;
+
     return NextResponse.json({
       message: "Activity ended successfully",
       activity: {
@@ -88,7 +81,7 @@ export async function POST(request: Request) {
         activity_code: activity?.activity_code,
         total_hours: Math.round(totalHours * 100) / 100,
         start_time: activeActivity.start_time,
-        end_time: now.toTimeString().split(' ')[0],
+        end_time: endTimeStr,
       },
     });
   } catch (error) {

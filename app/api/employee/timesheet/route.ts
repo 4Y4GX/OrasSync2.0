@@ -54,6 +54,7 @@ type TimesheetDay = {
     tlog_id: number;
     activity_id: number | null;
     activity_name: string | null;
+    is_billable: boolean | null;
     start_time: string | null;  // HH:MM format
     end_time: string | null;    // HH:MM format
     total_hours: any;
@@ -147,7 +148,7 @@ export async function GET(req: Request) {
         approval_status: true,
         rejection_reason: true,
         activity_id: true,
-        D_tblactivity: { select: { activity_name: true } },
+        D_tblactivity: { select: { activity_name: true, is_billable: true } },
       },
     });
 
@@ -201,6 +202,7 @@ export async function GET(req: Request) {
         tlog_id: t.tlog_id,
         activity_id: t.activity_id ?? null,
         activity_name: t.D_tblactivity?.activity_name ?? null,
+        is_billable: t.D_tblactivity?.is_billable ?? null,
         start_time: formatTime(t.start_time),
         end_time: formatTime(t.end_time),
         total_hours: t.total_hours,
