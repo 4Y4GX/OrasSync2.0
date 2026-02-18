@@ -25,11 +25,15 @@ model D_tblaccount_recovery_incident {
 }
 
 model D_tblactivity {
-  activity_id   Int             @id @default(autoincrement())
-  activity_code String?         @db.VarChar(10)
-  activity_name String?         @db.VarChar(50)
-  is_billable   Boolean?
-  D_tbltime_log D_tbltime_log[]
+  activity_id          Int                    @id @default(autoincrement())
+  activity_code        String?                @db.VarChar(10)
+  activity_name        String?                @db.VarChar(50)
+  is_billable          Boolean?
+  is_active            Boolean?               @default(true)
+  created_at           DateTime?              @default(now()) @db.Timestamp(0)
+  updated_at           DateTime?              @default(now()) @db.Timestamp(0)
+  D_tblfuture_schedule D_tblfuture_schedule[]
+  D_tbltime_log        D_tbltime_log[]
 }
 
 model D_tblaudit_log {
@@ -59,18 +63,19 @@ model D_tblbreak_log {
 }
 
 model D_tblclock_log {
-  clock_id           Int                  @id @default(autoincrement())
-  user_id            String?              @db.VarChar(30)
-  shift_date         DateTime?            @db.Date
-  last_log_in        DateTime?            @default(now()) @db.Timestamp(0)
-  clock_in_time      DateTime?            @default(now()) @db.Timestamp(0)
-  clock_out_time     DateTime?            @db.Timestamp(0)
-  is_sentiment_done  Boolean?             @default(false)
-  is_early_leave     Boolean?             @default(false)
-  active_key         String?              @db.VarChar(10)
-  D_tbluser          D_tbluser?           @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clock_user")
-  D_tblsentiment_log D_tblsentiment_log[]
-  D_tbltime_log      D_tbltime_log[]
+  clock_id               Int                  @id @default(autoincrement())
+  user_id                String?              @db.VarChar(30)
+  shift_date             DateTime?            @db.Date
+  last_log_in            DateTime?            @default(now()) @db.Timestamp(0)
+  clock_in_time          DateTime?            @default(now()) @db.Timestamp(0)
+  clock_out_time         DateTime?            @db.Timestamp(0)
+  is_sentiment_done      Boolean?             @default(false)
+  is_early_leave         Boolean?             @default(false)
+  active_key             String?              @db.VarChar(10)
+  is_currently_logged_in Boolean?             @default(false)
+  D_tbluser              D_tbluser?           @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_clock_user")
+  D_tblsentiment_log     D_tblsentiment_log[]
+  D_tbltime_log          D_tbltime_log[]
 
   @@unique([user_id, active_key], map: "uniq_user_active_shift")
 }
@@ -78,6 +83,9 @@ model D_tblclock_log {
 model D_tbldepartment {
   dept_id       Int             @id @default(autoincrement())
   dept_name     String?         @unique(map: "dept_name") @db.VarChar(50)
+  is_active     Boolean?        @default(true)
+  created_at    DateTime?       @default(now()) @db.Timestamp(0)
+  updated_at    DateTime?       @default(now()) @db.Timestamp(0)
   D_tblteam     D_tblteam[]
   D_tbltime_log D_tbltime_log[]
   D_tbluser     D_tbluser[]
@@ -106,15 +114,20 @@ model D_tblotp_log {
 }
 
 model D_tblposition {
-  pos_id    Int         @id @default(autoincrement())
-  pos_name  String?     @unique(map: "pos_name") @db.VarChar(50)
-  D_tbluser D_tbluser[]
+  pos_id     Int         @id @default(autoincrement())
+  pos_name   String?     @unique(map: "pos_name") @db.VarChar(50)
+  is_active  Boolean?    @default(true)
+  created_at DateTime?   @default(now()) @db.Timestamp(0)
+  updated_at DateTime?   @default(now()) @db.Timestamp(0)
+  D_tbluser  D_tbluser[]
 }
 
 model D_tblrole {
-  role_id   Int         @id
-  role_name String?     @db.VarChar(50)
-  D_tbluser D_tbluser[]
+  role_id    Int         @id
+  role_name  String?     @db.VarChar(50)
+  created_at DateTime?   @default(now()) @db.Timestamp(0)
+  updated_at DateTime?   @default(now()) @db.Timestamp(0)
+  D_tbluser  D_tbluser[]
 }
 
 model D_tblsecurity_questions {
@@ -156,6 +169,9 @@ model D_tblteam {
   team_id         Int              @id @default(autoincrement())
   team_name       String?          @unique(map: "team_name") @db.VarChar(50)
   dept_id         Int?
+  is_active       Boolean?         @default(true)
+  created_at      DateTime?        @default(now()) @db.Timestamp(0)
+  updated_at      DateTime?        @default(now()) @db.Timestamp(0)
   D_tbldepartment D_tbldepartment? @relation(fields: [dept_id], references: [dept_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_team_dept")
   D_tbluser       D_tbluser[]
 
@@ -219,6 +235,8 @@ model D_tbluser {
   D_tblbreak_log                                                                               D_tblbreak_log[]
   D_tblclock_log                                                                               D_tblclock_log[]
   D_tblearly_reasonlog                                                                         D_tblearly_reasonlog[]
+  D_tblfuture_schedule                                                                         D_tblfuture_schedule[]
+  D_tblot_request                                                                              D_tblot_request[]
   D_tblotp_log                                                                                 D_tblotp_log[]
   D_tblsentiment_log                                                                           D_tblsentiment_log[]
   D_tbltime_log_D_tbltime_log_supervisor_id_at_logToD_tbluser                                  D_tbltime_log[]                  @relation("D_tbltime_log_supervisor_id_at_logToD_tbluser")
@@ -287,6 +305,8 @@ model D_tblweekly_schedule {
   saturday_shift_id                                                                Int?
   sunday_shift_id                                                                  Int?
   is_active                                                                        Boolean?             @default(true)
+  created_at                                                                       DateTime?            @default(now()) @db.Timestamp(0)
+  updated_at                                                                       DateTime?            @default(now()) @db.Timestamp(0)
   D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template    D_tblshift_template? @relation("D_tblweekly_schedule_friday_shift_idToD_tblshift_template", fields: [friday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_fri")
   D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template    D_tblshift_template? @relation("D_tblweekly_schedule_monday_shift_idToD_tblshift_template", fields: [monday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_mon")
   D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template  D_tblshift_template? @relation("D_tblweekly_schedule_saturday_shift_idToD_tblshift_template", fields: [saturday_shift_id], references: [shift_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ws_sat")
@@ -304,6 +324,45 @@ model D_tblweekly_schedule {
   @@index([tuesday_shift_id], map: "fk_ws_tue")
   @@index([user_id], map: "fk_ws_user")
   @@index([wednesday_shift_id], map: "fk_ws_wed")
+}
+
+model D_tbldiscord_log {
+  log_id     Int      @id @default(autoincrement())
+  type       String   @db.VarChar(50)
+  event      String   @db.VarChar(100)
+  color      String   @db.VarChar(20)
+  data       String   @db.Text
+  created_at DateTime @default(now())
+  is_sent    Boolean  @default(false)
+}
+
+model D_tblfuture_schedule {
+  fts_id        Int            @id @default(autoincrement())
+  user_id       String?        @db.VarChar(30)
+  activity_id   Int?
+  start_time    DateTime?      @db.Time(0)
+  end_time      DateTime?      @db.Time(0)
+  shift_date    DateTime?      @db.Date
+  created_by    String?        @db.VarChar(30)
+  created_at    DateTime?      @default(now()) @db.Timestamp(0)
+  D_tblactivity D_tblactivity? @relation(fields: [activity_id], references: [activity_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_activity")
+  D_tbluser     D_tbluser?     @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_user")
+
+  @@index([activity_id], map: "fk_activity")
+  @@index([user_id], map: "fk_user")
+}
+
+model D_tblot_request {
+  ot_id      Int        @id @default(autoincrement())
+  user_id    String?    @db.VarChar(30)
+  start_time DateTime?  @db.Time(0)
+  end_time   DateTime?  @db.Time(0)
+  created_by String?    @db.VarChar(30)
+  reason     String?    @db.VarChar(255)
+  created_at DateTime?  @default(now()) @db.Timestamp(0)
+  D_tbluser  D_tbluser? @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ot_user")
+
+  @@index([user_id], map: "fk_ot_user")
 }
 
 enum D_tblaccount_recovery_incident_incident_type {

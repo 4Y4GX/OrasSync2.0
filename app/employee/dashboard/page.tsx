@@ -18,6 +18,7 @@ type ScheduleToday = {
 
 type UserProfile = {
   user_id: string;
+  role_id: number | null;
   name: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -323,7 +324,9 @@ export default function DashboardPage() {
     [scheduleToday.hasSchedule]
   );
 
-  const canClockIn = scheduleToday.hasSchedule && !loading && !actionBusy;
+  // Schedule check only applies to employees (role_id = 1), other roles can clock in without schedule
+  const isEmployee = userProfile?.role_id === 1;
+  const canClockIn = (!isEmployee || scheduleToday.hasSchedule) && !loading && !actionBusy;
 
   const sessionDuration = useMemo(() => {
     if (!isClockedIn || !clockInTimeRef.current) return "00:00:00";

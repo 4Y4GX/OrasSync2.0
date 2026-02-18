@@ -104,15 +104,16 @@ export async function POST(req: Request) {
     const roleId = Number(userProfile.role_id ?? 0);
     console.log("LOGIN DEBUG: User:", userProfile.email, "Role:", roleId);
 
-    // default redirect
+    // default redirect based on role: 1=employee, 2=analyst, 3=admin, 4=supervisor, 5=manager
     let redirect = "/employee/dashboard";
     if (roleId === 3) redirect = "/admin/dashboard";
-    if (roleId === 2) redirect = "/supervisor/dashboard";
+    if (roleId === 4) redirect = "/supervisor/dashboard";
+    if (roleId === 5) redirect = "/manager/dashboard";
 
     console.log("LOGIN DEBUG: Initial Redirect:", redirect);
 
-    // ✅ Daily sentiment gate for employees AND supervisors
-    if (roleId === 1 || roleId === 2) {
+    // ✅ Daily sentiment gate for employees AND supervisors (role 4)
+    if (roleId === 1 || roleId === 4) {
       const now = new Date();
       const dayStart = startOfDay(now);
       const dayEnd = endOfDay(now);
