@@ -160,6 +160,9 @@ export default function DashboardPage() {
   // ✅ Logout prompt modal after clock-out
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
 
+  // ✅ Timesheet submit confirmation modal
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+
   // for timers - clock in time as state for reactive updates
   const [clockInTime, setClockInTime] = useState<number | null>(null);
   // Accumulated worked time from previous sessions today (in milliseconds)
@@ -546,13 +549,10 @@ export default function DashboardPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // Build summary message
-        const shiftSummary = (data.by_shift || [])
-          .map((s: any) => `${s.shift_name}: ${s.logs_submitted} log(s)`)
-          .join(", ");
+        // Simple success message
         setSubmitMsg({
           type: "success",
-          text: `Submitted ${data.submitted_count} log(s) for review. ${shiftSummary}`,
+          text: "Time logs submitted for review",
         });
         // Refresh timesheet data
         await fetchLogs();
@@ -1297,10 +1297,11 @@ export default function DashboardPage() {
                           <div className="ts-status-info">
                             <div className="label-sm" style={{ marginBottom: 4 }}>TIMESHEET STATUS</div>
                             <div className="status-badge warn"><span className="dot" /> DRAFT</div>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             {submitMsg && (
                               <div style={{ 
-                                marginTop: 8, 
-                                padding: "6px 10px", 
+                                padding: "6px 12px", 
                                 borderRadius: 6, 
                                 fontSize: "0.85rem",
                                 backgroundColor: submitMsg.type === "success" ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)",
@@ -1309,16 +1310,16 @@ export default function DashboardPage() {
                                 {submitMsg.text}
                               </div>
                             )}
+                            <button 
+                              className="ts-submit-btn" 
+                              onClick={() => setShowSubmitConfirm(true)}
+                              disabled={submitLoading}
+                              style={{ opacity: submitLoading ? 0.6 : 1 }}
+                            >
+                              <span style={{ marginRight: 8 }}>{submitLoading ? "⏳" : ""}</span>
+                              {submitLoading ? "Submitting..." : "Submit for Review"}
+                            </button>
                           </div>
-                          <button 
-                            className="ts-submit-btn" 
-                            onClick={submitTimesheet}
-                            disabled={submitLoading}
-                            style={{ opacity: submitLoading ? 0.6 : 1 }}
-                          >
-                            <span style={{ marginRight: 8 }}>{submitLoading ? "⏳" : "📤"}</span>
-                            {submitLoading ? "Submitting..." : "Submit for Review"}
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -1786,6 +1787,38 @@ export default function DashboardPage() {
                 </button>
                 <button className="btn-standard" onClick={() => void doLogout()}>
                   LOG OUT
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        showSubmitConfirm && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header header-normal">
+                <span style={{ fontSize: "1.5rem" }}></span>
+                <span className="modal-title">SUBMIT TIMESHEET</span>
+              </div>
+              <div className="modal-body">
+                <p className="modal-desc">
+                  Are you sure you want to submit your timesheet for review?
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={() => setShowSubmitConfirm(false)}>
+                  CANCEL
+                </button>
+                <button 
+                  className="btn-standard" 
+                  onClick={() => {
+                    setShowSubmitConfirm(false);
+                    submitTimesheet();
+                  }}
+                >
+                  CONFIRM SUBMIT
                 </button>
               </div>
             </div>
