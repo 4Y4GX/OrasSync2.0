@@ -1,4 +1,3 @@
-// app/api/import/users/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -13,8 +12,10 @@ function sha256(text: string): string {
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
-    // CHANGED: Now checking for role_id 3 (Admin)
-    if (!user || user.role_id !== 3) {
+    
+    // Now checking for role_id 3 (Admin)
+    const ADMIN_ROLE_ID = 3;
+    if (!user || user.role_id !== ADMIN_ROLE_ID) {
       return NextResponse.json({ message: "Unauthorized. Admin access required." }, { status: 403 });
     }
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
         // Validation
         if (!user_id || !first_name || !last_name || !email || !role_id || !pos_id || !dept_id || !hire_date || !password) {
           results.failed++;
-          results.errors.push(`Row ${results.success + results.failed}: Missing required fields`);
+          results.errors.push(`Row ${results.success + results.failed + 1}: Missing required fields`);
           continue;
         }
 
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
 
         if (existing) {
           results.failed++;
-          results.errors.push(`Row ${results.success + results.failed}: User ${user_id} already exists`);
+          results.errors.push(`Row ${results.success + results.failed + 1}: User ${user_id} already exists`);
           continue;
         }
 
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
               is_first_login: true,
               failed_attempts: 0,
               is_disabled: false,
-              questions_attempt: 0,
+              question_attempts: 0, // <--- DEFINITELY FIXED HERE
             },
           });
 

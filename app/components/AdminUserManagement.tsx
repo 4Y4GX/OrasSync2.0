@@ -37,23 +37,28 @@ export default function AdminUserManagement() {
   
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   
-  // TAB & STATS STATE
   const [activeTab, setActiveTab] = useState<"ACTIVE" | "DEACTIVATED">("ACTIVE");
   const [stats, setStats] = useState({ total: 0, active: 0 });
 
-  // FILTERS STATE
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   
-  // MODAL STATES
+  // NEW: Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // Defaults to 10
+  
   const [showModal, setShowModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
   const [showResultModal, setShowResultModal] = useState(false);
   
   const [modalMode, setModalMode] = useState<"create" | "edit">("edit");
   const [resultMessage, setResultMessage] = useState({ title: "", text: "", type: "success" });
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     user_id: "", first_name: "", last_name: "", email: "", role_id: "", pos_id: "", dept_id: "", team_id: "", supervisor_id: "", manager_id: "", account_status: "ACTIVE", password: "",
@@ -74,12 +79,11 @@ export default function AdminUserManagement() {
     setLoading(true);
     try {
         const params = new URLSearchParams({
-            limit: "50",
+            limit: "1000", // Increased limit so client-side pagination grabs everyone
             search: search,
             role: roleFilter,
         });
 
-        // TABS LOGIC
         if (activeTab === "ACTIVE") {
             params.append("status_exclude", "DEACTIVATED");
             if (statusFilter) params.append("status", statusFilter);
@@ -94,7 +98,6 @@ export default function AdminUserManagement() {
             const fetchedUsers = data.users || [];
             setUsers(fetchedUsers);
             
-            // Cache HUD stats ONLY when on ACTIVE tab and not searching/filtering
             if (activeTab === "ACTIVE" && !search && !roleFilter && !statusFilter) {
                 setStats({
                     total: data.pagination.total,
@@ -106,7 +109,11 @@ export default function AdminUserManagement() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { loadUsers(); }, [search, roleFilter, statusFilter, activeTab]);
+  // Reset to page 1 whenever filters or tabs change
+  useEffect(() => { 
+      setCurrentPage(1);
+      loadUsers(); 
+  }, [search, roleFilter, statusFilter, activeTab]);
 
   const sanitizeInput = (value: string, type: 'text' | 'email' | 'userid') => {
       if (!value) return "";
@@ -119,6 +126,7 @@ export default function AdminUserManagement() {
 
   const handleOpenCreate = () => {
     setModalMode("create");
+    setShowPassword(false); 
     setFormData({
         user_id: "", first_name: "", last_name: "", email: "", role_id: "", pos_id: "", dept_id: "", team_id: "", supervisor_id: "", manager_id: "", account_status: "ACTIVE", password: "",
         hire_date: new Date().toISOString().split('T')[0],
@@ -130,6 +138,7 @@ export default function AdminUserManagement() {
   const handleOpenEdit = (user: User) => {
     setModalMode("edit");
     setTargetUserId(user.user_id);
+    setShowPassword(false); 
     setFormData({
         user_id: user.user_id,
         first_name: user.first_name || "",
@@ -165,10 +174,11 @@ export default function AdminUserManagement() {
         if (res.ok) {
             setUsers(prev => prev.filter(u => u.user_id !== targetUserId));
             setTargetUserId(null); 
+            setShowModal(false);
             
             setResultMessage({
                 title: "User Deactivated",
-                text: "The user has been successfully deactivated and removed from the list.",
+                text: "The user has been successfully deactivated and removed from the active list.",
                 type: "success"
             });
             setShowResultModal(true);
@@ -176,6 +186,57 @@ export default function AdminUserManagement() {
             setResultMessage({
                 title: "Deactivation Failed",
                 text: data.message || "Could not deactivate user.",
+                type: "error"
+            });
+            setShowResultModal(true);
+        }
+    } catch (error) {
+        setResultMessage({
+            title: "System Error",
+            text: "Failed to connect to the server.",
+            type: "error"
+        });
+        setShowResultModal(true);
+    }
+  };
+
+  const executeReactivate = async () => {
+    setShowReactivateConfirm(false);
+
+    const payload: any = { ...formData, account_status: "ACTIVE" };
+    const cleanDate = (d: string) => (d && d.trim() !== "" ? d : null);
+    
+    payload.hire_date = cleanDate(payload.hire_date);
+    payload.original_hire_date = cleanDate(payload.original_hire_date);
+    payload.resignation_date = cleanDate(payload.resignation_date);
+    payload.original_resignation_date = cleanDate(payload.original_resignation_date);
+    
+    if (payload.team_id === "") payload.team_id = null;
+    if (payload.supervisor_id === "") payload.supervisor_id = null;
+    if (payload.manager_id === "") payload.manager_id = null;
+
+    try {
+        const res = await fetch("/api/admin/users/update", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            setShowModal(false);
+            loadUsers(); 
+            setResultMessage({
+                title: "User Reactivated",
+                text: "The user has been successfully reactivated and restored to the active list.",
+                type: "success"
+            });
+            setShowResultModal(true);
+        } else {
+            setResultMessage({
+                title: "Reactivation Failed",
+                text: data.message || "An unknown error occurred.",
                 type: "error"
             });
             setShowResultModal(true);
@@ -267,6 +328,22 @@ export default function AdminUserManagement() {
       minWidth: '200px'
   };
 
+  const isDeactivated = modalMode === "edit" && formData.account_status === "DEACTIVATED";
+
+  const stickyHeaderStyle = {
+    position: 'sticky',
+    top: 0,
+    backgroundColor: '#262626', 
+    zIndex: 10, 
+    boxShadow: '0 1px 0px #333' 
+  } as React.CSSProperties;
+
+  // NEW: Calculate Pagination Values
+  const totalPages = Math.max(1, Math.ceil(users.length / itemsPerPage));
+  const indexOfLastUser = currentPage * itemsPerPage;
+  const indexOfFirstUser = indexOfLastUser - itemsPerPage;
+  const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser);
+
   return (
     <div className="user-management-section">
       
@@ -298,7 +375,6 @@ export default function AdminUserManagement() {
         </div>
       </div>
 
-      {/* REORGANIZED FILTERS & SEARCH BAR */}
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
           
           <select
@@ -340,7 +416,6 @@ export default function AdminUserManagement() {
             </select>
           )}
 
-          {/* Search bar width increased slightly to fit the placeholder perfectly */}
           <input
             type="text"
             placeholder="Search users (Name, Email, Dept, Role)..."
@@ -348,7 +423,7 @@ export default function AdminUserManagement() {
             onChange={(e) => setSearch(e.target.value)}
             style={{ 
                 ...darkInputStyle, 
-                width: '360px', // Adjusted to 360px to comfortably fit the placeholder
+                width: '360px', 
                 flex: 'none'    
             }}
           />
@@ -356,7 +431,6 @@ export default function AdminUserManagement() {
 
       <div className="glass-card">
         
-        {/* ADD USER BUTTON */}
         {activeTab === "ACTIVE" && (
             <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '1rem' }}>
                 <button 
@@ -377,7 +451,6 @@ export default function AdminUserManagement() {
             </div>
         )}
 
-        {/* TABS NAVIGATION */}
         <div style={{ display: "flex", alignItems: "center", marginBottom: "1.5rem", borderBottom: "1px solid #333" }}>
           <button 
             onClick={() => { setActiveTab("ACTIVE"); setStatusFilter(""); }}
@@ -424,78 +497,158 @@ export default function AdminUserManagement() {
           </button>
         </div>
 
-        {/* DATA TABLE */}
         <div className="table-container" style={{ maxHeight: "600px", overflowX: "auto" }}>
           <table className="data-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Department</th>
-                <th>Team</th>
-                <th>Position</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th style={stickyHeaderStyle}>Name</th>
+                <th style={stickyHeaderStyle}>Email</th>
+                <th style={stickyHeaderStyle}>Role</th>
+                <th style={stickyHeaderStyle}>Department</th>
+                <th style={stickyHeaderStyle}>Team</th>
+                <th style={stickyHeaderStyle}>Position</th>
+                <th style={stickyHeaderStyle}>Status</th>
+                <th style={stickyHeaderStyle}>Actions</th>
               </tr>
             </thead>
             <tbody>
-                {loading ? (
+                {loading && (
                     <tr>
                         <td colSpan={8} style={{ textAlign: "center", padding: "2rem", color: "#aaa" }}>
                             Loading users...
                         </td>
                     </tr>
-                ) : users.length === 0 ? (
+                )}
+                {!loading && currentUsers.length === 0 && (
                     <tr>
                         <td colSpan={8} style={{ textAlign: "center", padding: "2rem", color: "#aaa" }}>
                             No users found in this category.
                         </td>
                     </tr>
-                ) : (
-                    users.map(user => (
-                        <tr key={user.user_id}>
-                            <td style={{fontWeight:600}}>{user.first_name} {user.last_name}</td>
-                            <td>{user.email}</td>
-                            <td>{user.D_tblrole?.role_name || "—"}</td>
-                            <td>{user.D_tbldepartment?.dept_name || "—"}</td>
-                            <td>{user.D_tblteam?.team_name || "—"}</td>
-                            <td>{user.D_tblposition?.pos_name || "—"}</td>
-                            <td>
-                                <span className={`status-badge-admin ${user.account_status === "ACTIVE" ? "active" : "disabled"}`}>
-                                    {user.account_status || "NULL"}
-                                </span>
-                            </td>
-                            <td>
-                                <button 
-                                    className="btn-mini" 
-                                    onClick={() => handleOpenEdit(user)}
-                                    style={{ 
-                                        backgroundColor: '#3b82f6',
-                                        color: '#ffffff', 
-                                        borderTopWidth: 0,
-                                        borderLeftWidth: 0,
-                                        borderRightWidth: 0,
-                                        borderBottomWidth: 0, 
-                                        padding: '6px 16px',
-                                        borderRadius: '6px',
-                                        fontWeight: 'bold',
-                                        cursor: 'pointer',
-                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                    }}
-                                >
-                                    Edit
-                                </button>
-                            </td>
-                        </tr>
-                    ))
                 )}
+                {/* UPDATED: Map over currentUsers instead of all users */}
+                {!loading && currentUsers.length > 0 && currentUsers.map(user => (
+                    <tr key={user.user_id}>
+                        <td style={{fontWeight:600}}>{user.first_name} {user.last_name}</td>
+                        <td>{user.email}</td>
+                        <td>{user.D_tblrole?.role_name || "—"}</td>
+                        <td>{user.D_tbldepartment?.dept_name || "—"}</td>
+                        <td>{user.D_tblteam?.team_name || "—"}</td>
+                        <td>{user.D_tblposition?.pos_name || "—"}</td>
+                        <td>
+                            <span className={`status-badge-admin ${user.account_status === "ACTIVE" ? "active" : "disabled"}`}>
+                                {user.account_status || "NULL"}
+                            </span>
+                        </td>
+                        <td>
+                            <button 
+                                className="btn-mini" 
+                                onClick={() => handleOpenEdit(user)}
+                                style={{ 
+                                    backgroundColor: '#3b82f6',
+                                    color: '#ffffff', 
+                                    borderTopWidth: 0,
+                                    borderLeftWidth: 0,
+                                    borderRightWidth: 0,
+                                    borderBottomWidth: 0, 
+                                    padding: '6px 16px',
+                                    borderRadius: '6px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                }}
+                            >
+                                Edit
+                            </button>
+                        </td>
+                    </tr>
+                ))}
             </tbody>
           </table>
         </div>
+
+        {/* NEW: PAGINATION CONTROLS */}
+        {!loading && users.length > 0 && (
+          <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginTop: '1rem', 
+              padding: '1rem', 
+              backgroundColor: 'rgba(255,255,255,0.02)', 
+              borderRadius: '8px' 
+          }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 600 }}>Rows per page:</span>
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                      {[5, 10, 15].map(num => (
+                          <button
+                              key={num}
+                              onClick={() => { setItemsPerPage(num); setCurrentPage(1); }}
+                              style={{
+                                  padding: '4px 10px',
+                                  backgroundColor: itemsPerPage === num ? '#3b82f6' : '#222',
+                                  color: itemsPerPage === num ? '#fff' : '#aaa',
+                                  border: itemsPerPage === num ? '1px solid #3b82f6' : '1px solid #444',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: itemsPerPage === num ? 'bold' : 'normal',
+                                  transition: 'all 0.2s'
+                              }}
+                          >
+                              {num}
+                          </button>
+                      ))}
+                  </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#aaa' }}>
+                      Page <strong style={{color: '#fff'}}>{currentPage}</strong> of <strong style={{color: '#fff'}}>{totalPages}</strong>
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                          disabled={currentPage === 1}
+                          style={{
+                              padding: '6px 12px',
+                              backgroundColor: currentPage === 1 ? '#222' : '#333',
+                              color: currentPage === 1 ? '#555' : '#fff',
+                              border: '1px solid #444',
+                              borderRadius: '4px',
+                              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              transition: 'all 0.2s'
+                          }}
+                      >
+                          Previous
+                      </button>
+                      <button
+                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                          disabled={currentPage === totalPages}
+                          style={{
+                              padding: '6px 12px',
+                              backgroundColor: currentPage === totalPages ? '#222' : '#333',
+                              color: currentPage === totalPages ? '#555' : '#fff',
+                              border: '1px solid #444',
+                              borderRadius: '4px',
+                              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              transition: 'all 0.2s'
+                          }}
+                      >
+                          Next
+                      </button>
+                  </div>
+              </div>
+          </div>
+        )}
+
       </div>
 
-      {/* EDIT/CREATE FORM MODAL */}
       {showModal && (
         <div className="modal-overlay" style={{zIndex: 1000}}>
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{
@@ -526,25 +679,68 @@ export default function AdminUserManagement() {
                     </div>
                 </div>
 
-                <div style={{marginBottom:'15px'}}>
-                    <label className="label-sm">Email Address</label>
-                    <input type="email" className="modal-input" value={formData.email} onChange={e => setFormData({...formData, email: sanitizeInput(e.target.value, 'email')})} required />
-                </div>
-                
-                {modalMode === "create" && (
-                    <div style={{marginBottom:'15px'}}>
-                        <label className="label-sm">Initial Password</label>
-                        <input type="password" className="modal-input" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+                <div style={{ display: 'grid', gridTemplateColumns: modalMode === 'create' ? '1fr 1fr' : '1fr', gap: '15px', marginBottom: '15px' }}>
+                    <div>
+                        <label className="label-sm">Email Address</label>
+                        <input type="email" className="modal-input" value={formData.email} onChange={e => setFormData({...formData, email: sanitizeInput(e.target.value, 'email')})} required />
                     </div>
-                )}
+                    
+                    {modalMode === "create" && (
+                        <div>
+                            <label className="label-sm">Initial Password</label>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                <input 
+                                    type={showPassword ? "text" : "password"} 
+                                    className="modal-input" 
+                                    value={formData.password} 
+                                    onChange={e => setFormData({...formData, password: e.target.value})} 
+                                    required 
+                                    style={{ width: '100%', paddingRight: '120px' }} 
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    style={{
+                                        position: 'absolute',
+                                        right: '10px',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        color: '#aaa',
+                                        textTransform: 'uppercase',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '5px'
+                                    }}
+                                >
+                                    {showPassword ? "Hide Password" : "Show Password"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'15px'}}>
                     <div>
                         <label className="label-sm">Account Status</label>
-                        <select className="select" style={darkSelectStyle} value={formData.account_status} onChange={e => setFormData({...formData, account_status: e.target.value})}>
+                        <select 
+                            className="select" 
+                            style={{
+                                ...darkSelectStyle,
+                                ...(isDeactivated ? { opacity: 0.5, cursor: "not-allowed" } : {})
+                            }} 
+                            value={formData.account_status} 
+                            onChange={e => setFormData({...formData, account_status: e.target.value})}
+                            disabled={isDeactivated}
+                        >
                             <option value="ACTIVE">Active</option>
                             <option value="DISABLED">Disabled</option>
-                            <option value="DEACTIVATED">Deactivated</option>
+                            {formData.account_status === "DEACTIVATED" && (
+                                <option value="DEACTIVATED">Deactivated</option>
+                            )}
                         </select>
                     </div>
                     <div>
@@ -596,40 +792,100 @@ export default function AdminUserManagement() {
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'10px'}}>
                         <div>
                             <label className="label-sm">Original Hire Date</label>
-                            <input type="date" className="modal-input" value={formData.original_hire_date} onChange={e => setFormData({...formData, original_hire_date: e.target.value})} />
+                            <input 
+                                type="date" 
+                                className="modal-input" 
+                                value={formData.original_hire_date} 
+                                onChange={e => setFormData({...formData, original_hire_date: e.target.value})} 
+                                disabled={modalMode === "edit"}
+                                style={modalMode === "edit" ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                            />
                         </div>
                         <div>
                             <label className="label-sm">Re-Hire Date</label>
-                            <input type="text" className="modal-input" disabled placeholder="Pending logic..." />
+                            <input 
+                                type="text" 
+                                className="modal-input" 
+                                disabled 
+                                placeholder="Pending logic..." 
+                                style={{ opacity: 0.5, cursor: "not-allowed" }}
+                            />
                         </div>
                     </div>
 
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'15px', marginBottom:'10px'}}>
                         <div>
                             <label className="label-sm">Orig. Resignation</label>
-                            <input type="date" className="modal-input" value={formData.original_resignation_date} onChange={e => setFormData({...formData, original_resignation_date: e.target.value})} />
+                            <input 
+                                type="date" 
+                                className="modal-input" 
+                                value={formData.original_resignation_date} 
+                                onChange={e => setFormData({...formData, original_resignation_date: e.target.value})} 
+                                disabled={modalMode === "edit"}
+                                style={modalMode === "edit" ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                            />
                         </div>
                         <div>
                             <label className="label-sm">Current Resignation</label>
-                            <input type="date" className="modal-input" value={formData.resignation_date} onChange={e => setFormData({...formData, resignation_date: e.target.value})} />
+                            <input 
+                                type="date" 
+                                className="modal-input" 
+                                value={formData.resignation_date} 
+                                onChange={e => setFormData({...formData, resignation_date: e.target.value})} 
+                                disabled={modalMode === "edit"}
+                                style={modalMode === "edit" ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                            />
                         </div>
                     </div>
 
                     <div>
                         <label className="label-sm">System Entry Date</label>
-                        <input type="date" className="modal-input" value={formData.hire_date} onChange={e => setFormData({...formData, hire_date: e.target.value})} />
+                        <input 
+                            type="date" 
+                            className="modal-input" 
+                            value={formData.hire_date} 
+                            onChange={e => setFormData({...formData, hire_date: e.target.value})} 
+                            disabled={modalMode === "edit"}
+                            style={modalMode === "edit" ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                        />
                     </div>
                 </div>
 
-                <div className="modal-actions" style={{marginTop:'20px', justifyContent:'flex-end'}}>
-                    <button type="button" className="modal-btn ghost" onClick={() => setShowModal(false)}>CLOSE</button>
-                    <button type="submit" className="modal-btn ok" style={{backgroundColor:'#eee', color:'#000', fontWeight:'bold'}}>SAVE CHANGES</button>
+                <div className="modal-actions" style={{marginTop:'20px', display: 'flex', justifyContent: 'space-between'}}>
+                    <div>
+                        {modalMode === "edit" && !isDeactivated && (
+                            <button 
+                                type="button" 
+                                className="modal-btn danger" 
+                                style={{ backgroundColor: '#ef4444', color: '#fff', fontWeight: 'bold' }}
+                                onClick={() => setShowDeleteConfirm(true)}
+                            >
+                                DEACTIVATE USER
+                            </button>
+                        )}
+                        {isDeactivated && (
+                            <button 
+                                type="button" 
+                                className="modal-btn ok" 
+                                style={{ backgroundColor: 'var(--color-go)', color: '#fff', fontWeight: 'bold' }}
+                                onClick={() => setShowReactivateConfirm(true)}
+                            >
+                                REACTIVATE USER
+                            </button>
+                        )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button type="button" className="modal-btn ghost" onClick={() => setShowModal(false)}>CLOSE</button>
+                        <button type="submit" className="modal-btn ok" style={{backgroundColor:'#eee', color:'#000', fontWeight:'bold'}}>SAVE CHANGES</button>
+                    </div>
                 </div>
             </form>
           </div>
         </div>
       )}
 
+      {/* CONFIRMATION MODALS */}
       {showConfirmModal && (
         <div className="modal-overlay" style={{zIndex: 2000, backgroundColor: 'rgba(0,0,0,0.8)'}}>
             <div className="glass-card" style={{width: '350px', textAlign: 'center', border: '1px solid #444'}}>
@@ -655,7 +911,7 @@ export default function AdminUserManagement() {
                 <p style={{marginBottom:'2rem', color:'#aaa'}}>
                     Are you sure you want to deactivate this user?
                     <br/><br/>
-                    They will be removed from this list immediately.
+                    They will be removed from this active list immediately.
                 </p>
                 <div style={{display:'flex', justifyContent:'center', gap:'1rem'}}>
                     <button className="btn-action" onClick={() => setShowDeleteConfirm(false)} style={{backgroundColor: '#444'}}>Cancel</button>
@@ -665,6 +921,26 @@ export default function AdminUserManagement() {
         </div>
       )}
 
+      {/* REACTIVATE CONFIRMATION MODAL */}
+      {showReactivateConfirm && (
+        <div className="modal-overlay" style={{zIndex: 2000, backgroundColor: 'rgba(0,0,0,0.8)'}}>
+            <div className="glass-card" style={{width: '350px', textAlign: 'center', border: '1px solid var(--color-go)'}}>
+                <div style={{fontSize: '2rem', marginBottom: '1rem'}}>🔄</div>
+                <h3 style={{marginBottom:'1rem', color:'#fff'}}>Reactivate User?</h3>
+                <p style={{marginBottom:'2rem', color:'#aaa'}}>
+                    Are you sure you want to reactivate this user?
+                    <br/><br/>
+                    They will immediately regain access to the system.
+                </p>
+                <div style={{display:'flex', justifyContent:'center', gap:'1rem'}}>
+                    <button className="btn-action" onClick={() => setShowReactivateConfirm(false)} style={{backgroundColor: '#444'}}>Cancel</button>
+                    <button className="btn-action" onClick={executeReactivate} style={{backgroundColor: 'var(--color-go)', color: 'white'}}>Yes, Reactivate</button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* RESULTS MODAL */}
       {showResultModal && (
         <div className="modal-overlay" style={{zIndex: 3000, backgroundColor: 'rgba(0,0,0,0.8)'}}>
             <div className="glass-card" style={{width: '350px', textAlign: 'center', border: resultMessage.type === 'success' ? '1px solid var(--color-go)' : '1px solid #ef4444'}}>
