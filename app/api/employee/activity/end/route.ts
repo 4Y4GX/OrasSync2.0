@@ -64,9 +64,11 @@ export async function POST(request: Request) {
     });
 
     // Get activity details
-    const activity = await prisma.d_tblactivity.findUnique({
-      where: { activity_id: activeActivity.activity_id },
-    });
+    const activity = activeActivity.activity_id
+      ? await prisma.d_tblactivity.findUnique({
+        where: { activity_id: activeActivity.activity_id },
+      })
+      : null;
 
     return NextResponse.json({
       message: "Activity ended successfully",

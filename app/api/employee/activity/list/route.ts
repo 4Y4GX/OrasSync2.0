@@ -14,9 +14,7 @@ export async function GET() {
 
     // Get all active activities
     const activities = await prisma.d_tblactivity.findMany({
-      where: {
-        is_active: true,
-      },
+
       select: {
         activity_id: true,
         activity_code: true,

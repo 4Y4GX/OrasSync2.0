@@ -53,7 +53,7 @@ export default function TeamStatusMonitor() {
   };
 
   const filteredTeam = teamStatus.filter((member) => {
-    const matchesSearch = 
+    const matchesSearch =
       filter === "" ||
       member.name.toLowerCase().includes(filter.toLowerCase()) ||
       member.email.toLowerCase().includes(filter.toLowerCase()) ||
@@ -63,14 +63,6 @@ export default function TeamStatusMonitor() {
 
     return matchesSearch && matchesStatus;
   });
-
-  const stats = {
-    total: teamStatus.length,
-    working: teamStatus.filter((m) => m.status === "Working").length,
-    offline: teamStatus.filter((m) => m.status === "Offline").length,
-    clockedOut: teamStatus.filter((m) => m.status === "Clocked Out").length,
-    totalHours: teamStatus.reduce((sum, m) => sum + m.hours_today, 0),
-  };
 
   const formatTime = (isoString: string | null) => {
     if (!isoString) return "—";
@@ -107,52 +99,22 @@ export default function TeamStatusMonitor() {
 
   return (
     <div>
-      {/* Stats Row */}
-      <div className="hud-row" style={{ marginBottom: "2rem" }}>
-        <div className="hud-card">
-          <div className="hud-label">Team Members</div>
-          <div className="hud-val supervisor-accent">{stats.total}</div>
-          <div className="hud-bg-icon">👥</div>
-        </div>
-
-        <div className="hud-card">
-          <div className="hud-label">Currently Working</div>
-          <div className="hud-val" style={{ color: "var(--color-go)" }}>
-            {stats.working}
-          </div>
-          <div className="hud-bg-icon">✓</div>
-        </div>
-
-        <div className="hud-card">
-          <div className="hud-label">Total Hours Today</div>
-          <div className="hud-val">{stats.totalHours.toFixed(1)}</div>
-          <div className="hud-bg-icon">⏱</div>
-        </div>
-
-        <div className="hud-card">
-          <div className="hud-label">Offline</div>
-          <div className="hud-val" style={{ color: "var(--text-muted)" }}>
-            {stats.offline}
-          </div>
-          <div className="hud-bg-icon">○</div>
-        </div>
-      </div>
-
       {/* Filters and Controls */}
       <div className="glass-card">
         <div className="section-title" style={{ marginBottom: "1.5rem" }}>
           <span>Team Real-time Status</span>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem" }}>
+          <div className="refresh-container">
+            <label className="refresh-control">
               <input
                 type="checkbox"
                 checked={autoRefresh}
                 onChange={(e) => setAutoRefresh(e.target.checked)}
               />
-              Auto-refresh (30s)
+              <span className="custom-checkbox" />
+              AUTO-REFRESH (30S)
             </label>
             <button
-              className="btn-mini supervisor-btn"
+              className="btn-refresh"
               onClick={loadTeamStatus}
               disabled={loading}
             >

@@ -94,7 +94,7 @@
   overflow: hidden;
   position: relative;
   /* Context for absolute bg */
-  background-color: var(--bg-deep);
+  background-color: var(--deep-navy);
 }
 
 /* --- LEFT PANEL (Always Dark) --- */

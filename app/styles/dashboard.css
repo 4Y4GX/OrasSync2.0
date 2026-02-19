@@ -25,35 +25,27 @@
   --grid-2: rgba(255, 255, 255, 0.03);
 
   /* ✅ Use login/global font variables first, then safe fallbacks */
-  --font-body: var(
-    --font-sans,
-    var(
-      --font-geist-sans,
-      var(
-        --font-inter,
-        ui-sans-serif,
-        system-ui,
-        -apple-system,
-        "Segoe UI",
-        Roboto,
-        Arial
-      )
-    )
-  );
+  --font-body: var(--font-sans,
+      var(--font-geist-sans,
+        var(--font-inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          Arial)));
 
   --font-heading: var(--font-body);
 
   /* keep mono fallback if you ever need it */
-  --font-mono: var(
-    --font-mono,
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    "Liberation Mono",
-    monospace
-  );
+  --font-mono: var(--font-mono,
+      ui-monospace,
+      SFMono-Regular,
+      Menlo,
+      Monaco,
+      Consolas,
+      "Liberation Mono",
+      monospace);
 }
 
 body {
@@ -218,13 +210,11 @@ body.light-mode .nav-item.active {
 }
 
 .profile-card {
-  margin-top: 16px;
+  margin-top: auto;
   width: 255px;
-  background: linear-gradient(
-    180deg,
-    rgba(91, 99, 255, 0.18),
-    rgba(255, 255, 255, 0.04)
-  );
+  background: linear-gradient(180deg,
+      rgba(91, 99, 255, 0.18),
+      rgba(255, 255, 255, 0.04));
   border: 1px solid rgba(91, 99, 255, 0.25);
   border-radius: 16px;
   padding: 44px 14px 14px;
@@ -233,11 +223,9 @@ body.light-mode .nav-item.active {
 }
 
 body.light-mode .profile-card {
-  background: linear-gradient(
-    180deg,
-    rgba(91, 99, 255, 0.14),
-    rgba(0, 0, 0, 0.03)
-  );
+  background: linear-gradient(180deg,
+      rgba(91, 99, 255, 0.14),
+      rgba(0, 0, 0, 0.03));
 }
 
 .streak-pill {
@@ -889,7 +877,7 @@ body.light-mode .modal-input {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.profile-menu-item + .profile-menu-item {
+.profile-menu-item+.profile-menu-item {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -1145,6 +1133,7 @@ body.light-mode .modal-input {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1351,4 +1340,118 @@ body.light-mode .modal-input {
   .dashboard-container .info-panel {
     display: none;
   }
+}
+
+/* --- ADVANCED MODAL STYLES (Synced from Employee Dashboard) --- */
+.modal-card.advanced {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 20px 30px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  border-bottom: 2px solid transparent;
+}
+
+.header-urgent {
+  background: rgba(248, 49, 47, 0.1);
+  border-bottom-color: var(--color-urgent);
+}
+
+.header-normal {
+  background: rgba(15, 52, 166, 0.1);
+  border-bottom-color: var(--blue);
+}
+
+.modal-title-adv {
+  font-size: 1.3rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 0;
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 30px;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 20px 30px;
+  background: var(--panel);
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+}
+
+.modal-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 25px;
+  background: var(--panel);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 5px;
+}
+
+.stat-val {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.val-urgent {
+  color: var(--color-urgent);
+}
+
+/* --- ANIMATIONS --- */
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-5px);
+  }
+
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+.shake {
+  animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
+  border-color: var(--color-urgent) !important;
+  box-shadow: 0 0 10px rgba(248, 49, 47, 0.5);
 }

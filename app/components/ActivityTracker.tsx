@@ -82,7 +82,7 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
         if (data.hasActiveActivity && data.currentActivity) {
           setCurrentActivity(data.currentActivity);
           setSelectedActivityId(data.currentActivity.activity_id.toString());
-          
+
           // Calculate start time timestamp
           const startDate = new Date(data.currentActivity.log_date);
           const startTimeStr = data.currentActivity.start_time;
@@ -208,118 +208,60 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
     return null;
   }
 
+  if (!isClockedIn) {
+    return null;
+  }
+
+  // Pre-select current activity in dropdown if available
+  useEffect(() => {
+    if (currentActivity && !selectedActivityId) {
+      setSelectedActivityId(currentActivity.activity_id.toString());
+    }
+  }, [currentActivity, selectedActivityId]);
+
+  const handleAction = () => {
+    if (!currentActivity) {
+      handleStartActivity();
+    } else {
+      handleSwitchActivity();
+    }
+  };
+
+  const btnText = loading
+    ? "PROCESSING..."
+    : currentActivity
+      ? "LOG CHANGE & UPDATE TIMER"
+      : "START ACTIVITY";
+
   return (
-    <div className="activity-tracker">
-      <div className="panel-header">
-        <div className="panel-title">ACTIVITY TRACKER</div>
-        {currentActivity && (
-          <div className="panel-right" style={{ fontSize: '0.9rem', opacity: 0.8 }}>
-            {activityDuration}
-          </div>
-        )}
-      </div>
+    <div className="ap-container">
+      <select
+        className="ap-dropdown"
+        value={selectedActivityId}
+        onChange={(e) => setSelectedActivityId(e.target.value)}
+        disabled={loading}
+      >
+        <option value="">-- Select Activity --</option>
+        {activities.map((activity) => (
+          <option key={activity.activity_id} value={activity.activity_id}>
+            {activity.activity_name} {activity.activity_code && `(${activity.activity_code})`}
+          </option>
+        ))}
+      </select>
 
-      <div className="panel-body" style={{ padding: '1.5rem' }}>
-        {currentActivity ? (
-          <div className="current-activity-box" style={{ 
-            padding: '1rem', 
-            background: 'rgba(255,255,255,0.05)', 
-            borderRadius: '8px',
-            marginBottom: '1rem',
-            border: '1px solid rgba(255,255,255,0.1)'
-          }}>
-            <div className="label-sm" style={{ marginBottom: '0.5rem', opacity: 0.7 }}>
-              CURRENT ACTIVITY
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.3rem' }}>
-              {currentActivity.activity_name}
-              {currentActivity.activity_code && (
-                <span style={{ opacity: 0.7, marginLeft: '0.5rem', fontSize: '0.9rem' }}>
-                  ({currentActivity.activity_code})
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>
-              {currentActivity.is_billable ? '💰 Billable' : '📝 Non-billable'} · 
-              Started at {currentActivity.start_time} · 
-              Duration: {activityDuration}
-            </div>
-          </div>
-        ) : (
-          <div className="label-sm" style={{ marginBottom: '1rem', opacity: 0.7 }}>
-            No active activity. Start tracking your work below.
-          </div>
-        )}
+      <button
+        className="btn-ap-primary"
+        onClick={handleAction}
+        disabled={loading || !selectedActivityId}
+      >
+        {btnText}
+      </button>
 
-        <div className="label-sm" style={{ marginBottom: '0.5rem' }}>
-          {currentActivity ? 'Switch to a different activity:' : 'Select an activity to start:'}
+      {message && (
+        <div className={message.includes('success') ? 'inline-success' : 'inline-warn'}>
+          {message}
         </div>
-
-        <select 
-          className="select" 
-          value={selectedActivityId}
-          onChange={(e) => setSelectedActivityId(e.target.value)}
-          disabled={loading}
-          style={{ marginBottom: '1rem' }}
-        >
-          <option value="">-- Select Activity --</option>
-          {activities.map((activity) => (
-            <option key={activity.activity_id} value={activity.activity_id}>
-              {activity.activity_name} {activity.activity_code && `(${activity.activity_code})`}
-              {activity.is_billable ? ' - Billable' : ' - Non-billable'}
-            </option>
-          ))}
-        </select>
-
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {currentActivity ? (
-            <>
-              <button
-                className="primary-btn"
-                onClick={handleSwitchActivity}
-                disabled={loading || !selectedActivityId}
-                style={{ flex: 1 }}
-              >
-                {loading ? 'SWITCHING...' : 'SWITCH ACTIVITY'}
-              </button>
-              <button
-                className="danger-btn"
-                onClick={handleEndActivity}
-                disabled={loading}
-                style={{ flex: 1 }}
-              >
-                {loading ? 'ENDING...' : 'END ACTIVITY'}
-              </button>
-            </>
-          ) : (
-            <button
-              className="primary-btn"
-              onClick={handleStartActivity}
-              disabled={loading || !selectedActivityId}
-              style={{ width: '100%' }}
-            >
-              {loading ? 'STARTING...' : 'START ACTIVITY'}
-            </button>
-          )}
-        </div>
-
-        {message && (
-          <div className={message.includes('success') ? 'inline-success' : 'inline-warn'} style={{ marginTop: '1rem' }}>
-            {message}
-          </div>
-        )}
-      </div>
-
-      <style jsx>{`
-        .inline-success {
-          padding: 0.75rem;
-          background: rgba(34, 197, 94, 0.1);
-          border: 1px solid rgba(34, 197, 94, 0.3);
-          border-radius: 4px;
-          color: #22c55e;
-          font-size: 0.875rem;
-        }
-      `}</style>
+      )}
     </div>
   );
 }
