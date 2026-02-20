@@ -19,20 +19,21 @@ export async function GET() {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
-    // Safely handle potentially null names to prevent TypeScript errors
-    const fName = dbUser.first_name || "";
-    const lName = dbUser.last_name || "";
+    // Safely extract names to satisfy strict TypeScript rules
+    const fName: string = dbUser.first_name ?? "";
+    const lName: string = dbUser.last_name ?? "";
     const fullName = `${fName} ${lName}`.trim() || "Unknown User";
     
-    // Safely grab the first letters for the avatar
-    const initial1 = fName.charAt(0) || "";
-    const initial2 = lName.charAt(0) || "";
-    const initials = (initial1 + initial2).toUpperCase() || "M"; // Fallback to 'M' if no name exists
+    // Safely get initials
+    const initial1 = fName.length > 0 ? fName.charAt(0) : "";
+    const initial2 = lName.length > 0 ? lName.charAt(0) : "";
+    const initials = (initial1 + initial2).toUpperCase() || "M";
 
     return NextResponse.json({
       name: fullName,
       initials: initials,
-      position: dbUser.D_tblposition?.pos_name || 'Manager'
+      position: dbUser.D_tblposition?.pos_name || 'Manager',
+      email: dbUser.email
     });
 
   } catch (error) {

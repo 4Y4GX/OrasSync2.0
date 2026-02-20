@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   request: Request,
-  { params }: { params: { user_id: string } }
+  { params }: { params: Promise<{ user_id: string }> } // <-- 1. Wrap in Promise
 ) {
   try {
     const user = await getUserFromCookie();
@@ -15,7 +15,8 @@ export async function GET(
       return NextResponse.json({ message: "Unauthorized. Admin access required." }, { status: 403 });
     }
 
-    const { user_id } = params;
+    const resolvedParams = await params; // <-- 2. Await the params
+    const user_id = resolvedParams.user_id;
 
     const targetUser = await prisma.d_tbluser.findUnique({
       where: { user_id },
