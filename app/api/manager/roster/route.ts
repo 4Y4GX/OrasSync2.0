@@ -4,33 +4,33 @@ import { getUserFromCookie } from "@/lib/auth";
 
 export async function GET() {
   const user = await getUserFromCookie();
+  
   if (!user || (user.role_id !== 5 && user.role_id !== 4)) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    // Fetch all Supervisors (4) and Employees (1)
+    const managerData = await prisma.d_tbluser.findUnique({
+      where: { user_id: user.user_id }, 
+      select: { dept_id: true }
+    });
+
+    if (!managerData || !managerData.dept_id) {
+      return NextResponse.json({ message: "Department not found for this user" }, { status: 400 });
+    }
+
     const roster = await prisma.d_tbluser.findMany({
       where: {
         role_id: { in: [1, 4] }, 
-        // Optional: If you want to restrict to the manager's department only:
-        // dept_id: user.dept_id 
+        dept_id: managerData.dept_id 
       },
       select: {
         user_id: true,
         first_name: true,
         last_name: true,
         role_id: true,
-        
-        // Fetch relations (Team & Position)
-        D_tblteam: {
-          select: { team_name: true }
-        },
-        D_tblposition: {
-          select: { pos_name: true }
-        },
-
-        // Fetch LATEST clock log to determine status
+        D_tblteam: { select: { team_name: true } },
+        D_tblposition: { select: { pos_name: true } },
         D_tblclock_log: {
           orderBy: { clock_in_time: 'desc' },
           take: 1,
@@ -42,23 +42,20 @@ export async function GET() {
         }
       },
       orderBy: [
-        { role_id: 'desc' }, // Supervisors (4) first, then Employees (1)
+        { role_id: 'desc' },
         { last_name: 'asc' }
       ]
     });
 
-    // Transform data for the frontend
     const formattedRoster = roster.map((u) => {
       const lastLog = u.D_tblclock_log[0];
-      
-      // Logic: If they have an ACTIVE key OR (clocked in AND not clocked out), they are "IN"
       const isClockedIn = lastLog && (lastLog.active_key === "ACTIVE" || (lastLog.clock_in_time && !lastLog.clock_out_time));
       
       return {
         user_id: u.user_id,
         name: `${u.first_name} ${u.last_name}`,
         role_id: u.role_id,
-        team: u.D_tblteam?.team_name || null, // Handle nulls as requested
+        team: u.D_tblteam?.team_name || null,
         position: u.D_tblposition?.pos_name || null,
         status: isClockedIn ? "in" : "out"
       };
