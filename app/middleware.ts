@@ -23,8 +23,9 @@ export async function middleware(req: NextRequest) {
   const isSupervisorArea = pathname.startsWith("/supervisor");
   const isManagerArea = pathname.startsWith("/manager");
   const isAdminArea = pathname.startsWith("/admin");
+  const isAnalystArea = pathname.startsWith("/analyst");
 
-  if (!isEmployeeArea && !isSupervisorArea && !isManagerArea && !isAdminArea) return NextResponse.next();
+  if (!isEmployeeArea && !isSupervisorArea && !isManagerArea && !isAdminArea && !isAnalystArea) return NextResponse.next();
 
   const token = req.cookies.get("timea_session")?.value;
   if (!token) {
@@ -44,10 +45,20 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
 
+    // Analyst area - only analysts and admins can access
+    if (isAnalystArea && roleId !== ROLE_ANALYST && roleId !== ROLE_ADMIN) {
+      const url = req.nextUrl.clone();
+      if (roleId === ROLE_EMPLOYEE) url.pathname = "/employee/dashboard";
+      else if (roleId === ROLE_SUPERVISOR) url.pathname = "/supervisor/dashboard";
+      else if (roleId === ROLE_MANAGER) url.pathname = "/manager/dashboard";
+      else url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+
     // Allow Supervisors (4) and Managers (5) to access Employee areas (like sentiment)
     if (isEmployeeArea && roleId !== ROLE_EMPLOYEE && roleId !== ROLE_SUPERVISOR && roleId !== ROLE_MANAGER) {
       const url = req.nextUrl.clone();
-      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/login";
+      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : roleId === ROLE_ANALYST ? "/analyst/dashboard" : "/login";
       return NextResponse.redirect(url);
     }
 
@@ -76,5 +87,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/employee/:path*", "/admin/:path*", "/supervisor/:path*", "/manager/:path*"],
+  matcher: ["/employee/:path*", "/admin/:path*", "/supervisor/:path*", "/manager/:path*", "/analyst/:path*"],
 };

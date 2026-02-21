@@ -4,10 +4,14 @@ import { prisma } from "@/lib/db";
 export async function GET() {
   try {
     // 1. Create Roles
+    // 1=Employee, 2=Analyst, 3=Admin, 4=Supervisor, 5=Manager
     await prisma.d_tblrole.createMany({
       data: [
-        { role_id: 1, role_name: "Admin" },
-        { role_id: 2, role_name: "Employee" },
+        { role_id: 1, role_name: "Employee" },
+        { role_id: 2, role_name: "Analyst" },
+        { role_id: 3, role_name: "Admin" },
+        { role_id: 4, role_name: "Supervisor" },
+        { role_id: 5, role_name: "Manager" },
       ],
       skipDuplicates: true, 
     });
