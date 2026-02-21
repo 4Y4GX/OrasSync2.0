@@ -91,7 +91,7 @@ export function getHourInTimezone(date: Date): number {
  * Combine a shift date with a stored time value to create a full UTC datetime
  * Handles overnight shifts by detecting if time is after midnight
  * @param timeValue - TIME field value from database (stored as Manila time in UTC)
- * @param shiftDate - The shift date (stored as Manila calendar date at UTC midnight)
+ * @param shiftDate - The shift date (Prisma returns DATE fields in local server timezone)
  * @param clockInTime - Clock in time to detect overnight shifts
  * @returns Date object in UTC representing the actual moment
  */
@@ -112,13 +112,13 @@ export function combineShiftDateWithTime(
   // the activity is likely after midnight, so add 1 day
   const isAfterMidnight = clockInHour >= 12 && time.hours < 12;
   
-  // Create UTC date: shiftDate is at UTC midnight for Manila calendar date
+  // Create UTC date: use local date methods because Prisma returns DATE in local timezone
   // time.hours/minutes/seconds are Manila time values stored as UTC in TIME field
   // To convert to actual UTC: subtract 8 hours from the Manila time
   let baseDate = new Date(Date.UTC(
-    shiftDate.getUTCFullYear(),
-    shiftDate.getUTCMonth(),
-    shiftDate.getUTCDate(),
+    shiftDate.getFullYear(),
+    shiftDate.getMonth(),
+    shiftDate.getDate(),
     time.hours,
     time.minutes,
     time.seconds
@@ -137,7 +137,7 @@ export function combineShiftDateWithTime(
 /**
  * Construct a proper UTC datetime from stored shift date and time
  * This is the correct way to calculate durations
- * @param shiftDate - DATE field from DB (Manila calendar date, stored at noon UTC)
+ * @param shiftDate - DATE field from DB (Prisma returns in local timezone, stored at noon UTC)
  * @param startTime - TIME field from DB (Manila time stored as UTC)
  * @returns UTC timestamp representing the actual moment
  */
@@ -145,15 +145,16 @@ export function getActualUtcFromStoredDateTime(
   shiftDate: Date,
   startTime: Date
 ): Date {
-  // shiftDate from Prisma DATE field comes back as midnight UTC
+  // shiftDate from Prisma DATE field comes back as midnight local time
+  // Use local methods to get the correct calendar date
   // startTime from Prisma TIME field has Manila hours in UTC positions
   
   // Combine the Manila date with Manila time to get Manila datetime
-  // The key is both are already in "Manila pseudo-time" space
+  // Use local date methods for shiftDate because Prisma interprets DATE in local timezone
   const manilaDatetime = new Date(Date.UTC(
-    shiftDate.getUTCFullYear(),
-    shiftDate.getUTCMonth(),
-    shiftDate.getUTCDate(),
+    shiftDate.getFullYear(),
+    shiftDate.getMonth(),
+    shiftDate.getDate(),
     startTime.getUTCHours(),
     startTime.getUTCMinutes(),
     startTime.getUTCSeconds()
@@ -175,19 +176,22 @@ export function getNowAsManilaTimestamp(): number {
 /**
  * Calculate duration between stored start time and now
  * Uses Manila pseudo-time for both to avoid timezone conversion issues
- * @param shiftDate - DATE field from DB
- * @param startTime - TIME field from DB  
+ * @param shiftDate - DATE field from DB (Prisma returns this in local server timezone)
+ * @param startTime - TIME field from DB (stored as Manila time in UTC positions)
  * @returns Duration in milliseconds
  */
 export function calculateDurationMs(
   shiftDate: Date,
   startTime: Date
 ): number {
-  // Convert stored time to Manila pseudo-timestamp
+  // IMPORTANT: Use local date methods (getFullYear, getMonth, getDate) for shiftDate
+  // because Prisma returns DATE fields as midnight in local server timezone.
+  // Using UTC methods would give wrong day if server is not in UTC.
+  // For TIME fields, we use UTC methods because we store Manila time as UTC values.
   const startManilaTs = Date.UTC(
-    shiftDate.getUTCFullYear(),
-    shiftDate.getUTCMonth(),
-    shiftDate.getUTCDate(),
+    shiftDate.getFullYear(),
+    shiftDate.getMonth(),
+    shiftDate.getDate(),
     startTime.getUTCHours(),
     startTime.getUTCMinutes(),
     startTime.getUTCSeconds()

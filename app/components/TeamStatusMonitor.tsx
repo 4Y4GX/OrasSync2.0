@@ -2,6 +2,19 @@
 
 import { useState, useEffect } from "react";
 
+/**
+ * Format decimal hours to hours and minutes (e.g., 1.5 -> "1h 30m")
+ */
+function formatHoursMinutes(decimalHours: number | null | undefined): string {
+  if (decimalHours == null || isNaN(decimalHours)) return "-";
+  const totalMinutes = Math.round(decimalHours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 type TeamMemberStatus = {
   user_id: string;
   name: string;
@@ -240,7 +253,7 @@ export default function TeamStatusMonitor() {
                     <td>{member.department}</td>
                     <td>{member.position}</td>
                     <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                      {member.hours_today.toFixed(2)}h
+                      {formatHoursMinutes(member.hours_today)}
                     </td>
                     <td>
                       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>

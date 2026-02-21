@@ -2,6 +2,19 @@
 
 import { useState, useEffect } from "react";
 
+/**
+ * Format decimal hours to hours and minutes (e.g., 1.5 -> "1h 30m")
+ */
+function formatHoursMinutes(decimalHours: number | null | undefined): string {
+  if (decimalHours == null || isNaN(decimalHours)) return "-";
+  const totalMinutes = Math.round(decimalHours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 type AnalyticsData = {
   period: string;
   summary: {
@@ -138,7 +151,7 @@ export default function AnalyticsDashboard() {
                       gap: "0.5rem",
                     }}
                   >
-                    <div style={{ fontSize: "0.75rem", fontWeight: 600 }}>{hours.toFixed(1)}h</div>
+                    <div style={{ fontSize: "0.75rem", fontWeight: 600 }}>{formatHoursMinutes(hours)}</div>
                     <div
                       style={{
                         width: "100%",
@@ -173,7 +186,7 @@ export default function AnalyticsDashboard() {
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
                         <span style={{ fontSize: "0.9rem" }}>{activity}</span>
                         <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
-                          {hours.toFixed(1)}h ({percentage.toFixed(0)}%)
+                          {formatHoursMinutes(hours)} ({percentage.toFixed(0)}%)
                         </span>
                       </div>
                       <div

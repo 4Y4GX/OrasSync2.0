@@ -109,6 +109,19 @@ function formatDuration(ms: number) {
     .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+/**
+ * Format decimal hours to hours and minutes (e.g., 1.5 -> "1h 30m")
+ */
+function formatHoursMinutes(decimalHours: number | null | undefined): string {
+  if (decimalHours == null || isNaN(decimalHours)) return "-";
+  const totalMinutes = Math.round(decimalHours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 function validateReasonClient(reason: string) {
   const r = (reason ?? "").trim();
   if (!r) return "Reason required";
@@ -194,6 +207,7 @@ export default function DashboardPage() {
   const [timesheetDays, setTimesheetDays] = useState<any[]>([]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [selectedTimelineDate, setSelectedTimelineDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
   /* --- CALENDAR STATE --- */
   const [calView, setCalView] = useState<"week" | "month">("week");
@@ -267,6 +281,39 @@ export default function DashboardPage() {
     }
     return `${monthNames[calDate.getMonth()]} ${calDate.getFullYear()}`;
   };
+
+  // Timeline navigation helpers
+  const navigateTimelineDate = (dir: number) => {
+    const d = new Date(selectedTimelineDate);
+    d.setDate(d.getDate() + dir);
+    setSelectedTimelineDate(d.toISOString().slice(0, 10));
+  };
+
+  const formatTimelineDate = (dateStr: string) => {
+    const d = new Date(dateStr + "T00:00:00");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(d);
+    target.setHours(0, 0, 0, 0);
+    
+    const isToday = target.getTime() === today.getTime();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = target.getTime() === yesterday.getTime();
+    
+    const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+    const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    
+    if (isToday) return `Today, ${monthDay}`;
+    if (isYesterday) return `Yesterday, ${monthDay}`;
+    return `${dayName}, ${monthDay}`;
+  };
+
+  // Get activities for the selected timeline date
+  const selectedDayActivities = useMemo(() => {
+    const dayData = timesheetDays.find(d => d.date === selectedTimelineDate);
+    return dayData?.activities || [];
+  }, [timesheetDays, selectedTimelineDate]);
 
   // Fetch activities list for future scheduling
   useEffect(() => {
@@ -1159,7 +1206,7 @@ export default function DashboardPage() {
                       <div className="ts-left">
                         <div className="glass-card" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column" }}>
                           <div className="section-title"
-                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 15 }}>
                             <span>Timeline Visualization</span>
                             <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
                               <div style={{ display: "flex", gap: 15, marginRight: 15, borderRight: "1px solid var(--border-subtle)", paddingRight: 15 }}>
@@ -1174,6 +1221,43 @@ export default function DashboardPage() {
                               </div>
                               <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>24 HOUR SCALE</span>
                             </div>
+                          </div>
+
+                          {/* Date Navigation Controls */}
+                          <div className="timeline-date-nav">
+                            <button 
+                              className="timeline-nav-btn" 
+                              onClick={() => navigateTimelineDate(-1)}
+                              title="Previous Day"
+                            >
+                              ❮
+                            </button>
+                            <div className="timeline-date-display">
+                              <span className="timeline-date-text">{formatTimelineDate(selectedTimelineDate)}</span>
+                              <input 
+                                type="date" 
+                                className="timeline-date-picker"
+                                value={selectedTimelineDate}
+                                onChange={(e) => setSelectedTimelineDate(e.target.value)}
+                                max={new Date().toISOString().slice(0, 10)}
+                              />
+                            </div>
+                            <button 
+                              className="timeline-nav-btn" 
+                              onClick={() => navigateTimelineDate(1)}
+                              title="Next Day"
+                              disabled={selectedTimelineDate >= new Date().toISOString().slice(0, 10)}
+                              style={{ opacity: selectedTimelineDate >= new Date().toISOString().slice(0, 10) ? 0.4 : 1 }}
+                            >
+                              ❯
+                            </button>
+                            <button 
+                              className="timeline-today-btn"
+                              onClick={() => setSelectedTimelineDate(new Date().toISOString().slice(0, 10))}
+                              disabled={selectedTimelineDate === new Date().toISOString().slice(0, 10)}
+                            >
+                              Today
+                            </button>
                           </div>
 
                           <div className="gantt-chart-container">
@@ -1192,46 +1276,45 @@ export default function DashboardPage() {
                             </div>
 
                             <div id="gantt-body">
-                              {timesheetDays.map((day) => (
-                                day.activities.map((act: any, idx: number) => {
-                                  if (!act.start_time || !act.end_time) return null;
-                                  
-                                  // Parse HH:MM string format
-                                  const parseTime = (t: string) => {
-                                    const [hh, mm] = t.split(':').map(Number);
-                                    return hh * 60 + mm;
-                                  };
-                                  
-                                  const startMin = parseTime(act.start_time);
-                                  let endMin = parseTime(act.end_time);
+                              {selectedDayActivities.map((act: any, idx: number) => {
+                                if (!act.start_time || !act.end_time) return null;
+                                
+                                // Parse HH:MM string format
+                                const parseTime = (t: string) => {
+                                  const [hh, mm] = t.split(':').map(Number);
+                                  return hh * 60 + mm;
+                                };
+                                
+                                const startMin = parseTime(act.start_time);
+                                let endMin = parseTime(act.end_time);
 
-                                  if (endMin < startMin) endMin += 1440; // Overnight
+                                if (endMin < startMin) endMin += 1440; // Overnight
 
-                                  const totalMin = 1440;
-                                  const left = (startMin / totalMin) * 100;
-                                  const width = ((endMin - startMin) / totalMin) * 100;
+                                const totalMin = 1440;
+                                const left = (startMin / totalMin) * 100;
+                                const width = ((endMin - startMin) / totalMin) * 100;
 
-                                  const barClass = act.is_billable ? 'bar-B' : 'bar-NB';
+                                const barClass = act.is_billable ? 'bar-B' : 'bar-NB';
 
-                                  return (
-                                    <div key={`${day.date}-${idx}`} className="gantt-row">
-                                      <div className="gantt-label" title={act.activity_name}>{act.activity_name}</div>
-                                      <div className="gantt-track">
-                                        <div className={`gantt-bar ${barClass}`} style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}>
-                                          <div className="gantt-tooltip">
-                                            <strong>{act.start_time} - {act.end_time}</strong>
-                                          </div>
+                                return (
+                                  <div key={`${selectedTimelineDate}-${idx}`} className="gantt-row">
+                                    <div className="gantt-label" title={act.activity_name}>{act.activity_name}</div>
+                                    <div className="gantt-track">
+                                      <div className={`gantt-bar ${barClass}`} style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}>
+                                        <div className="gantt-tooltip">
+                                          <strong>{act.start_time} - {act.end_time}</strong>
+                                          {act.total_hours && <div style={{ marginTop: 4, opacity: 0.8 }}>{formatHoursMinutes(Number(act.total_hours))}</div>}
                                         </div>
                                       </div>
                                     </div>
-                                  )
-                                })
-                              ))}
-                              {(!timesheetDays.length || !timesheetDays.some(d => d.activities && d.activities.length > 0)) && (
+                                  </div>
+                                )
+                              })}
+                              {selectedDayActivities.length === 0 && (
                                 <div style={{ textAlign: "center", padding: 40, color: "var(--text-muted)", position: "absolute", top: "50%", left: 0, width: "100%", transform: "translateY(-50%)" }}>
                                   <div style={{ marginBottom: 10, fontSize: "1.5rem", opacity: 0.5 }}>📊</div>
-                                  No activity data recorded yet.
-                                  {activeSection === 'timesheet' && (
+                                  No activity data for {formatTimelineDate(selectedTimelineDate)}.
+                                  {selectedTimelineDate === new Date().toISOString().slice(0, 10) && (
                                     <div style={{ marginTop: 10, fontSize: "0.8rem" }}>(Clock in to start tracking)</div>
                                   )}
                                 </div>
@@ -1265,7 +1348,7 @@ export default function DashboardPage() {
                                       <td style={{ fontWeight: 600 }}>{act.activity_name}</td>
                                       <td>{act.start_time || "-"}</td>
                                       <td>{act.end_time || "..."}</td>
-                                      <td>{act.total_hours ? Number(act.total_hours).toFixed(2) + "h" : "-"}</td>
+                                      <td>{act.total_hours ? formatHoursMinutes(Number(act.total_hours)) : "-"}</td>
                                       <td>
                                         <span style={{
                                           padding: "2px 8px",
@@ -1556,7 +1639,7 @@ export default function DashboardPage() {
                                 HOURS THIS WEEK
                               </div>
                               <div className="stat-big">
-                                {analyticsData?.summary?.totalHours?.toFixed(1) || "0.0"} <span style={{ fontSize: "1rem", color: "var(--text-main)" }}>Hrs</span>
+                                {formatHoursMinutes(analyticsData?.summary?.totalHours)}
                               </div>
                             </div>
                             <div className="stat-box">
@@ -1564,7 +1647,7 @@ export default function DashboardPage() {
                                 BILLABLE HOURS
                               </div>
                               <div className="stat-big" style={{ color: "var(--color-go)" }}>
-                                {analyticsData?.summary?.billableHours?.toFixed(1) || "0.0"} <span style={{ fontSize: "1rem", color: "var(--text-main)" }}>Hrs</span>
+                                {formatHoursMinutes(analyticsData?.summary?.billableHours)}
                               </div>
                             </div>
                             <div className="stat-box" style={{ borderColor: "var(--accent-cyan)" }}>
@@ -1671,7 +1754,7 @@ export default function DashboardPage() {
 
                                       {hours > 0 && (
                                         <div style={{ position: "absolute", bottom: `${actualHeight + 2}%`, color: "var(--text-main)", fontSize: "0.7rem", fontWeight: 700, zIndex: 3 }}>
-                                          {hours.toFixed(1)}h
+                                          {formatHoursMinutes(hours)}
                                         </div>
                                       )}
                                     </div>
