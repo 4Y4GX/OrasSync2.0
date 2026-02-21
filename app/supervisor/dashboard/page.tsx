@@ -370,23 +370,35 @@ export default function SupervisorDashboard() {
             {activeSection === 'analytics' && (
               <div className="section-view active fade-in">
                 <div className="section-animate">
-                  <div className="hud-row">
-                    <div className="hud-card">
-                      <div className="hud-bg-icon">📊</div>
-                      <div className="hud-label">TEAM HOURS (WEEK)</div>
-                      <div className="hud-val accent-cyan">{stats.teamPerformance?.weeklyTotal || '0.0'}</div>
+                  {/* Top Three Panels - Improved Alignment */}
+                  <div className="analytics-top-row">
+                    <div className="analytics-card">
+                      <div className="analytics-icon">📊</div>
+                      <div className="analytics-content">
+                        <div className="analytics-label">TEAM HOURS (WEEK)</div>
+                        <div className="analytics-value accent-cyan">{stats.teamPerformance?.weeklyTotal || '0.0'}</div>
+                        <div className="analytics-sub">Total Hours Logged</div>
+                      </div>
                     </div>
-                    <div className="hud-card">
-                      <div className="hud-bg-icon">📈</div>
-                      <div className="hud-label">AVG HOURS/PERSON</div>
-                      <div className="hud-val">{stats.teamPerformance?.avgPerPerson || '0.0'}</div>
+                    <div className="analytics-card">
+                      <div className="analytics-icon">📈</div>
+                      <div className="analytics-content">
+                        <div className="analytics-label">AVG HOURS/PERSON</div>
+                        <div className="analytics-value">{stats.teamPerformance?.avgPerPerson || '0.0'}</div>
+                        <div className="analytics-sub">Per Team Member</div>
+                      </div>
                     </div>
-                    <div className="hud-card">
-                      <div className="hud-bg-icon">🎯</div>
-                      <div className="hud-label">PRODUCTIVITY RATE</div>
-                      <div className="hud-val" style={{ color: 'var(--color-go)' }}>{stats.teamPerformance?.productivity || '0%'}</div>
+                    <div className="analytics-card">
+                      <div className="analytics-icon">🎯</div>
+                      <div className="analytics-content">
+                        <div className="analytics-label">PRODUCTIVITY RATE</div>
+                        <div className="analytics-value success">{stats.teamPerformance?.productivity || '0%'}</div>
+                        <div className="analytics-sub">Overall Efficiency</div>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Team Performance Graph */}
                   <div className="glass-card">
                     <div className="section-title">
                       <span>Team Performance Overview</span>
@@ -452,6 +464,77 @@ export default function SupervisorDashboard() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Team Member Compliance Table */}
+                  <div className="glass-card" style={{ marginTop: '1.5rem' }}>
+                    <div className="section-title">Team Member Compliance</div>
+                    <div className="compliance-info" style={{ 
+                      padding: '1rem', 
+                      marginBottom: '1rem',
+                      background: 'rgba(167, 139, 250, 0.1)',
+                      border: '1px solid rgba(167, 139, 250, 0.3)',
+                      borderRadius: '8px',
+                      color: 'var(--text-main)',
+                      fontSize: '0.9rem'
+                    }}>
+                      <strong>Daily Limit:</strong> 8 hours per day | <strong>Weekly Limit:</strong> 40 hours per week
+                    </div>
+                    <div className="table-container" style={{ maxHeight: '400px' }}>
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Employee</th>
+                            <th>Today's Hours</th>
+                            <th>Daily Limit</th>
+                            <th>Status</th>
+                            <th>Weekly Total</th>
+                            <th>Weekly Limit</th>
+                            <th>Compliance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stats.totalMembers > 0 ? (
+                            // Placeholder data - In production, this would come from API
+                            Array.from({ length: Math.min(stats.totalMembers, 5) }, (_, i) => {
+                              const todayHours = (Math.random() * 10).toFixed(1);
+                              const weeklyHours = (parseFloat(todayHours) * 5 + Math.random() * 5).toFixed(1);
+                              const isOverDaily = parseFloat(todayHours) > 8;
+                              const isOverWeekly = parseFloat(weeklyHours) > 40;
+                              
+                              return (
+                                <tr key={i}>
+                                  <td style={{ fontWeight: 600 }}>Team Member {i + 1}</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{todayHours} hrs</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>8.0 hrs</td>
+                                  <td>
+                                    <span className={`status-badge ${isOverDaily ? 'warn' : 'ok'}`}>
+                                      {isOverDaily ? '⚠ OVERTIME' : '✓ OK'}
+                                    </span>
+                                  </td>
+                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{weeklyHours} hrs</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>40.0 hrs</td>
+                                  <td>
+                                    <div className="compliance-bar">
+                                      <div 
+                                        className={`compliance-fill ${isOverWeekly ? 'over' : 'ok'}`}
+                                        style={{ width: `${Math.min((parseFloat(weeklyHours) / 40) * 100, 100)}%` }}
+                                      />
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          ) : (
+                            <tr>
+                              <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                                No team members to display
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -459,30 +542,129 @@ export default function SupervisorDashboard() {
             {activeSection === 'settings' && (
               <div className="section-view active fade-in">
                 <div className="section-animate">
-                  <div className="glass-card">
-                    <div className="section-title">Supervisor Settings</div>
-                    <div className="settings-row">
-                      <span>Auto-Approve Under 8 Hours</span>
-                      <label className="toggle-switch">
-                        <input type="checkbox" />
-                        <span className="slider"></span>
-                      </label>
+                  {/* Profile Settings Card */}
+                  <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
+                    <div className="section-title">Profile Settings</div>
+                    
+                    <div className="settings-section">
+                      <div className="settings-header">
+                        <div>
+                          <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Change Password</h4>
+                          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Update your account password</p>
+                        </div>
+                        <button 
+                          className="btn-settings-action"
+                          onClick={() => window.location.href = '/auth/change-password'}
+                        >
+                          🔑 Change Password
+                        </button>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Appearance Settings Card */}
+                  <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
+                    <div className="section-title">Appearance</div>
+                    
                     <div className="settings-row">
-                      <span>Email Notifications</span>
-                      <label className="toggle-switch">
-                        <input type="checkbox" defaultChecked />
-                        <span className="slider"></span>
-                      </label>
-                    </div>
-                    <div className="settings-row">
-                      <span>Dark Mode</span>
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Theme Mode</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Switch between light and dark theme
+                        </div>
+                      </div>
                       <label className="toggle-switch">
                         <input
                           type="checkbox"
                           checked={!lightMode}
                           onChange={toggleTheme}
                         />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+
+                    <div className="settings-row">
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Lock Theme</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Prevent theme from changing accidentally
+                        </div>
+                      </div>
+                      <label className="toggle-switch">
+                        <input
+                          type="checkbox"
+                          onChange={(e) => {
+                            try {
+                              localStorage.setItem("orasync-theme-locked", e.target.checked ? "true" : "false");
+                              if (e.target.checked) {
+                                setMessage('Theme locked. Unlock to change theme.');
+                                setTimeout(() => setMessage(''), 3000);
+                              }
+                            } catch { }
+                          }}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Notification Settings Card */}
+                  <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
+                    <div className="section-title">Notifications</div>
+                    
+                    <div className="settings-row">
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Email Notifications</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Receive email alerts for important events
+                        </div>
+                      </div>
+                      <label className="toggle-switch">
+                        <input type="checkbox" defaultChecked />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+
+                    <div className="settings-row">
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Timesheet Reminders</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Get notified about pending timesheet approvals
+                        </div>
+                      </div>
+                      <label className="toggle-switch">
+                        <input type="checkbox" defaultChecked />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Workflow Settings Card */}
+                  <div className="glass-card">
+                    <div className="section-title">Workflow Automation</div>
+                    
+                    <div className="settings-row">
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Auto-Approve Under 8 Hours</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Automatically approve timesheets with less than 8 hours
+                        </div>
+                      </div>
+                      <label className="toggle-switch">
+                        <input type="checkbox" />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+
+                    <div className="settings-row">
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Require Notes for Overtime</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Team members must add notes when logging overtime
+                        </div>
+                      </div>
+                      <label className="toggle-switch">
+                        <input type="checkbox" defaultChecked />
                         <span className="slider"></span>
                       </label>
                     </div>
@@ -496,23 +678,50 @@ export default function SupervisorDashboard() {
 
       {/* Rejection Reason Modal */}
       {showRejectionModal && (
-        <div className="modal-overlay" onClick={() => setShowRejectionModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-            <div className="modal-title">Reject Timesheet</div>
-            <div style={{ marginBottom: '1rem', color: 'var(--text-muted)' }}>
-              Please provide a reason for rejecting this timesheet (required):
+        <div className="modal-overlay-improved" onClick={() => setShowRejectionModal(false)}>
+          <div className="modal-card-improved rejection-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-improved">
+              <div className="modal-icon-wrapper reject-icon">✗</div>
+              <div className="modal-title-improved">Reject Timesheet</div>
+              <div className="modal-subtitle">Please provide a detailed reason for rejecting this timesheet</div>
             </div>
-            <textarea
-              className="input-rounded"
-              rows={4}
-              placeholder="Enter rejection reason..."
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'var(--bg-input)', color: 'var(--text-main)', resize: 'vertical' }}
-            />
-            <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
-              <button className="modal-btn ghost" onClick={() => setShowRejectionModal(false)}>Cancel</button>
-              <button className="modal-btn ok" onClick={handleRejectSubmit}>Submit Rejection</button>
+            <div className="modal-body-improved">
+              {selectedTimesheet && (
+                <div className="rejection-info">
+                  <div className="info-item">
+                    <span className="info-label">Employee:</span>
+                    <span className="info-value">{selectedTimesheet.employee}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Date:</span>
+                    <span className="info-value">{selectedTimesheet.date}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Hours:</span>
+                    <span className="info-value">{selectedTimesheet.hours.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+              <div className="form-group-improved">
+                <label className="label-improved">Rejection Reason *</label>
+                <textarea
+                  className="textarea-improved"
+                  rows={5}
+                  placeholder="e.g., Hours do not match scheduled shift, missing activity details, unauthorized overtime..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  autoFocus
+                />
+                <div className="input-hint">This reason will be visible to the employee</div>
+              </div>
+            </div>
+            <div className="modal-actions-improved">
+              <button className="btn-improved btn-ghost" onClick={() => setShowRejectionModal(false)}>
+                Cancel
+              </button>
+              <button className="btn-improved btn-reject" onClick={handleRejectSubmit} disabled={!rejectionReason.trim()}>
+                <span>✗</span> Reject Timesheet
+              </button>
             </div>
           </div>
         </div>
@@ -520,45 +729,72 @@ export default function SupervisorDashboard() {
 
       {/* View Details Modal */}
       {showDetailsModal && selectedTimesheet && (
-        <div className="modal-overlay" onClick={() => setShowDetailsModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '80vh', overflow: 'auto' }}>
-            <div className="modal-title">Timesheet Details</div>
-            <div style={{ marginTop: '1.5rem' }}>
-              <div className="detail-row">
-                <span className="detail-label">Employee:</span>
-                <span className="detail-value">{selectedTimesheet.employee}</span>
+        <div className="modal-overlay-improved" onClick={() => setShowDetailsModal(false)}>
+          <div className="modal-card-improved details-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-improved">
+              <div className="modal-icon-wrapper view-icon">👁</div>
+              <div className="modal-title-improved">Timesheet Details</div>
+              <div className="modal-subtitle">Complete breakdown of work activities</div>
+            </div>
+            <div className="modal-body-improved">
+              <div className="details-grid">
+                <div className="detail-card-improved">
+                  <div className="detail-icon">👤</div>
+                  <div className="detail-content">
+                    <div className="detail-label-improved">Employee</div>
+                    <div className="detail-value-improved">{selectedTimesheet.employee}</div>
+                  </div>
+                </div>
+                <div className="detail-card-improved">
+                  <div className="detail-icon">📅</div>
+                  <div className="detail-content">
+                    <div className="detail-label-improved">Date</div>
+                    <div className="detail-value-improved">{selectedTimesheet.date}</div>
+                  </div>
+                </div>
+                <div className="detail-card-improved">
+                  <div className="detail-icon">⏱</div>
+                  <div className="detail-content">
+                    <div className="detail-label-improved">Total Hours</div>
+                    <div className="detail-value-improved">{selectedTimesheet.hours.toFixed(2)} hrs</div>
+                  </div>
+                </div>
+                <div className="detail-card-improved">
+                  <div className="detail-icon">📋</div>
+                  <div className="detail-content">
+                    <div className="detail-label-improved">Activities</div>
+                    <div className="detail-value-improved">{selectedTimesheet.activities}</div>
+                  </div>
+                </div>
               </div>
-              <div className="detail-row">
-                <span className="detail-label">Date:</span>
-                <span className="detail-value">{selectedTimesheet.date}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Total Hours:</span>
-                <span className="detail-value">{selectedTimesheet.hours.toFixed(2)}</span>
-              </div>
-              <div className="detail-row">
-                <span className="detail-label">Activities:</span>
-                <span className="detail-value">{selectedTimesheet.activities}</span>
-              </div>
-              {selectedTimesheet.details && (
-                <div style={{ marginTop: '1.5rem' }}>
-                  <h4 style={{ marginBottom: '1rem', color: 'var(--accent-primary)' }}>Activity Breakdown:</h4>
-                  <div className="activity-list">
+              {selectedTimesheet.details && selectedTimesheet.details.length > 0 && (
+                <div className="activity-breakdown">
+                  <h4 className="breakdown-title">Activity Breakdown</h4>
+                  <div className="activity-list-improved">
                     {selectedTimesheet.details.map((detail: any, idx: number) => (
-                      <div key={idx} className="activity-item">
-                        <div style={{ fontWeight: 600 }}>{detail.activity_name}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          {detail.start_time} - {detail.end_time} ({detail.hours}h)
+                      <div key={idx} className="activity-item-improved">
+                        <div className="activity-header">
+                          <div className="activity-name">{detail.activity_name}</div>
+                          {detail.is_billable && (
+                            <span className="badge-billable">💰 Billable</span>
+                          )}
                         </div>
-                        {detail.is_billable && <span className="billable-badge">💰 Billable</span>}
+                        <div className="activity-time">
+                          <span className="time-badge">🕐 {detail.start_time}</span>
+                          <span className="time-arrow">→</span>
+                          <span className="time-badge">🕐 {detail.end_time}</span>
+                          <span className="duration-badge">{detail.hours} hrs</span>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
             </div>
-            <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
-              <button className="modal-btn ok" onClick={() => setShowDetailsModal(false)}>Close</button>
+            <div className="modal-actions-improved">
+              <button className="btn-improved btn-primary" onClick={() => setShowDetailsModal(false)}>
+                <span>✓</span> Close
+              </button>
             </div>
           </div>
         </div>
@@ -760,6 +996,607 @@ export default function SupervisorDashboard() {
 
         .bar {
           position: relative;
+        }
+
+        /* Improved Modal Styles */
+        .modal-overlay-improved {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          animation: fadeIn 0.3s ease;
+          padding: 20px;
+        }
+
+        .modal-card-improved {
+          background: var(--bg-panel);
+          border: 1px solid var(--border-subtle);
+          border-radius: 20px;
+          box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+          animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          max-width: 650px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          position: relative;
+        }
+
+        .modal-card-improved.rejection-modal {
+          max-width: 550px;
+        }
+
+        .modal-card-improved.details-modal {
+          max-width: 750px;
+        }
+
+        .modal-header-improved {
+          padding: 30px 30px 20px 30px;
+          border-bottom: 1px solid var(--border-subtle);
+          text-align: center;
+        }
+
+        .modal-icon-wrapper {
+          width: 70px;
+          height: 70px;
+          margin: 0 auto 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          font-size: 2rem;
+          animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes bounceIn {
+          0% {
+            transform: scale(0);
+            opacity: 0;
+          }
+          50% {
+            transform: scale(1.1);
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
+        .modal-icon-wrapper.reject-icon {
+          background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.1) 100%);
+          border: 2px solid rgba(239, 68, 68, 0.3);
+          color: #ef4444;
+        }
+
+        .modal-icon-wrapper.view-icon {
+          background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(124, 58, 237, 0.1) 100%);
+          border: 2px solid rgba(167, 139, 250, 0.3);
+          color: var(--accent-primary);
+        }
+
+        .modal-title-improved {
+          font-size: 1.75rem;
+          font-weight: 700;
+          color: var(--text-main);
+          margin-bottom: 8px;
+        }
+
+        .modal-subtitle {
+          font-size: 0.95rem;
+          color: var(--text-muted);
+          font-weight: 500;
+        }
+
+        .modal-body-improved {
+          padding: 25px 30px;
+        }
+
+        .rejection-info {
+          background: var(--bg-input);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 25px;
+        }
+
+        .info-item {
+          display: flex;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .info-item:last-child {
+          border-bottom: none;
+        }
+
+        .info-label {
+          font-weight: 600;
+          color: var(--text-muted);
+          font-size: 0.9rem;
+        }
+
+        .info-value {
+          font-weight: 700;
+          color: var(--text-main);
+          font-size: 0.95rem;
+        }
+
+        .form-group-improved {
+          margin-bottom: 20px;
+        }
+
+        .label-improved {
+          display: block;
+          font-weight: 600;
+          color: var(--text-main);
+          margin-bottom: 10px;
+          font-size: 0.95rem;
+        }
+
+        .textarea-improved {
+          width: 100%;
+          padding: 15px;
+          border-radius: 12px;
+          border: 2px solid var(--border-subtle);
+          background: var(--bg-input);
+          color: var(--text-main);
+          font-family: inherit;
+          font-size: 0.95rem;
+          resize: vertical;
+          transition: all 0.3s ease;
+        }
+
+        .textarea-improved:focus {
+          outline: none;
+          border-color: var(--accent-primary);
+          box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+        }
+
+        .input-hint {
+          margin-top: 8px;
+          font-size: 0.85rem;
+          color: var(--text-muted);
+          font-style: italic;
+        }
+
+        .details-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 15px;
+          margin-bottom: 25px;
+        }
+
+        .detail-card-improved {
+          background: var(--bg-input);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          padding: 15px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          transition: all 0.3s ease;
+        }
+
+        .detail-card-improved:hover {
+          border-color: var(--accent-primary);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(167, 139, 250, 0.15);
+        }
+
+        .detail-icon {
+          font-size: 1.5rem;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(167, 139, 250, 0.1);
+          border-radius: 8px;
+          flex-shrink: 0;
+        }
+
+        .detail-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .detail-label-improved {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 4px;
+        }
+
+        .detail-value-improved {
+          font-size: 1rem;
+          color: var(--text-main);
+          font-weight: 700;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .activity-breakdown {
+          margin-top: 25px;
+        }
+
+        .breakdown-title {
+          font-size: 1.2rem;
+          font-weight: 700;
+          color: var(--text-main);
+          margin-bottom: 15px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .breakdown-title:before {
+          content: '';
+          width: 4px;
+          height: 24px;
+          background: var(--accent-primary);
+          border-radius: 2px;
+        }
+
+        .activity-list-improved {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .activity-item-improved {
+          background: var(--bg-input);
+          border: 1px solid var(--border-subtle);
+          border-left: 4px solid var(--accent-primary);
+          border-radius: 10px;
+          padding: 15px;
+          transition: all 0.3s ease;
+        }
+
+        .activity-item-improved:hover {
+          border-color: var(--accent-primary);
+          box-shadow: 0 4px 15px rgba(167, 139, 250, 0.15);
+          transform: translateX(5px);
+        }
+
+        .activity-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 10px;
+        }
+
+        .activity-name {
+          font-weight: 700;
+          color: var(--text-main);
+          font-size: 1rem;
+        }
+
+        .badge-billable {
+          padding: 4px 10px;
+          background: rgba(34, 197, 94, 0.15);
+          color: #22c55e;
+          border-radius: 6px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+        }
+
+        .activity-time {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .time-badge {
+          padding: 4px 10px;
+          background: rgba(167, 139, 250, 0.1);
+          border: 1px solid rgba(167, 139, 250, 0.2);
+          border-radius: 6px;
+          font-size: 0.85rem;
+          color: var(--text-main);
+          font-weight: 600;
+          font-family: var(--font-mono);
+        }
+
+        .time-arrow {
+          color: var(--text-muted);
+          font-weight: 700;
+        }
+
+        .duration-badge {
+          padding: 4px 12px;
+          background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(124, 58, 237, 0.1) 100%);
+          border: 1px solid var(--accent-primary);
+          border-radius: 20px;
+          font-size: 0.85rem;
+          color: var(--accent-primary);
+          font-weight: 700;
+          margin-left: auto;
+        }
+
+        .modal-actions-improved {
+          padding: 20px 30px;
+          border-top: 1px solid var(--border-subtle);
+          display: flex;
+          gap: 12px;
+          justify-content: flex-end;
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        .btn-improved {
+          padding: 12px 24px;
+          border-radius: 10px;
+          border: none;
+          font-weight: 700;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .btn-improved:before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 0;
+          height: 0;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.1);
+          transform: translate(-50%, -50%);
+          transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-improved:hover:before {
+          width: 300px;
+          height: 300px;
+        }
+
+        .btn-improved span {
+          position: relative;
+          z-index: 1;
+        }
+
+        .btn-improved:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-improved:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .btn-improved:disabled:hover {
+          transform: none;
+          box-shadow: none;
+        }
+
+        .btn-ghost {
+          background: transparent;
+          color: var(--text-muted);
+          border: 2px solid var(--border-subtle);
+        }
+
+        .btn-ghost:hover {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: var(--text-main);
+          color: var(--text-main);
+        }
+
+        .btn-reject {
+          background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          color: white;
+        }
+
+        .btn-reject:hover {
+          background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+          color: white;
+        }
+
+        .btn-primary:hover {
+          background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--accent-primary) 100%);
+        }
+
+        /* Analytics Improvements */
+        .analytics-top-row {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 1.5rem;
+          margin-bottom: 2rem;
+        }
+
+        .analytics-card {
+          background: var(--bg-panel);
+          border: 1px solid var(--border-subtle);
+          border-radius: 16px;
+          padding: 1.75rem;
+          display: flex;
+          align-items: center;
+          gap: 1.25rem;
+          transition: all 0.3s ease;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .analytics-card:before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 4px;
+          background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        .analytics-card:hover {
+          border-color: var(--accent-primary);
+          transform: translateY(-5px);
+          box-shadow: 0 10px 30px rgba(167, 139, 250, 0.25);
+        }
+
+        .analytics-card:hover:before {
+          opacity: 1;
+        }
+
+        .analytics-icon {
+          width: 70px;
+          height: 70px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(124, 58, 237, 0.1) 100%);
+          border-radius: 14px;
+          font-size: 2rem;
+          flex-shrink: 0;
+        }
+
+        .analytics-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .analytics-label {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 0.5rem;
+        }
+
+        .analytics-value {
+          font-size: 2rem;
+          font-weight: 700;
+          color: var(--text-main);
+          line-height: 1;
+          margin-bottom: 0.25rem;
+        }
+
+        .analytics-value.accent-cyan {
+          color: #06b6d4;
+        }
+
+        .analytics-value.success {
+          color: #22c55e;
+        }
+
+        .analytics-sub {
+          font-size: 0.85rem;
+          color: var(--text-muted);
+          font-weight: 500;
+        }
+
+        /* Compliance Table Styles */
+        .compliance-bar {
+          height: 24px;
+          background: rgba(156, 163, 175, 0.2);
+          border-radius: 12px;
+          overflow: hidden;
+          position: relative;
+        }
+
+        .compliance-fill {
+          height: 100%;
+          transition: width 0.5s ease;
+          position: relative;
+        }
+
+        .compliance-fill.ok {
+          background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+        }
+
+        .compliance-fill.over {
+          background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+        }
+
+        .compliance-fill:after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+          animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
+
+        .status-badge.ok {
+          background: rgba(34, 197, 94, 0.15);
+          color: #22c55e;
+          border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        /* Settings Improvements */
+        .settings-section {
+          padding: 1.5rem 0;
+        }
+
+        .settings-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 1.25rem;
+          background: var(--bg-input);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          transition: all 0.3s ease;
+        }
+
+        .settings-header:hover {
+          border-color: var(--accent-primary);
+          box-shadow: 0 4px 12px rgba(167, 139, 250, 0.15);
+        }
+
+        .btn-settings-action {
+          padding: 0.75rem 1.5rem;
+          background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          font-weight: 700;
+          font-size: 0.9rem;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .btn-settings-action:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(167, 139, 250, 0.4);
         }
       `}</style>
     </>

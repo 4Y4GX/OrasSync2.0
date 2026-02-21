@@ -18,15 +18,12 @@ export async function GET() {
         orderBy: { role_id: "asc" },
       }),
       prisma.d_tbldepartment.findMany({
-        where: { is_active: true },
         orderBy: { dept_name: "asc" },
       }),
       prisma.d_tblposition.findMany({
-        where: { is_active: true },
         orderBy: { pos_name: "asc" },
       }),
       prisma.d_tblteam.findMany({
-        where: { is_active: true },
         include: {
           D_tbldepartment: true,
         },
