@@ -6,7 +6,7 @@
   --accent-glow: #ff0055;
 
   --border-subtle: rgba(255, 255, 255, 0.12);
-  --tech-mesh-color: rgba(255, 0, 85, 0.08);
+  --tech-mesh-color: transparent;
   --shadow-glow: 0 0 25px rgba(255, 0, 85, 0.25);
 
   --sq-outline: rgba(255, 0, 85, 0.25);
@@ -29,7 +29,7 @@
   --accent-admin: #be123c;
   --accent-silver: #4b5563;
 
-  --tech-mesh-color: rgba(220, 20, 60, 0.03);
+  --tech-mesh-color: transparent;
   --shadow-glow: 0 0 20px rgba(190, 18, 60, 0.2);
 
   --sq-outline: rgba(190, 18, 60, 0.1);

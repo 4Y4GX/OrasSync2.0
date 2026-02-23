@@ -25,7 +25,7 @@ export default function ExcelImportExport() {
     try {
       const text = await file.text();
       const lines = text.split("\n").filter((line) => line.trim());
-      
+
       if (lines.length < 2) {
         setMessage("CSV file is empty or invalid");
         setImporting(false);
@@ -77,13 +77,13 @@ export default function ExcelImportExport() {
   return (
     <div className="excel-import-export">
       {message && (
-        <div style={{ 
-          padding: "1rem", 
-          marginBottom: "1.5rem", 
-          background: message.includes("success") ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", 
-          border: `1px solid ${message.includes("success") ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, 
-          borderRadius: "8px", 
-          color: message.includes("success") ? "#22c55e" : "#ef4444" 
+        <div style={{
+          padding: "1rem",
+          marginBottom: "1.5rem",
+          background: message.includes("success") ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+          border: `1px solid ${message.includes("success") ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+          borderRadius: "8px",
+          color: message.includes("success") ? "#22c55e" : "#ef4444"
         }}>
           {message}
         </div>
@@ -116,19 +116,19 @@ export default function ExcelImportExport() {
         <div className="section-title" style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>
           Bulk User Import
         </div>
-        
+
         <div style={{ padding: "1.5rem" }}>
           <div>
             <h3 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "1.5rem", color: 'var(--text-main)' }}>
               UPLOAD CSV DATA
             </h3>
-            
+
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <button
                 className="btn-action"
                 onClick={() => setShowInstructions(!showInstructions)}
-                style={{ 
-                  backgroundColor: '#444', 
+                style={{
+                  backgroundColor: '#444',
                   padding: '10px 20px',
                   fontSize: '0.85rem',
                   fontWeight: 'bold',
@@ -141,18 +141,31 @@ export default function ExcelImportExport() {
               <label
                 htmlFor="csv-import"
                 className="btn-action admin-btn"
-                style={{ 
-                  display: "inline-flex", 
-                  alignItems: 'center', 
-                  gap: '8px', 
-                  cursor: "pointer",
+                style={{
+                  display: "inline-flex",
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: importing ? "not-allowed" : "pointer",
                   padding: '10px 20px',
                   fontSize: '0.85rem',
                   fontWeight: 'bold',
-                  backgroundColor: '#3b82f6'
+                  backgroundColor: '#3b82f6',
+                  opacity: importing ? 0.7 : 1
                 }}
               >
-                📥 SELECT CSV FILE
+                {importing ? (
+                  <>
+                    <svg style={{ animation: 'spin 1s linear infinite', height: '1.2rem', width: '1.2rem' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    IMPORTING...
+                  </>
+                ) : (
+                  <>
+                    📥 SELECT CSV FILE
+                  </>
+                )}
               </label>
               <input
                 id="csv-import"
@@ -165,12 +178,12 @@ export default function ExcelImportExport() {
             </div>
 
             {showInstructions && (
-              <div style={{ 
-                padding: "1.25rem", 
-                background: "rgba(255,255,255,0.03)", 
+              <div style={{
+                padding: "1.25rem",
+                background: "rgba(255,255,255,0.03)",
                 border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: "8px", 
-                marginTop: "1.5rem", 
+                borderRadius: "8px",
+                marginTop: "1.5rem",
                 fontSize: "0.9rem",
                 lineHeight: '1.6'
               }}>

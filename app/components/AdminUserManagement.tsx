@@ -61,6 +61,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     const [modalMode, setModalMode] = useState<"create" | "edit">("edit");
     const [resultMessage, setResultMessage] = useState({ title: "", text: "", type: "success" });
 
+    const [isProcessing, setIsProcessing] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -172,8 +173,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     };
 
     const executeDelete = async () => {
-        setShowDeleteConfirm(false);
         if (!targetUserId) return;
+        setIsProcessing(true);
 
         try {
             const res = await fetch(`/api/admin/users/delete?user_id=${targetUserId}`, {
@@ -181,6 +182,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             });
 
             const data = await res.json();
+            setIsProcessing(false);
+            setShowDeleteConfirm(false);
 
             if (res.ok) {
                 setUsers(prev => prev.filter(u => u.user_id !== targetUserId));
@@ -212,7 +215,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     };
 
     const executeReactivate = async () => {
-        setShowReactivateConfirm(false);
+        setIsProcessing(true);
 
         const payload: any = { ...formData, account_status: "ACTIVE" };
         const cleanDate = (d: string) => (d && d.trim() !== "" ? d : null);
@@ -234,6 +237,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             });
 
             const data = await res.json();
+            setIsProcessing(false);
+            setShowReactivateConfirm(false);
 
             if (res.ok) {
                 closeDrawer();
@@ -268,7 +273,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     };
 
     const executeSave = async () => {
-        setShowConfirmModal(false);
+        setIsProcessing(true);
 
         const url = modalMode === "create" ? "/api/admin/users/create" : "/api/admin/users/update";
         const method = modalMode === "create" ? "POST" : "PUT";
@@ -294,6 +299,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             });
 
             const data = await res.json();
+            setIsProcessing(false);
+            setShowConfirmModal(false);
 
             if (res.ok) {
                 closeDrawer();
@@ -932,90 +939,250 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                 </div>
                 , document.body)}
 
-            {/* CONFIRMATION MODALS */}
+            {/* CONFIRMATION MODALS — portalled above drawer */}
             {
-                showConfirmModal && (
-                    <div className="modal-overlay" style={{ zIndex: 2000, backgroundColor: 'rgba(0,0,0,0.8)' }}>
-                        <div className="glass-card" style={{ width: '350px', textAlign: 'center', border: '1px solid var(--border-subtle, #444)' }}>
-                            <h3 style={{ marginBottom: '1rem', color: 'var(--text-main, #fff)' }}>Confirm Updates</h3>
-                            <p style={{ marginBottom: '2rem', color: 'var(--text-muted, #aaa)' }}>Are you sure you want to apply these changes to the database?</p>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-                                <button className="btn-action" onClick={() => setShowConfirmModal(false)} style={{ backgroundColor: 'var(--bg-input, #444)', color: 'var(--text-main, #fff)' }}>
-                                    No, Go Back
+                showConfirmModal && createPortal(
+                    <div className="modal-overlay" style={{ zIndex: 100000, backgroundColor: lightMode ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.7)' }}>
+                        <div style={{
+                            width: '400px',
+                            borderRadius: '20px',
+                            padding: '36px 32px 28px',
+                            textAlign: 'center',
+                            background: lightMode ? '#ffffff' : '#1a1e26',
+                            border: lightMode ? '1px solid #d0d2d9' : '1px solid rgba(255,255,255,0.1)',
+                            boxShadow: lightMode ? '0 20px 60px rgba(0,0,0,0.15)' : '0 20px 60px rgba(0,0,0,0.6)',
+                        }}>
+                            <div style={{
+                                width: '56px', height: '56px', borderRadius: '50%',
+                                background: lightMode ? 'rgba(91, 99, 255, 0.1)' : 'rgba(91, 99, 255, 0.15)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 20px', fontSize: '1.6rem',
+                            }}>💾</div>
+                            <h3 style={{
+                                marginBottom: '10px', fontSize: '1.15rem', fontWeight: 900,
+                                letterSpacing: '0.04em',
+                                color: lightMode ? '#1a1a2e' : '#fff',
+                            }}>Confirm Updates</h3>
+                            <p style={{
+                                marginBottom: '28px', fontSize: '0.9rem', lineHeight: 1.6,
+                                color: lightMode ? '#666' : 'rgba(255,255,255,0.55)',
+                            }}>Are you sure you want to apply these changes to the database?</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <button onClick={executeSave} disabled={isProcessing} style={{
+                                    padding: '14px', borderRadius: '12px', border: 'none',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    backgroundColor: '#46e38a', color: '#fff',
+                                    fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.08em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    boxShadow: '0 4px 14px rgba(70, 227, 138, 0.3)',
+                                    opacity: isProcessing ? 0.7 : 1,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}>
+                                    {isProcessing && (
+                                        <svg style={{ animation: 'spin 1s linear infinite', height: '1.2rem', width: '1.2rem' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    )}
+                                    {isProcessing ? "Processing..." : `Yes, ${modalMode === 'create' ? 'Create' : 'Update'}`}
                                 </button>
-                                <button className="btn-action" onClick={executeSave} style={{ backgroundColor: 'var(--color-go)' }}>
-                                    Yes, {modalMode === 'create' ? 'Create' : 'Update'}
-                                </button>
+                                <button onClick={() => !isProcessing && setShowConfirmModal(false)} disabled={isProcessing} style={{
+                                    padding: '14px', borderRadius: '12px',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    backgroundColor: 'transparent', border: lightMode ? '1px solid #d0d2d9' : '1px solid rgba(255,255,255,0.12)',
+                                    color: lightMode ? '#555' : 'rgba(255,255,255,0.6)',
+                                    fontWeight: 700, fontSize: '0.82rem', letterSpacing: '0.06em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    opacity: isProcessing ? 0.5 : 1,
+                                }}>Cancel</button>
                             </div>
                         </div>
                     </div>
-                )
+                    , document.body)
             }
 
             {
-                showDeleteConfirm && (
-                    <div className="modal-overlay" style={{ zIndex: 2000, backgroundColor: 'rgba(0,0,0,0.8)' }}>
-                        <div className="glass-card" style={{ width: '350px', textAlign: 'center', border: '1px solid #ef4444' }}>
-                            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚠️</div>
-                            <h3 style={{ marginBottom: '1rem', color: 'var(--text-main, #fff)' }}>Deactivate User?</h3>
-                            <p style={{ marginBottom: '2rem', color: 'var(--text-muted, #aaa)' }}>
+                showDeleteConfirm && createPortal(
+                    <div className="modal-overlay" style={{ zIndex: 100000, backgroundColor: lightMode ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.7)' }}>
+                        <div style={{
+                            width: '400px',
+                            borderRadius: '20px',
+                            padding: '36px 32px 28px',
+                            textAlign: 'center',
+                            background: lightMode ? '#ffffff' : '#1a1e26',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            boxShadow: lightMode ? '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(239,68,68,0.1)' : '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(239,68,68,0.08)',
+                        }}>
+                            <div style={{
+                                width: '56px', height: '56px', borderRadius: '50%',
+                                background: lightMode ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.12)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 20px', fontSize: '1.6rem',
+                            }}>⚠️</div>
+                            <h3 style={{
+                                marginBottom: '10px', fontSize: '1.15rem', fontWeight: 900,
+                                letterSpacing: '0.04em',
+                                color: lightMode ? '#1a1a2e' : '#fff',
+                            }}>Deactivate User?</h3>
+                            <p style={{
+                                marginBottom: '28px', fontSize: '0.9rem', lineHeight: 1.6,
+                                color: lightMode ? '#666' : 'rgba(255,255,255,0.55)',
+                            }}>
                                 Are you sure you want to deactivate this user?
-                                <br /><br />
-                                They will be removed from this active list immediately.
+                                They will be removed from the active list immediately.
                             </p>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-                                <button className="btn-action" onClick={() => setShowDeleteConfirm(false)} style={{ backgroundColor: 'var(--bg-input, #444)', color: 'var(--text-main, #fff)' }}>Cancel</button>
-                                <button className="btn-action" onClick={executeDelete} style={{ backgroundColor: '#ef4444', color: 'white' }}>Yes, Deactivate</button>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <button onClick={executeDelete} disabled={isProcessing} style={{
+                                    padding: '14px', borderRadius: '12px', border: 'none',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    backgroundColor: '#ef4444', color: '#fff',
+                                    fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.08em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)',
+                                    opacity: isProcessing ? 0.7 : 1,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}>
+                                    {isProcessing && (
+                                        <svg style={{ animation: 'spin 1s linear infinite', height: '1.2rem', width: '1.2rem' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    )}
+                                    {isProcessing ? "Deactivating..." : "Yes, Deactivate"}
+                                </button>
+                                <button onClick={() => !isProcessing && setShowDeleteConfirm(false)} disabled={isProcessing} style={{
+                                    padding: '14px', borderRadius: '12px',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    backgroundColor: 'transparent', border: lightMode ? '1px solid #d0d2d9' : '1px solid rgba(255,255,255,0.12)',
+                                    color: lightMode ? '#555' : 'rgba(255,255,255,0.6)',
+                                    fontWeight: 700, fontSize: '0.82rem', letterSpacing: '0.06em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    opacity: isProcessing ? 0.5 : 1,
+                                }}>Cancel</button>
                             </div>
                         </div>
                     </div>
-                )
+                    , document.body)
             }
 
             {/* REACTIVATE CONFIRMATION MODAL */}
             {
-                showReactivateConfirm && (
-                    <div className="modal-overlay" style={{ zIndex: 2000, backgroundColor: 'rgba(0,0,0,0.8)' }}>
-                        <div className="glass-card" style={{ width: '350px', textAlign: 'center', border: '1px solid var(--color-go)' }}>
-                            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>🔄</div>
-                            <h3 style={{ marginBottom: '1rem', color: 'var(--text-main, #fff)' }}>Reactivate User?</h3>
-                            <p style={{ marginBottom: '2rem', color: 'var(--text-muted, #aaa)' }}>
+                showReactivateConfirm && createPortal(
+                    <div className="modal-overlay" style={{ zIndex: 100000, backgroundColor: lightMode ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.7)' }}>
+                        <div style={{
+                            width: '400px',
+                            borderRadius: '20px',
+                            padding: '36px 32px 28px',
+                            textAlign: 'center',
+                            background: lightMode ? '#ffffff' : '#1a1e26',
+                            border: '1px solid rgba(70, 227, 138, 0.3)',
+                            boxShadow: lightMode ? '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(70,227,138,0.1)' : '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(70,227,138,0.08)',
+                        }}>
+                            <div style={{
+                                width: '56px', height: '56px', borderRadius: '50%',
+                                background: lightMode ? 'rgba(70, 227, 138, 0.08)' : 'rgba(70, 227, 138, 0.12)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 20px', fontSize: '1.6rem',
+                            }}>🔄</div>
+                            <h3 style={{
+                                marginBottom: '10px', fontSize: '1.15rem', fontWeight: 900,
+                                letterSpacing: '0.04em',
+                                color: lightMode ? '#1a1a2e' : '#fff',
+                            }}>Reactivate User?</h3>
+                            <p style={{
+                                marginBottom: '28px', fontSize: '0.9rem', lineHeight: 1.6,
+                                color: lightMode ? '#666' : 'rgba(255,255,255,0.55)',
+                            }}>
                                 Are you sure you want to reactivate this user?
-                                <br /><br />
                                 They will immediately regain access to the system.
                             </p>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-                                <button className="btn-action" onClick={() => setShowReactivateConfirm(false)} style={{ backgroundColor: 'var(--bg-input, #444)', color: 'var(--text-main, #fff)' }}>Cancel</button>
-                                <button className="btn-action" onClick={executeReactivate} style={{ backgroundColor: 'var(--color-go)', color: 'white' }}>Yes, Reactivate</button>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <button onClick={executeReactivate} disabled={isProcessing} style={{
+                                    padding: '14px', borderRadius: '12px', border: 'none',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    backgroundColor: '#46e38a', color: '#fff',
+                                    fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.08em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    boxShadow: '0 4px 14px rgba(70, 227, 138, 0.3)',
+                                    opacity: isProcessing ? 0.7 : 1,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}>
+                                    {isProcessing && (
+                                        <svg style={{ animation: 'spin 1s linear infinite', height: '1.2rem', width: '1.2rem' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    )}
+                                    {isProcessing ? "Reactivating..." : "Yes, Reactivate"}
+                                </button>
+                                <button onClick={() => !isProcessing && setShowReactivateConfirm(false)} disabled={isProcessing} style={{
+                                    padding: '14px', borderRadius: '12px',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    backgroundColor: 'transparent', border: lightMode ? '1px solid #d0d2d9' : '1px solid rgba(255,255,255,0.12)',
+                                    color: lightMode ? '#555' : 'rgba(255,255,255,0.6)',
+                                    fontWeight: 700, fontSize: '0.82rem', letterSpacing: '0.06em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    opacity: isProcessing ? 0.5 : 1,
+                                }}>Cancel</button>
                             </div>
                         </div>
                     </div>
-                )
+                    , document.body)
             }
 
             {/* RESULTS MODAL */}
             {
-                showResultModal && (
-                    <div className="modal-overlay" style={{ zIndex: 3000, backgroundColor: 'rgba(0,0,0,0.8)' }}>
-                        <div className="glass-card" style={{ width: '350px', textAlign: 'center', border: resultMessage.type === 'success' ? '1px solid var(--color-go)' : '1px solid #ef4444' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
+                showResultModal && createPortal(
+                    <div className="modal-overlay" style={{ zIndex: 100000, backgroundColor: lightMode ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.7)' }}>
+                        <div style={{
+                            width: '400px',
+                            borderRadius: '20px',
+                            padding: '36px 32px 28px',
+                            textAlign: 'center',
+                            background: lightMode ? '#ffffff' : '#1a1e26',
+                            border: resultMessage.type === 'success'
+                                ? (lightMode ? '1px solid rgba(70, 227, 138, 0.4)' : '1px solid rgba(70, 227, 138, 0.3)')
+                                : (lightMode ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(239, 68, 68, 0.3)'),
+                            boxShadow: resultMessage.type === 'success'
+                                ? (lightMode ? '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(70,227,138,0.1)' : '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(70,227,138,0.08)')
+                                : (lightMode ? '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(239,68,68,0.1)' : '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(239,68,68,0.08)'),
+                        }}>
+                            <div style={{
+                                width: '64px', height: '64px', borderRadius: '50%',
+                                background: resultMessage.type === 'success'
+                                    ? (lightMode ? 'rgba(70, 227, 138, 0.1)' : 'rgba(70, 227, 138, 0.15)')
+                                    : (lightMode ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.12)'),
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 20px', fontSize: '2rem',
+                            }}>
                                 {resultMessage.type === 'success' ? '✅' : '❌'}
                             </div>
-                            <h3 style={{ marginBottom: '0.5rem', color: 'var(--text-main, #fff)' }}>{resultMessage.title}</h3>
-                            <p style={{ marginBottom: '2rem', color: 'var(--text-muted, #aaa)' }}>{resultMessage.text}</p>
+                            <h3 style={{
+                                marginBottom: '10px', fontSize: '1.2rem', fontWeight: 900,
+                                letterSpacing: '0.04em',
+                                color: lightMode ? '#1a1a2e' : '#fff',
+                            }}>{resultMessage.title}</h3>
+                            <p style={{
+                                marginBottom: '28px', fontSize: '0.9rem', lineHeight: 1.6,
+                                color: lightMode ? '#666' : 'rgba(255,255,255,0.55)',
+                            }}>{resultMessage.text}</p>
                             <button
-                                className="btn-action"
                                 onClick={() => setShowResultModal(false)}
                                 style={{
-                                    backgroundColor: resultMessage.type === 'success' ? 'var(--color-go)' : '#ef4444',
-                                    width: '100%'
+                                    width: '100%',
+                                    padding: '14px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                                    backgroundColor: resultMessage.type === 'success' ? '#46e38a' : '#ef4444',
+                                    color: '#fff',
+                                    fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.08em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    boxShadow: resultMessage.type === 'success' ? '0 4px 14px rgba(70, 227, 138, 0.3)' : '0 4px 14px rgba(239, 68, 68, 0.3)',
                                 }}
                             >
                                 Close
                             </button>
                         </div>
                     </div>
-                )
+                    , document.body)
             }
         </div >
     );

@@ -1938,6 +1938,12 @@ body.light-mode .modal-input {
 }
 
 /* Animations */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes slideInUp {
   from {
     opacity: 0;

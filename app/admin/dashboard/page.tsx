@@ -197,18 +197,19 @@ export default function AdminDashboard() {
             aria-haspopup="menu"
             style={{ width: '100%', padding: 0, background: 'none', border: 'none', textAlign: 'left' }}
           >
-            <div className="profile-card">
-              <div className="streak-badge">🔐 ADMIN</div>
-              <div className="avatar">{adminInitials}</div>
-              <div className="profile-info">
-                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{adminName}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>SYSTEM ADMIN</div>
+            <div className="profile-card" style={{ padding: '20px 16px', display: 'flex', alignItems: 'center', gap: '14px', position: 'relative' }}>
+              <div className="avatar" style={{ width: '46px', height: '46px', flexShrink: 0, margin: 0 }}>{adminInitials}</div>
+              <div className="profile-info" style={{ textAlign: 'left', overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{adminName}</div>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em' }}>SYSTEM ADMIN</div>
               </div>
             </div>
           </button>
         </div>
 
-      </aside>
+      </aside >
 
       <main className="workspace-panel">
         <div className="top-bar">
@@ -249,34 +250,36 @@ export default function AdminDashboard() {
         </div>
       </main>
 
-      {showLogoutConfirm && (
-        <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.8)' }}>
-          <div className="glass-card" style={{ width: '350px', textAlign: 'center', border: '1px solid #444', background: '#1a1a1a' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⎋</div>
-            <h3 style={{ marginBottom: '1rem', color: '#fff' }}>Confirm Logout</h3>
-            <p style={{ marginBottom: '2rem', color: '#aaa', fontSize: '0.9rem' }}>
-              Are you sure you want to end your secure admin session?
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-              <button
-                className="btn-action"
-                onClick={() => setShowLogoutConfirm(false)}
-                style={{ background: '#333', flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', border: 'none', color: '#fff', fontWeight: 'bold' }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-action"
-                onClick={doLogout}
-                disabled={actionBusy}
-                style={{ background: '#ef4444', flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', border: 'none', color: '#fff', fontWeight: 'bold' }}
-              >
-                {actionBusy ? 'Logging out...' : 'Log Out'}
-              </button>
+      {
+        showLogoutConfirm && (
+          <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.8)' }}>
+            <div className="glass-card" style={{ width: '350px', textAlign: 'center', border: '1px solid #444', background: '#1a1a1a' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⎋</div>
+              <h3 style={{ marginBottom: '1rem', color: '#fff' }}>Confirm Logout</h3>
+              <p style={{ marginBottom: '2rem', color: '#aaa', fontSize: '0.9rem' }}>
+                Are you sure you want to end your secure admin session?
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+                <button
+                  className="btn-action"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  style={{ background: '#333', flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', border: 'none', color: '#fff', fontWeight: 'bold' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-action"
+                  onClick={doLogout}
+                  disabled={actionBusy}
+                  style={{ background: '#ef4444', flex: 1, padding: '10px', borderRadius: '6px', cursor: 'pointer', border: 'none', color: '#fff', fontWeight: 'bold' }}
+                >
+                  {actionBusy ? 'Logging out...' : 'Log Out'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
