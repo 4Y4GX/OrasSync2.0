@@ -1,4 +1,3 @@
-// app/api/admin/users/create/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -19,7 +18,12 @@ function isValidEmail(email: string): boolean {
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
-    if (!user || user.role_id !== 4) {
+    
+    // Set strictly to 3 based on your database schema for Admin
+    const ADMIN_ROLE_ID = 3; 
+
+    // Updated security check
+    if (!user || user.role_id !== ADMIN_ROLE_ID) {
       return NextResponse.json({ message: "Unauthorized. Admin access required." }, { status: 403 });
     }
 
@@ -98,7 +102,7 @@ export async function POST(request: Request) {
           is_first_login: true,
           failed_attempts: 0,
           is_disabled: false,
-          questions_attempt: 0,
+          question_attempts: 0, // <--- FIXED TYPO HERE
         },
       });
 

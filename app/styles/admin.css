@@ -4,16 +4,16 @@
   --accent-admin: #ff0055;
   --accent-silver: #9ca3af;
   --accent-glow: #ff0055;
-  
+
   --border-subtle: rgba(255, 255, 255, 0.12);
-  --tech-mesh-color: rgba(255, 0, 85, 0.08);
+  --tech-mesh-color: transparent;
   --shadow-glow: 0 0 25px rgba(255, 0, 85, 0.25);
-  
+
   --sq-outline: rgba(255, 0, 85, 0.25);
   --sq-solid: rgba(255, 0, 85, 0.05);
-  
-  --bg-panel: rgba(255, 255, 255, 0.06);
-  --bg-input: rgba(255, 255, 255, 0.05);
+
+  --bg-panel: #1a1e26;
+  --bg-input: #11151a;
   --text-main: rgba(255, 255, 255, 0.92);
   --text-muted: rgba(255, 255, 255, 0.55);
   --color-go: #46e38a;
@@ -21,20 +21,22 @@
   --color-urgent: #ff6b6b;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --radius-round: 14px;
+  color: var(--text-main);
+  transition: color 0.45s ease;
 }
 
 .admin-theme.light-mode {
   --accent-admin: #be123c;
   --accent-silver: #4b5563;
-  
-  --tech-mesh-color: rgba(220, 20, 60, 0.03);
+
+  --tech-mesh-color: transparent;
   --shadow-glow: 0 0 20px rgba(190, 18, 60, 0.2);
-  
+
   --sq-outline: rgba(190, 18, 60, 0.1);
   --sq-solid: rgba(190, 18, 60, 0.05);
-  
-  --bg-panel: rgba(255, 255, 255, 0.85);
-  --bg-input: rgba(0, 0, 0, 0.04);
+
+  --bg-panel: #ffffff;
+  --bg-input: #f0f4ff;
   --text-main: rgba(0, 0, 0, 0.86);
   --text-muted: rgba(0, 0, 0, 0.55);
 }
@@ -129,7 +131,7 @@
   color: var(--text-main);
   font-size: 0.9rem;
   outline: none;
-  transition: all 0.2s;
+  transition: all 0.45s ease;
 }
 
 .input-rounded:focus {
@@ -187,12 +189,12 @@
   border-radius: 50%;
 }
 
-input:checked + .slider {
+input:checked+.slider {
   background-color: var(--accent-admin);
   border-color: var(--accent-admin);
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
   transform: translateX(24px);
 }
 
@@ -208,7 +210,7 @@ input:checked + .slider:before {
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-round);
   padding: 20px;
-  transition: all 0.3s;
+  transition: all 0.45s ease;
 }
 
 .stat-box:hover {

@@ -8,7 +8,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const user = await getUserFromCookie();
-    if (!user || user.role_id !== 4) {
+    
+    // Checks for role_id 3 (Admin)
+    if (!user || user.role_id !== 3) {
+      console.error("Access Denied: User is not admin or not logged in", user);
       return NextResponse.json({ message: "Unauthorized. Admin access required." }, { status: 403 });
     }
 
@@ -18,53 +21,60 @@ export async function GET(request: Request) {
     const search = searchParams.get("search") || "";
     const roleFilter = searchParams.get("role") || "";
     const statusFilter = searchParams.get("status") || "";
+    const statusExclude = searchParams.get("status_exclude") || "";
 
     const skip = (page - 1) * limit;
 
-    // Build where clause
-    const where: any = {};
+    // 2. Build Search Query
+    const where: any = { AND: [] };
 
     if (search) {
-      where.OR = [
-        { user_id: { contains: search } },
-        { first_name: { contains: search } },
-        { last_name: { contains: search } },
-        { email: { contains: search } },
-      ];
+      where.AND.push({
+        OR: [
+          // Basic Fields
+          { user_id: { contains: search } },
+          { first_name: { contains: search } },
+          { last_name: { contains: search } },
+          { email: { contains: search } },
+          // NEW: Search by Relations (Department, Position, Role)
+          { D_tbldepartment: { dept_name: { contains: search } } },
+          { D_tblposition: { pos_name: { contains: search } } },
+          { D_tblrole: { role_name: { contains: search } } }
+        ]
+      });
     }
 
     if (roleFilter) {
-      where.role_id = parseInt(roleFilter);
+      where.AND.push({ role_id: parseInt(roleFilter) });
     }
 
     if (statusFilter) {
-      where.account_status = statusFilter;
+      where.AND.push({ account_status: statusFilter });
+    } else if (statusExclude) {
+      // Logic: (Status IS NOT 'DEACTIVATED') OR (Status IS NULL)
+      where.AND.push({
+        OR: [
+          { account_status: { not: statusExclude } }, 
+          { account_status: null }
+        ]
+      });
     }
 
-    // Get total count
+    // 3. Execute Query
     const total = await prisma.d_tbluser.count({ where });
 
-    // Get users with relations
     const users = await prisma.d_tbluser.findMany({
       where,
       include: {
         D_tblrole: true,
         D_tblposition: true,
         D_tbldepartment: true,
-        D_tblteam: true,
+        D_tblteam: true, 
         D_tbluser_D_tbluser_supervisor_idToD_tbluser: {
-          select: {
-            user_id: true,
-            first_name: true,
-            last_name: true,
-          },
+          select: { user_id: true, first_name: true, last_name: true },
         },
         D_tbluser_D_tbluser_manager_idToD_tbluser: {
-          select: {
-            user_id: true,
-            first_name: true,
-            last_name: true,
-          },
+          select: { user_id: true, first_name: true, last_name: true },
         },
       },
       orderBy: { account_created_at: "desc" },
@@ -82,7 +92,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error("List users error:", error);
-    return NextResponse.json({ message: "Failed to fetch users" }, { status: 500 });
+    console.error("CRITICAL ERROR in /api/admin/users/list:", error);
+    return NextResponse.json({ message: "Failed to fetch users." }, { status: 500 });
   }
 }
