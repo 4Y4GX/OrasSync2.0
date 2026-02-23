@@ -94,6 +94,7 @@ export async function GET() {
 
     userProfile: {
       user_id: userId,
+      role_id: sessionUser.role_id, // ✅ include role_id for schedule check logic
       name: fullName,
       first_name: userProfile?.first_name ?? null,
       last_name: userProfile?.last_name ?? null,

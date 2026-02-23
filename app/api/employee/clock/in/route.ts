@@ -10,9 +10,10 @@ export async function POST() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  // BRD: cannot clock in without schedule
+  // BRD: cannot clock in without schedule (only applies to employees, role_id = 1)
   const scheduleToday = await getTodayShiftForUser(user.user_id);
-  if (!scheduleToday.hasSchedule) {
+  const isEmployee = user.role_id === 1;
+  if (isEmployee && !scheduleToday.hasSchedule) {
     return NextResponse.json(
       {
         message:
