@@ -6,6 +6,15 @@ import '../../styles/supervisor.css';
 import SupervisorScheduleManagement from '@/app/components/SupervisorScheduleManagement';
 import TeamStatusMonitor from '@/app/components/TeamStatusMonitor';
 
+function formatHoursToHHMM(hours: number | string) {
+  if (!hours) return "00:00";
+  const h = typeof hours === 'number' ? hours : parseFloat(hours as string);
+  const totalMinutes = Math.round(h * 60);
+  const hh = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+  const mm = (totalMinutes % 60).toString().padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
 export default function SupervisorDashboard() {
   const [activeSection, setActiveSection] = useState('team');
   const [lightMode, setLightMode] = useState(false);
@@ -113,6 +122,9 @@ export default function SupervisorDashboard() {
     role: ' Supervisor',
     initials: '...'
   });
+
+  // For showing temporary messages in settings
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     fetch('/api/user/me')
@@ -338,8 +350,8 @@ export default function SupervisorDashboard() {
                           </div>
                           <div className="approval-stats">
                             <div className="stat-item">
-                              <span className="stat-label">Total Hours</span>
-                              <span className="stat-value">{timesheet.hours.toFixed(1)}</span>
+                              <span className="stat-label">Total Time</span>
+                              <span className="stat-value">{formatHoursToHHMM(timesheet.hours)}</span>
                             </div>
                             <div className="stat-item">
                               <span className="stat-label">Activities</span>
@@ -347,9 +359,9 @@ export default function SupervisorDashboard() {
                             </div>
                           </div>
                           <div className="approval-actions">
+                            <button className="btn-view" onClick={() => openDetailsModal(timesheet)}>View Details</button>
                             <button className="btn-approve" onClick={() => handleApprovalAction(timesheet.log_ids, 'APPROVE')}>✓ Approve</button>
                             <button className="btn-reject" onClick={() => openRejectModal(timesheet)}>✗ Reject</button>
-                            <button className="btn-view" onClick={() => openDetailsModal(timesheet)}>View Details</button>
                           </div>
                         </div>
                       ))}
@@ -444,7 +456,7 @@ export default function SupervisorDashboard() {
                             }}
                             title={`${day.day}: ${day.hours} hours (${day.percentage.toFixed(1)}%)`}
                           >
-                            {day.hours > 0 && (
+                            {Number(day.hours) > 0 && (
                               <div style={{
                                 position: 'absolute',
                                 top: '-25px',
@@ -606,6 +618,11 @@ export default function SupervisorDashboard() {
                         <span className="slider"></span>
                       </label>
                     </div>
+                    {message && (
+                      <div style={{ marginTop: '1rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                        {message}
+                      </div>
+                    )}
                   </div>
 
                   {/* Notification Settings Card */}
@@ -709,7 +726,21 @@ export default function SupervisorDashboard() {
                   rows={5}
                   placeholder="e.g., Hours do not match scheduled shift, missing activity details, unauthorized overtime..."
                   value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
+                  onChange={(e) => {
+                    // Only allow letters, numbers, periods, commas, and spaces
+                    const sanitized = e.target.value
+                      .replace(/[^a-zA-Z0-9.,\s]/g, "")
+                      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
+                    setRejectionReason(sanitized);
+                  }}
+                  onPaste={e => {
+                    e.preventDefault();
+                    const text = e.clipboardData.getData("text/plain");
+                    const sanitized = text
+                      .replace(/[^a-zA-Z0-9.,\s]/g, "")
+                      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
+                    setRejectionReason(rejectionReason + sanitized);
+                  }}
                   autoFocus
                 />
                 <div className="input-hint">This reason will be visible to the employee</div>
@@ -780,6 +811,7 @@ export default function SupervisorDashboard() {
                           )}
                         </div>
                         <div className="activity-time">
+                          <span className="time-badge">📅 {detail.log_date}</span>
                           <span className="time-badge">🕐 {detail.start_time}</span>
                           <span className="time-arrow">→</span>
                           <span className="time-badge">🕐 {detail.end_time}</span>
@@ -1016,7 +1048,7 @@ export default function SupervisorDashboard() {
         }
 
         .modal-card-improved {
-          background: var(--bg-panel);
+          background: #232136;
           border: 1px solid var(--border-subtle);
           border-radius: 20px;
           box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -1034,6 +1066,7 @@ export default function SupervisorDashboard() {
 
         .modal-card-improved.details-modal {
           max-width: 750px;
+          background: #232136;
         }
 
         .modal-header-improved {
@@ -1214,15 +1247,18 @@ export default function SupervisorDashboard() {
           text-transform: uppercase;
           letter-spacing: 0.5px;
           margin-bottom: 4px;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: unset;
         }
 
         .detail-value-improved {
           font-size: 1rem;
           color: var(--text-main);
           font-weight: 700;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: unset;
         }
 
         .activity-breakdown {

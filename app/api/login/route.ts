@@ -104,16 +104,15 @@ export async function POST(req: Request) {
     const roleId = Number(userProfile.role_id ?? 0);
     console.log("LOGIN DEBUG: User:", userProfile.email, "Role:", roleId);
 
+
     // default redirect based on role: 1=employee, 2=analyst, 3=admin, 4=supervisor, 5=manager
     let redirect = "/employee/dashboard";
     if (roleId === 3) redirect = "/admin/dashboard";
     if (roleId === 4) redirect = "/supervisor/dashboard";
     if (roleId === 5) redirect = "/manager/dashboard";
 
-    console.log("LOGIN DEBUG: Initial Redirect:", redirect);
-
-    // ✅ Daily sentiment gate for employees AND supervisors (role 4)
-    if (roleId === 1 || roleId === 4) {
+    // Only employees (role 1) are required to complete sentiment log before accessing dashboard
+    if (roleId === 1) {
       const now = new Date();
       const dayStart = startOfDay(now);
       const dayEnd = endOfDay(now);
@@ -125,8 +124,6 @@ export async function POST(req: Request) {
         },
         select: { sentiment_id: true },
       });
-
-      console.log("LOGIN DEBUG: Sentiment Done?", !!done);
 
       if (!done) redirect = "/employee/sentiment";
     }

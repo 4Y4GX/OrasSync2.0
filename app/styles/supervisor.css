@@ -84,6 +84,7 @@
 .supervisor-theme .info-panel {
   flex: 0 0 300px;
   background: var(--bg-panel);
+  opacity: 1 !important;
   border-right: 1px solid var(--border-subtle);
   padding: 30px;
   display: flex;

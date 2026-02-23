@@ -43,9 +43,34 @@ type FutureActivity = {
   activity_date: string;
   activity_type: string;
   notes: string;
+  is_billable?: boolean;
+  start_time?: string;
+  end_time?: string;
+  activity_name?: string;
+  activity_code?: string;
 };
 
 export default function SupervisorScheduleManagement() {
+    // For weekly/daily view toggle
+    const [futureViewMode, setFutureViewMode] = useState<'weekly' | 'daily'>('weekly');
+    const [futureSelectedDay, setFutureSelectedDay] = useState<string>(new Date().toISOString().split('T')[0]); // default today
+    const [futureSelectedWeek, setFutureSelectedWeek] = useState<string>(() => {
+      const today = new Date();
+      const year = today.getFullYear();
+      const week = getISOWeek(today);
+      return `${year}-W${week.toString().padStart(2, '0')}`;
+    });
+
+    // Helper: Get ISO week number
+    function getISOWeek(date: Date) {
+      const tmp = new Date(date.getTime());
+      tmp.setHours(0, 0, 0, 0);
+      tmp.setDate(tmp.getDate() + 4 - (tmp.getDay() || 7));
+      const yearStart = new Date(tmp.getFullYear(), 0, 1);
+      const weekNo = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      return weekNo;
+    }
+
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,12 +81,36 @@ export default function SupervisorScheduleManagement() {
   const [selectedDay, setSelectedDay] = useState('monday');
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [futureActivities, setFutureActivities] = useState<FutureActivity[]>([]);
+  const [futureLoading, setFutureLoading] = useState(true);
   const [activityFormData, setActivityFormData] = useState({
     employee_id: '',
     activity_date: '',
     activity_type: 'MEETING',
     notes: ''
   });
+
+    // Filtered activities for view
+    const filteredFutureActivities = (() => {
+      if (futureViewMode === 'daily') {
+        return futureActivities.filter(a => a.activity_date === futureSelectedDay);
+      } else {
+        // Weekly: filter by week
+        // Get week start/end from selected week
+        const [year, weekStr] = futureSelectedWeek.split('-W');
+        const week = parseInt(weekStr, 10);
+        // Find Monday of the week
+        const monday = new Date(`${year}-01-01`);
+        monday.setDate(monday.getDate() + ((week - 1) * 7));
+        while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1);
+        const weekStart = new Date(monday);
+        const weekEnd = new Date(monday);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        return futureActivities.filter(a => {
+          const d = new Date(a.activity_date);
+          return d >= weekStart && d <= weekEnd;
+        });
+      }
+    })();
   const [formData, setFormData] = useState({
     monday_shift_id: "",
     tuesday_shift_id: "",
@@ -74,6 +123,7 @@ export default function SupervisorScheduleManagement() {
 
   useEffect(() => {
     loadData();
+    loadFutureActivities();
   }, []);
 
   const loadData = async () => {
@@ -95,6 +145,24 @@ export default function SupervisorScheduleManagement() {
       setMessage("Failed to load data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadFutureActivities = async () => {
+    setFutureLoading(true);
+    try {
+      const res = await fetch("/api/supervisor/future-schedule/list");
+      if (res.ok) {
+        const data = await res.json();
+        setFutureActivities(data.schedules || []);
+      } else {
+        setFutureActivities([]);
+      }
+    } catch (error) {
+      setFutureActivities([]);
+      setMessage("Failed to load future activities");
+    } finally {
+      setFutureLoading(false);
     }
   };
 
@@ -223,7 +291,8 @@ export default function SupervisorScheduleManagement() {
       employee_name: `${employee.first_name} ${employee.last_name}`,
       activity_date: activityFormData.activity_date,
       activity_type: activityFormData.activity_type,
-      notes: activityFormData.notes
+      notes: activityFormData.notes,
+      is_billable: activityFormData.activity_type !== 'LEAVE' && activityFormData.activity_type !== 'OFF_SITE' ? true : false
     };
 
     setFutureActivities([...futureActivities, newActivity]);
@@ -255,7 +324,7 @@ export default function SupervisorScheduleManagement() {
         </div>
       )}
 
-      {/* Future Activities Panel */}
+      {/* Future Activities Panel (restored to previous version) */}
       <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
         <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>📅 Future Activities</span>
@@ -263,7 +332,6 @@ export default function SupervisorScheduleManagement() {
             + Add Activity
           </button>
         </div>
-        
         {futureActivities.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
             No future activities scheduled. Click "Add Activity" to plan ahead.
@@ -275,7 +343,7 @@ export default function SupervisorScheduleManagement() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.75rem' }}>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.25rem' }}>{activity.employee_name}</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{new Date(activity.activity_date).toLocaleDateString()}</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{activity.activity_date}</div>
                   </div>
                   <button 
                     onClick={() => handleDeleteActivity(activity.activity_id!)}
@@ -303,25 +371,11 @@ export default function SupervisorScheduleManagement() {
         )}
       </div>
 
+      {/* Team Schedule Table (restored to previous version) */}
       <div className="glass-card">
-        <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Team Schedule</span>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              className={`view-mode-btn ${viewMode === 'weekly' ? 'active' : ''}`}
-              onClick={() => setViewMode('weekly')}
-            >
-              📅 Weekly View
-            </button>
-            <button 
-              className={`view-mode-btn ${viewMode === 'daily' ? 'active' : ''}`}
-              onClick={() => setViewMode('daily')}
-            >
-              📆 Daily View
-            </button>
-          </div>
         </div>
-
         {loading ? (
           <div style={{ textAlign: "center", padding: "3rem" }}>Loading...</div>
         ) : teamMembers.length === 0 ? (
@@ -329,149 +383,49 @@ export default function SupervisorScheduleManagement() {
             No team members found
           </div>
         ) : (
-          <>
-            {viewMode === 'weekly' ? (
-              <div className="table-container" style={{ maxHeight: "600px" }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th style={{ position: "sticky", left: 0, background: "var(--bg-panel)", zIndex: 10 }}>Employee</th>
-                      <th>Department</th>
-                      <th>Mon</th>
-                      <th>Tue</th>
-                      <th>Wed</th>
-                      <th>Thu</th>
-                      <th>Fri</th>
-                      <th>Sat</th>
-                      <th>Sun</th>
-                      <th>Actions</th>
+          <div className="table-container" style={{ maxHeight: "600px" }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ position: "sticky", left: 0, background: "var(--bg-panel)", zIndex: 10 }}>Employee</th>
+                  <th>Department</th>
+                  <th>Mon</th>
+                  <th>Tue</th>
+                  <th>Wed</th>
+                  <th>Thu</th>
+                  <th>Fri</th>
+                  <th>Sat</th>
+                  <th>Sun</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamMembers.map((member) => {
+                  const schedule = member.D_tblweekly_schedule[0];
+                  return (
+                    <tr key={member.user_id}>
+                      <td style={{ fontWeight: 600, position: "sticky", left: 0, background: "var(--bg-panel)" }}>
+                        {member.first_name} {member.last_name}
+                      </td>
+                      <td>{member.D_tbldepartment?.dept_name || "—"}</td>
+                      <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_monday_shift_idToD_tblshift_template)}</td>
+                      <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template)}</td>
+                      <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template)}</td>
+                      <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_thursday_shift_idToD_tblshift_template)}</td>
+                      <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_friday_shift_idToD_tblshift_template)}</td>
+                      <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_saturday_shift_idToD_tblshift_template)}</td>
+                      <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_sunday_shift_idToD_tblshift_template)}</td>
+                      <td>
+                        <button className="btn-mini supervisor-btn" onClick={() => openEditModal(member)}>
+                          {schedule ? "Edit" : "Set Schedule"}
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {teamMembers.map((member) => {
-                      const schedule = member.D_tblweekly_schedule[0];
-                      return (
-                        <tr key={member.user_id}>
-                          <td style={{ fontWeight: 600, position: "sticky", left: 0, background: "var(--bg-panel)" }}>
-                            {member.first_name} {member.last_name}
-                          </td>
-                          <td>{member.D_tbldepartment?.dept_name || "—"}</td>
-                          <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_monday_shift_idToD_tblshift_template)}</td>
-                          <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template)}</td>
-                          <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template)}</td>
-                          <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_thursday_shift_idToD_tblshift_template)}</td>
-                          <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_friday_shift_idToD_tblshift_template)}</td>
-                          <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_saturday_shift_idToD_tblshift_template)}</td>
-                          <td>{formatShiftDisplay(schedule?.D_tblweekly_schedule_sunday_shift_idToD_tblshift_template)}</td>
-                          <td>
-                            <button className="btn-mini supervisor-btn" onClick={() => openEditModal(member)}>
-                              {schedule ? "Edit" : "Set Schedule"}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div>
-                {/* Day Selector */}
-                <div style={{ 
-                  display: 'flex', 
-                  gap: '0.5rem', 
-                  marginBottom: '1.5rem', 
-                  flexWrap: 'wrap',
-                  padding: '0.5rem',
-                  background: 'var(--bg-input)',
-                  borderRadius: '12px'
-                }}>
-                  {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => (
-                    <button
-                      key={day}
-                      className={`day-selector-btn ${selectedDay === day ? 'active' : ''}`}
-                      onClick={() => setSelectedDay(day)}
-                    >
-                      {day.substring(0, 3).toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-                
-                {/* Daily View */}
-                <div>
-                  <h3 style={{ 
-                    fontSize: '1.3rem', 
-                    fontWeight: 700, 
-                    marginBottom: '1rem',
-                    textTransform: 'capitalize',
-                    color: 'var(--text-main)'
-                  }}>
-                    {selectedDay} Schedule
-                  </h3>
-                  
-                  {getMembersForDay(selectedDay).length === 0 ? (
-                    <div style={{ 
-                      textAlign: 'center', 
-                      padding: '3rem', 
-                      color: 'var(--text-muted)',
-                      background: 'var(--bg-input)',
-                      borderRadius: '12px'
-                    }}>
-                      No employees scheduled for {selectedDay}
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-                      {getMembersForDay(selectedDay).map((member) => {
-                        const schedule = member.D_tblweekly_schedule[0];
-                        const dayShiftMap: Record<string, any> = {
-                          monday: schedule?.D_tblweekly_schedule_monday_shift_idToD_tblshift_template,
-                          tuesday: schedule?.D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template,
-                          wednesday: schedule?.D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template,
-                          thursday: schedule?.D_tblweekly_schedule_thursday_shift_idToD_tblshift_template,
-                          friday: schedule?.D_tblweekly_schedule_friday_shift_idToD_tblshift_template,
-                          saturday: schedule?.D_tblweekly_schedule_saturday_shift_idToD_tblshift_template,
-                          sunday: schedule?.D_tblweekly_schedule_sunday_shift_idToD_tblshift_template,
-                        };
-                        const shift = dayShiftMap[selectedDay];
-                        
-                        return (
-                          <div key={member.user_id} className="employee-card">
-                            <div style={{ marginBottom: '0.75rem' }}>
-                              <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.25rem' }}>
-                                {member.first_name} {member.last_name}
-                              </div>
-                              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                {member.D_tbldepartment?.dept_name || 'No Department'}
-                              </div>
-                            </div>
-                            
-                            {shift && (
-                              <div style={{ 
-                                padding: '0.75rem',
-                                background: 'rgba(167, 139, 250, 0.1)',
-                                border: '1px solid rgba(167, 139, 250, 0.3)',
-                                borderRadius: '8px'
-                              }}>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
-                                  Shift Time
-                                </div>
-                                <div style={{ fontWeight: 700, fontSize: '1.1rem', fontFamily: 'var(--font-mono)' }}>
-                                  {shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}
-                                </div>
-                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                                  {shift.shift_name}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

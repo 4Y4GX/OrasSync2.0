@@ -36,6 +36,9 @@ export default function TeamStatusMonitor() {
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // Default to 10
 
   useEffect(() => {
     loadTeamStatus();
@@ -76,6 +79,12 @@ export default function TeamStatusMonitor() {
 
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(filteredTeam.length / itemsPerPage));
+  const indexOfLast = currentPage * itemsPerPage;
+  const indexOfFirst = indexOfLast - itemsPerPage;
+  const currentTeam = filteredTeam.slice(indexOfFirst, indexOfLast);
 
   const formatTime = (isoString: string | null) => {
     if (!isoString) return "—";
@@ -168,81 +177,173 @@ export default function TeamStatusMonitor() {
             No team members found
           </div>
         ) : (
-          <div className="table-container" style={{ maxHeight: "600px" }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Status</th>
-                  <th>Employee</th>
-                  <th>Department</th>
-                  <th>Position</th>
-                  <th>Hours Today</th>
-                  <th>Current Activity</th>
-                  <th>Clock In</th>
-                  <th>Clock Out</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTeam.map((member) => (
-                  <tr key={member.user_id}>
-                    <td>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                        }}
-                      >
-                        <span
+          <>
+            <div style={{ overflowX: 'auto', width: '100%' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>Position</th>
+                    <th>Hours Today</th>
+                    <th>Current Activity</th>
+                    <th>Clock In</th>
+                    <th>Clock Out</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentTeam.map((member) => (
+                    <tr key={member.user_id}>
+                      <td>
+                        <div
                           style={{
-                            fontSize: "1.2rem",
-                            color: getStatusColor(member.status),
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
                           }}
                         >
-                          {getStatusIcon(member.status)}
-                        </span>
-                        <span style={{ color: getStatusColor(member.status), fontWeight: 600 }}>
-                          {member.status}
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{ fontWeight: 600 }}>
-                      <div>{member.name}</div>
-                      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                        {member.email}
-                      </div>
-                    </td>
-                    <td>{member.department}</td>
-                    <td>{member.position}</td>
-                    <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                      {formatHoursMinutes(member.hours_today)}
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        {member.is_billable && member.status === "Working" && (
-                          <span title="Billable" style={{ fontSize: "1rem" }}>
-                            💰
+                          <span
+                            style={{
+                              fontSize: "1.2rem",
+                              color: getStatusColor(member.status),
+                            }}
+                          >
+                            {getStatusIcon(member.status)}
                           </span>
-                        )}
-                        <span>{member.current_activity}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}>
-                      {formatTime(member.clock_in_time)}
-                    </td>
-                    <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}>
-                      {formatTime(member.clock_out_time)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                          <span style={{ color: getStatusColor(member.status), fontWeight: 600 }}>
+                            {member.status}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>
+                        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>{member.name}</div>
+                        <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>
+                          {member.email}
+                        </div>
+                      </td>
+                      <td>{member.department}</td>
+                      <td>{member.position}</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
+                        {formatHoursMinutes(member.hours_today)}
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          {member.is_billable && member.status === "Working" && (
+                            <span title="Billable" style={{ fontSize: "1rem" }}>
+                              💰
+                            </span>
+                          )}
+                          <span>{member.current_activity}</span>
+                        </div>
+                      </td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}>
+                        {formatTime(member.clock_in_time)}
+                      </td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}>
+                        {formatTime(member.clock_out_time)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls - moved below table for clarity */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: '1rem',
+              padding: '1rem',
+              backgroundColor: 'var(--bg-panel, rgba(255,255,255,0.02))',
+              borderRadius: '8px',
+              transition: 'background 0.45s ease',
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '0.85rem', color: '#aaa', fontWeight: 600 }}>Rows per page:</span>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  {[5, 10, 15].map(num => (
+                    <button
+                      key={num}
+                      onClick={() => { setItemsPerPage(num); setCurrentPage(1); }}
+                      style={{
+                        padding: '4px 10px',
+                        backgroundColor: itemsPerPage === num ? 'var(--accent-admin, #3b82f6)' : 'var(--bg-input, #222)',
+                        color: itemsPerPage === num ? '#fff' : 'var(--text-muted, #aaa)',
+                        border: itemsPerPage === num ? '1px solid var(--accent-admin, #3b82f6)' : '1px solid var(--border-subtle, #444)',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: itemsPerPage === num ? 'bold' : 'normal',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted, #aaa)' }}>
+                  Page <strong style={{ color: 'var(--text-main, #fff)' }}>{currentPage}</strong> of <strong style={{ color: 'var(--text-main, #fff)' }}>{totalPages}</strong>
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: currentPage === 1 ? 'var(--bg-input, #222)' : 'var(--bg-panel, #333)',
+                      color: currentPage === 1 ? 'var(--text-muted, #555)' : 'var(--text-main, #fff)',
+                      border: '1px solid var(--border-subtle, #444)',
+                      borderRadius: '4px',
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: currentPage === totalPages ? 'var(--bg-input, #222)' : 'var(--bg-panel, #333)',
+                      color: currentPage === totalPages ? 'var(--text-muted, #555)' : 'var(--text-main, #fff)',
+                      border: '1px solid var(--border-subtle, #444)',
+                      borderRadius: '4px',
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
         <div style={{ marginTop: "1rem", fontSize: "0.85rem", color: "var(--text-muted)", textAlign: "center" }}>
-          Showing {filteredTeam.length} of {teamStatus.length} team members
-          {autoRefresh && " • Auto-refreshing every 30 seconds"}
+          {(() => {
+            if (filteredTeam.length === 0) return null;
+            const start = indexOfFirst + 1;
+            const end = Math.min(indexOfLast, filteredTeam.length);
+            return (
+              <>
+                Showing {start}-{end} of {filteredTeam.length} filtered team members
+                {autoRefresh && " • Auto-refreshing every 30 seconds"}
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>

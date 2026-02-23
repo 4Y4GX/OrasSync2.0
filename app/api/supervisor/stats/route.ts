@@ -1,76 +1,119 @@
 import { NextResponse } from "next/server";
+import { getUserFromCookie } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
-// TEST VERSION with mock data for demonstration
 export async function GET(req: Request) {
     try {
-        // Get weekOffset from query parameters
         const { searchParams } = new URL(req.url);
         const weekOffset = parseInt(searchParams.get('weekOffset') || '0', 10);
-
-        console.log('[TEST_SUPERVISOR_STATS] WeekOffset:', weekOffset);
-
-        // Mock data for testing
-        const totalMembers = 8;
-        const activeClocks = 5;
-        const totalHours = 38.5;
-        const offlineCount = 3;
-
-        // Generate mock graph data for 7 days
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const graphData = [];
-
-        // Calculate start of the target week based on offset
-        const startOfTargetWeek = new Date();
-        startOfTargetWeek.setDate(startOfTargetWeek.getDate() - startOfTargetWeek.getDay() + (weekOffset * 7));
-        startOfTargetWeek.setHours(0, 0, 0, 0);
-
-        console.log('[TEST_SUPERVISOR_STATS] Week start:', startOfTargetWeek.toISOString());
-
-        // Mock hours for each day (realistic pattern)
-        const mockHoursPattern = [
-            12.5,  // Sunday - low
-            42.0,  // Monday - high
-            38.5,  // Tuesday - normal
-            35.0,  // Wednesday - normal
-            40.5,  // Thursday - normal
-            36.0,  // Friday - normal
-            8.0    // Saturday - low
-        ];
-
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(startOfTargetWeek);
-            d.setDate(d.getDate() + i);
-
-            const dayIndex = d.getDay();
-            const dailyTotal = mockHoursPattern[i];
-            
-            // Calculate percentage (8 hours per person = 100%)
-            let percentage = 0;
-            if (dailyTotal > 0) {
-                percentage = Math.min(100, Math.max(5, (dailyTotal / (totalMembers * 8)) * 100));
-            }
-            
-            console.log(`[TEST_SUPERVISOR_STATS] ${days[dayIndex]}: ${dailyTotal}h (${percentage.toFixed(1)}%)`);
-            
-            graphData.push({
-                day: days[dayIndex],
-                hours: dailyTotal.toFixed(1),
-                percentage: percentage
-            });
+        const user = await getUserFromCookie();
+        if (!user || (user.role_id !== 4 && user.role_id !== 3 && user.role_id !== 2)) {
+            return NextResponse.json({ message: "Unauthorized. Supervisor access required." }, { status: 403 });
         }
 
-        // Mock weekly performance
-        const weeklyTotal = mockHoursPattern.reduce((a, b) => a + b, 0);
-        const avgPerPerson = (weeklyTotal / totalMembers).toFixed(1);
-        const productivity = Math.min(100, (weeklyTotal / (totalMembers * 40) * 100)).toFixed(0);
+        // Get team members for supervisor (same logic as team status)
+        let teamMembers;
+        if (user.role_id === 4) {
+            // Supervisor: only their own team
+            teamMembers = await prisma.d_tbluser.findMany({
+                where: {
+                    supervisor_id: user.user_id,
+                    account_status: "ACTIVE",
+                    role_id: 1,
+                },
+                select: { user_id: true },
+            });
+        } else {
+            // Manager/Admin: all employees
+            teamMembers = await prisma.d_tbluser.findMany({
+                where: {
+                    role_id: 1,
+                    account_status: "ACTIVE",
+                },
+                select: { user_id: true },
+            });
+        }
+        const teamIds = teamMembers.map((m: any) => m.user_id);
 
-        console.log('[TEST_SUPERVISOR_STATS] Weekly total:', weeklyTotal);
+        // Today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+
+        // Get all clock logs for today for team
+        const clocks = await prisma.d_tblclock_log.findMany({
+            where: {
+                user_id: { in: teamIds },
+                shift_date: { gte: today, lt: tomorrow },
+            },
+        });
+
+        // Get all time logs for today for team
+        const timeLogs = await prisma.d_tbltime_log.findMany({
+            where: {
+                user_id: { in: teamIds },
+                log_date: { gte: today, lt: tomorrow },
+            },
+        });
+
+        // Calculate stats
+        const totalMembers = teamIds.length;
+        let currentlyWorking = 0;
+        let offline = 0;
+        let totalHours = 0;
+        for (const id of teamIds) {
+            const userClocks = clocks.filter(c => c.user_id === id);
+            const isWorking = userClocks.some(c => !c.clock_out_time);
+            if (isWorking) currentlyWorking++;
+            else offline++;
+            const userLogs = timeLogs.filter(l => l.user_id === id);
+            totalHours += userLogs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
+        }
+
+        // Weekly stats for graph and performance
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + (weekOffset * 7));
+        startOfWeek.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(startOfWeek);
+        weekEnd.setDate(startOfWeek.getDate() + 7);
+
+        const weekLogs = await prisma.d_tbltime_log.findMany({
+            where: {
+                user_id: { in: teamIds },
+                log_date: { gte: startOfWeek, lt: weekEnd },
+            },
+        });
+
+        // Graph data: hours per day
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const graphData = Array(7).fill(0).map((_, i) => {
+            const d = new Date(startOfWeek);
+            d.setDate(d.getDate() + i);
+            const logs = weekLogs.filter(l => {
+                if (!l.log_date) return false;
+                const logDate = l.log_date instanceof Date ? l.log_date : new Date(l.log_date);
+                return logDate.getFullYear() === d.getFullYear() && logDate.getMonth() === d.getMonth() && logDate.getDate() === d.getDate();
+            });
+            const hours = logs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
+            const percentage = totalMembers > 0 ? Math.min(100, Math.max(5, (hours / (totalMembers * 8)) * 100)) : 0;
+            return {
+                day: days[d.getDay()],
+                hours: hours.toFixed(1),
+                percentage,
+            };
+        });
+
+        // Weekly performance
+        const weeklyTotal = weekLogs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
+        const avgPerPerson = totalMembers > 0 ? (weeklyTotal / totalMembers).toFixed(1) : '0.0';
+        const productivity = totalMembers > 0 ? Math.min(100, (weeklyTotal / (totalMembers * 40)) * 100).toFixed(0) : '0';
 
         const response = {
             totalMembers,
-            currentlyWorking: activeClocks,
+            currentlyWorking,
             totalHours: totalHours.toFixed(1),
-            offline: offlineCount,
+            offline,
             graphData,
             teamPerformance: {
                 weeklyTotal: weeklyTotal.toFixed(1),
@@ -78,16 +121,11 @@ export async function GET(req: Request) {
                 productivity: `${productivity}%`
             }
         };
-
-        console.log('[TEST_SUPERVISOR_STATS] Response:', JSON.stringify(response, null, 2));
-
         return NextResponse.json(response);
-
     } catch (error: any) {
-        console.error("TEST_SUPERVISOR_STATS_ERROR:", error);
-        console.error("Stack:", error.stack);
+        console.error("SUPERVISOR_STATS_ERROR:", error);
         return NextResponse.json(
-            { message: "Failed to fetch test stats", error: error.message },
+            { message: "Failed to fetch stats", error: error.message },
             { status: 500 }
         );
     }
