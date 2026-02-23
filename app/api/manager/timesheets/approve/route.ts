@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
-    if (!user || (user.role_id !== 2 && user.role_id !== 3 && user.role_id !== 4)) {
+    // UPDATED: Allowed role_id 5
+    if (!user || (user.role_id !== 2 && user.role_id !== 4 && user.role_id !== 5)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
     }
 
@@ -20,20 +21,20 @@ export async function POST(request: Request) {
     }
 
     const updateData: any = {
-      approval_status: user.role_id === 2 ? "SUPERVISOR_APPROVED" : "MANAGER_APPROVED",
+      // UPDATED: Manager is 5
+      approval_status: user.role_id === 5 ? "MANAGER_APPROVED" : "SUPERVISOR_APPROVED",
     };
 
-    if (user.role_id === 2) {
+    if (user.role_id === 2 || user.role_id === 4) {
       // Supervisor approval
       updateData.approved_by_supervisor_id = "APPROVED";
       updateData.supervisor_approved_at = new Date();
-    } else if (user.role_id === 3) {
-      // Manager approval
+    } else if (user.role_id === 5) {
+      // UPDATED: Manager approval
       updateData.approved_by_manager_id = "APPROVED";
       updateData.manager_approved_at = new Date();
     }
 
-    // Update multiple timesheets
     await prisma.d_tbltime_log.updateMany({
       where: {
         tlog_id: { in: tlog_ids.map((id: number) => parseInt(id.toString())) },
@@ -41,7 +42,6 @@ export async function POST(request: Request) {
       data: updateData,
     });
 
-    // Create audit log
     await prisma.d_tblaudit_log.create({
       data: {
         changed_by: user.user_id,
