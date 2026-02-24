@@ -1,19 +1,14 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
-
-function sha256(text: string): string {
-  return crypto.createHash("sha256").update(text).digest("hex");
-}
 
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
     
-    // Now checking for role_id 3 (Admin)
+    // Check for role_id 3 (Admin)
     const ADMIN_ROLE_ID = 3;
     if (!user || user.role_id !== ADMIN_ROLE_ID) {
       return NextResponse.json({ message: "Unauthorized. Admin access required." }, { status: 403 });
@@ -23,7 +18,7 @@ export async function POST(request: Request) {
     const { users } = body;
 
     if (!users || !Array.isArray(users) || users.length === 0) {
-      return NextResponse.json({ message: "Users array is required" }, { status: 400 });
+      return NextResponse.json({ message: "Users array is required or file is empty." }, { status: 400 });
     }
 
     const results = {
@@ -89,11 +84,11 @@ export async function POST(request: Request) {
           await tx.d_tbluser_authentication.create({
             data: {
               user_id,
-              password_hash: sha256(password),
+              password_hash: password, // <-- Raw password string applied here
               is_first_login: true,
               failed_attempts: 0,
               is_disabled: false,
-              question_attempts: 0, // <--- DEFINITELY FIXED HERE
+              question_attempts: 0, 
             },
           });
 

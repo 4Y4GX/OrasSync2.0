@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getUserFromCookie();
 
   if (!user || (user.role_id !== 5 && user.role_id !== 4)) {
@@ -30,24 +30,36 @@ export async function GET() {
     const userIds = deptUsers.map(u => u.user_id);
     const employeeCount = userIds.length;
     
-    // Assuming a standard 40-hour work week and 8-hour work day per employee
     const targetWeeklyHours = employeeCount * 40; 
     const targetDailyHours = employeeCount * 8; 
 
-    // 2. Set Time boundaries for This Week and This Month
-    const today = new Date();
+    // 2. Set Time boundaries based on URL parameter or current date
+    const { searchParams } = new URL(request.url);
+    const dateParam = searchParams.get('date');
+    const referenceDate = dateParam ? new Date(dateParam) : new Date();
     
-    const startOfWeek = new Date(today);
+    // Set to local midnight to avoid timezone drift
+    referenceDate.setHours(0, 0, 0, 0); 
+    
+    // WEEK BOUNDARIES (Monday to Next Monday)
+    const startOfWeek = new Date(referenceDate);
     const dayOfWeek = startOfWeek.getDay();
     const diffToMonday = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
     startOfWeek.setDate(diffToMonday);
-    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
 
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    // MONTH BOUNDARIES (1st of this month to 1st of next month)
+    const startOfMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+    const endOfMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 1);
 
-    // 3. Fetch Time Logs
+    // 3. Fetch Time Logs (Now with strictly defined 'lt' upper boundaries)
     const weeklyLogs = await prisma.d_tbltime_log.findMany({
-      where: { user_id: { in: userIds }, log_date: { gte: startOfWeek } },
+      where: { 
+        user_id: { in: userIds }, 
+        log_date: { gte: startOfWeek, lt: endOfWeek } 
+      },
       include: {
         D_tblactivity: true,
         D_tbluser_D_tbltime_log_user_idToD_tbluser: {
@@ -57,7 +69,10 @@ export async function GET() {
     });
 
     const monthlyLogs = await prisma.d_tbltime_log.findMany({
-      where: { user_id: { in: userIds }, log_date: { gte: startOfMonth } },
+      where: { 
+        user_id: { in: userIds }, 
+        log_date: { gte: startOfMonth, lt: endOfMonth } 
+      },
       select: { total_hours: true }
     });
 
@@ -71,22 +86,26 @@ export async function GET() {
     const weeklyChart = days.map((d, index) => {
       const dailyLogs = weeklyLogs.filter(l => {
           if (!l.log_date) return false;
-          const logDay = new Date(l.log_date).getDay(); // 0 = Sun, 1 = Mon...
-          const mapDay = logDay === 0 ? 6 : logDay - 1; // Remap so 0 = Mon... 6 = Sun
-          return mapDay === index;
+          const logDay = new Date(l.log_date).getDay();
+          const mapDay = logDay === 0 ? 6 : logDay - 1; 
+          // Only map logs that belong to the exact target week
+          const logDate = new Date(l.log_date);
+          const diffTime = Math.abs(logDate.getTime() - startOfWeek.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+          
+          return mapDay === index && diffDays < 7;
       });
       const actual = dailyLogs.reduce((sum, log) => sum + (log.total_hours ? parseFloat(log.total_hours.toString()) : 0), 0);
       return {
           day: d,
           actual: actual,
-          target: index < 5 ? targetDailyHours : 0 // Mon-Fri has targets, Weekends = 0
+          target: index < 5 ? targetDailyHours : 0
       };
     });
 
-    // 6. Group Activities by Team (Functioning as "Projects")
+    // 6. Group Activities by Team
     const teamsMap: Record<string, any> = {};
 
-    // Pre-fill teams that exist in the dept (so empty tabs show up as "No Project")
     deptUsers.forEach(u => {
         const tName = u.D_tblteam?.team_name || 'Unassigned';
         if (!teamsMap[tName]) {
@@ -94,7 +113,6 @@ export async function GET() {
         }
     });
 
-    // Add logged hours to respective team and activity
     weeklyLogs.forEach(log => {
         const user = log.D_tbluser_D_tbltime_log_user_idToD_tbluser;
         const teamName = user?.D_tblteam?.team_name || 'Unassigned';
@@ -107,19 +125,16 @@ export async function GET() {
         teamsMap[teamName].projectsMap[actName].hours += hours;
     });
 
-    // Format for frontend
     const teamsArray = Object.values(teamsMap).map(team => ({
         team_name: team.team_name,
         projects: Object.values(team.projectsMap).map((p: any, idx) => ({
             id: idx,
             name: p.name,
             hours: p.hours,
-            // Mock progress visual based on a 40 hour milestone
             progress: Math.min(Math.round((p.hours / 40) * 100), 100) 
         }))
     }));
 
-    // Sort alphabetically
     teamsArray.sort((a, b) => a.team_name.localeCompare(b.team_name));
 
     return NextResponse.json({

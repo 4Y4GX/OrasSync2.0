@@ -1,4 +1,3 @@
-// app/api/manager/timesheets/reject/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -8,7 +7,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
-    // UPDATED: Allowed role_id 5
     if (!user || (user.role_id !== 2 && user.role_id !== 4 && user.role_id !== 5)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
     }
@@ -24,6 +22,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Rejection reason is required" }, { status: 400 });
     }
 
+    // MANAGER SECURITY CHECK: Ensure supervisor has approved first
+    if (user.role_id === 5) {
+      const pendingLogs = await prisma.d_tbltime_log.findMany({
+        where: {
+          tlog_id: { in: tlog_ids.map((id: number) => parseInt(id.toString())) },
+          approval_status: { not: "SUPERVISOR_APPROVED" }
+        }
+      });
+      
+      if (pendingLogs.length > 0) {
+        return NextResponse.json({ message: "Cannot process: One or more timesheets are awaiting Supervisor approval." }, { status: 403 });
+      }
+    }
+
     const updateData: any = {
       approval_status: "REJECTED",
       rejection_reason: reason.trim(),
@@ -32,7 +44,6 @@ export async function POST(request: Request) {
     if (user.role_id === 2 || user.role_id === 4) {
       updateData.approved_by_supervisor_id = "REJECTED";
     } else if (user.role_id === 5) {
-      // UPDATED: Manager rejection
       updateData.approved_by_manager_id = "REJECTED";
     }
 

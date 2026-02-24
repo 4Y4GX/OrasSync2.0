@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import * as XLSX from "xlsx";
 
 type ImportResult = {
   success: number;
@@ -23,33 +24,59 @@ export default function ExcelImportExport() {
     setImportResult(null);
 
     try {
-      const text = await file.text();
-      const lines = text.split("\n").filter((line) => line.trim());
+      const data = await file.arrayBuffer();
+      
+      // cellDates: true forces the library to recognize Excel serial numbers as Dates
+      const workbook = XLSX.read(data, { type: "array", cellDates: true });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      
+      // raw: false ensures cells output as formatted strings instead of raw integers
+      // dateNF ensures any recognized dates are strictly formatted for the database
+      const rows = XLSX.utils.sheet_to_json<any[]>(worksheet, { 
+          header: 1, 
+          defval: "",
+          raw: false,
+          dateNF: "yyyy-mm-dd"
+      });
+      
+      // Filter out completely empty rows
+      const validRows = rows.filter(row => row.some(cell => String(cell).trim() !== ""));
 
-      if (lines.length < 2) {
-        setMessage("CSV file is empty or invalid");
+      if (validRows.length < 2) {
+        setMessage("File is empty or missing data rows.");
         setImporting(false);
         return;
       }
 
-      const dataLines = lines.slice(1);
-      const users = dataLines.map((line, index) => {
-        const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
-        if (values.length < 11) throw new Error(`Row ${index + 2}: Invalid columns`);
+      // Skip the header row (index 0)
+      const dataLines = validRows.slice(1);
+      
+      const users = dataLines.map((row, index) => {
+        // Safely extract values, allowing for missing trailing columns
+        const safeVal = (idx: number) => (row[idx] !== undefined ? String(row[idx]).trim() : "");
+        
+        if (!safeVal(0)) throw new Error(`Row ${index + 2}: Missing User ID`);
+
+        // Extra safeguard to ensure the date isn't empty after formatting
+        let hireDateStr = safeVal(10);
+        if (!hireDateStr) {
+           throw new Error(`Row ${index + 2}: Missing or invalid Hire Date`);
+        }
 
         return {
-          user_id: values[0],
-          first_name: values[1],
-          last_name: values[2],
-          email: values[3],
-          role_id: values[4],
-          pos_id: values[5],
-          dept_id: values[6],
-          team_id: values[7] || null,
-          supervisor_id: values[8] || null,
-          manager_id: values[9] || null,
-          hire_date: values[10],
-          password: values[11] || "Welcome123!",
+          user_id: safeVal(0),
+          first_name: safeVal(1),
+          last_name: safeVal(2),
+          email: safeVal(3),
+          role_id: safeVal(4),
+          pos_id: safeVal(5),
+          dept_id: safeVal(6),
+          team_id: safeVal(7) || null,
+          supervisor_id: safeVal(8) || null,
+          manager_id: safeVal(9) || null,
+          hire_date: hireDateStr,
+          password: safeVal(11) || "Welcome123!",
         };
       });
 
@@ -59,15 +86,15 @@ export default function ExcelImportExport() {
         body: JSON.stringify({ users }),
       });
 
-      const data = await res.json();
+      const responseData = await res.json();
       if (res.ok) {
-        setImportResult(data.results);
-        setMessage(data.message);
+        setImportResult(responseData.results);
+        setMessage(responseData.message);
       } else {
-        setMessage(data.message || "Failed to import users");
+        setMessage(responseData.message || "Failed to import users");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to import users");
+      setMessage(error instanceof Error ? error.message : "Failed to parse file. Please check the format.");
     } finally {
       setImporting(false);
       e.target.value = "";
@@ -120,7 +147,7 @@ export default function ExcelImportExport() {
         <div style={{ padding: "1.5rem" }}>
           <div>
             <h3 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "1.5rem", color: 'var(--text-main)' }}>
-              UPLOAD CSV DATA
+              UPLOAD EMPLOYEE DATA
             </h3>
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -135,11 +162,11 @@ export default function ExcelImportExport() {
                   border: '1px solid #555'
                 }}
               >
-                {showInstructions ? "HIDE" : "SHOW"} CSV FORMAT INSTRUCTIONS
+                {showInstructions ? "HIDE" : "SHOW"} IMPORT INSTRUCTIONS
               </button>
 
               <label
-                htmlFor="csv-import"
+                htmlFor="excel-import"
                 className="btn-action admin-btn"
                 style={{
                   display: "inline-flex",
@@ -163,14 +190,14 @@ export default function ExcelImportExport() {
                   </>
                 ) : (
                   <>
-                    📥 SELECT CSV FILE
+                    📥 IMPORT (.csv, .xlsx, .xls)
                   </>
                 )}
               </label>
               <input
-                id="csv-import"
+                id="excel-import"
                 type="file"
-                accept=".csv"
+                accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                 onChange={handleImportUsers}
                 disabled={importing}
                 style={{ display: "none" }}
@@ -188,10 +215,29 @@ export default function ExcelImportExport() {
                 lineHeight: '1.6'
               }}>
                 <div style={{ fontWeight: 800, marginBottom: "0.75rem", color: 'var(--color-go)' }}>
-                  CSV FORMAT REQUIREMENTS:
+                  IMPORT REQUIREMENTS:
                 </div>
-                <ol style={{ marginLeft: "1.2rem", color: '#ccc' }}>
-                  <li>user_id, first_name, last_name, email, role_id, pos_id, dept_id, team_id, supervisor_id, manager_id, hire_date, password</li>
+                <ul style={{ color: '#ccc', paddingLeft: '1.2rem', marginBottom: '1rem' }}>
+                    <li>Files must be saved in <strong>.csv</strong>, <strong>.xlsx</strong>, or <strong>.xls</strong> format.</li>
+                    <li>The first row (Row 1) is reserved for headers and will be ignored during import.</li>
+                    <li>Data should strictly begin on Row 2.</li>
+                </ul>
+                <div style={{ fontWeight: 800, marginBottom: "0.5rem", color: 'var(--color-go)' }}>
+                  COLUMN ORDER (A to L):
+                </div>
+                <ol style={{ marginLeft: "1.2rem", color: '#ccc', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                  <li>user_id (Required)</li>
+                  <li>first_name (Required)</li>
+                  <li>last_name (Required)</li>
+                  <li>email (Required)</li>
+                  <li>role_id (Required - Number)</li>
+                  <li>pos_id (Required - Number)</li>
+                  <li>dept_id (Required - Number)</li>
+                  <li>team_id (Optional)</li>
+                  <li>supervisor_id (Optional)</li>
+                  <li>manager_id (Optional)</li>
+                  <li>hire_date (YYYY-MM-DD)</li>
+                  <li>password (Required - Raw Text)</li>
                 </ol>
               </div>
             )}

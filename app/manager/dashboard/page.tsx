@@ -51,7 +51,9 @@ export default function ManagerDashboard() {
   const [logoutModal, setLogoutModal] = useState(false);
   const [saveShiftConfirmModal, setSaveShiftConfirmModal] = useState(false);
   
+  // Settings & Auth States
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [managerEmailInput, setManagerEmailInput] = useState('');
 
   const [pwStep, setPwStep] = useState(0);
   const [pwLoading, setPwLoading] = useState(false);
@@ -64,6 +66,8 @@ export default function ManagerDashboard() {
   
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   const pwValidation = useMemo(() => passwordChecks(newPassword), [newPassword]);
   const passwordsMatch = newPassword === confirmNewPassword && confirmNewPassword.length > 0;
@@ -87,14 +91,15 @@ export default function ManagerDashboard() {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [activeProjectTab, setActiveProjectTab] = useState<string>(''); 
   const [reportTarget, setReportTarget] = useState('ALL'); 
+  const [analyticsDate, setAnalyticsDate] = useState(new Date());
 
-  const [currentUser, setCurrentUser] = useState({ name: 'Loading...', initials: '...', position: '...', email: '' });
+  const [currentUser, setCurrentUser] = useState({ name: 'Loading...', initials: '...', position: '...', email: '', user_id: '' });
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     const handleTimeoutLogout = async () => {
-        try { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/'; } catch (error) {}
+        try { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; } catch (error) {}
     };
     const resetTimer = () => {
         clearTimeout(timeoutId);
@@ -115,7 +120,7 @@ export default function ManagerDashboard() {
   }, []);
 
   const executeLogout = async () => {
-      try { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/'; } catch (error) {}
+      try { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; } catch (error) {}
   };
 
   useEffect(() => {
@@ -125,6 +130,9 @@ export default function ManagerDashboard() {
         if (meRes.ok) {
             const meData = await meRes.json();
             setCurrentUser(meData);
+            if (meData.email) {
+                setManagerEmailInput(meData.email);
+            }
         }
 
         const statusRes = await fetch('/api/manager/clock/in'); 
@@ -242,7 +250,8 @@ export default function ManagerDashboard() {
   const fetchAnalyticsData = async () => {
     setAnalyticsLoading(true);
     try {
-      const res = await fetch('/api/manager/analytics');
+      const dateStr = analyticsDate.toISOString().split('T')[0];
+      const res = await fetch(`/api/manager/analytics?date=${dateStr}`);
       if (res.ok) {
         const data = await res.json();
         setAnalyticsData(data);
@@ -256,7 +265,7 @@ export default function ManagerDashboard() {
   useEffect(() => {
     if (activeSection === 'timesheets') fetchPendingTimesheets();
     else if (activeSection === 'analytics') fetchAnalyticsData();
-  }, [activeSection]);
+  }, [activeSection, analyticsDate]);
 
   const executeApproveTimesheet = async () => {
     setIsLoading(true);
@@ -352,15 +361,20 @@ export default function ManagerDashboard() {
 
   // --- PASSWORD CHANGE HANDLERS ---
   const handleStartPasswordChange = async () => {
+      if (!managerEmailInput.trim()) {
+          setPwError("Please enter your email address.");
+          return;
+      }
+
       setPwLoading(true);
       setPwError("");
       try {
           const res = await fetch('/api/auth/otp/generate', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: currentUser.email })
+              body: JSON.stringify({ email: managerEmailInput.trim() }) 
           });
           if (res.ok) { setPwStep(1); setOtp(["", "", "", "", "", ""]); } 
-          else { setPwError("Failed to send OTP."); }
+          else { setPwError("Failed to send OTP. Check your email address."); }
       } catch (e) { setPwError("Connection error."); } 
       finally { setPwLoading(false); }
   };
@@ -373,17 +387,15 @@ export default function ManagerDashboard() {
       try {
           const res = await fetch('/api/auth/otp/verify', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: currentUser.email, otp: code, flow: "recovery" })
+              body: JSON.stringify({ email: managerEmailInput.trim(), otp: code, flow: "recovery" })
           });
           if (res.ok) {
-              // FIXED: Changed to plural 'security-questions' to match your folder structure
               const qRes = await fetch('/api/manager/security-questions');
               if (qRes.ok) {
                   const qData = await qRes.json();
                   setSecQuestion({ id: qData.questionId, text: qData.questionText });
                   setPwStep(2);
               } else { 
-                  // Now extracts the actual error message from the backend
                   const errData = await qRes.json().catch(()=>({}));
                   setPwError(errData.message || "Failed to load security question."); 
               }
@@ -424,7 +436,15 @@ export default function ManagerDashboard() {
 
   const resetSettingsState = () => {
       setShowSettingsModal(false);
-      setTimeout(() => { setPwStep(0); setPwError(""); setNewPassword(""); setConfirmNewPassword(""); setSecAnswer(""); }, 300);
+      setTimeout(() => { 
+          setPwStep(0); 
+          setPwError(""); 
+          setNewPassword(""); 
+          setConfirmNewPassword(""); 
+          setSecAnswer(""); 
+          setShowPw(false);
+          setShowConfirmPw(false);
+      }, 300);
   };
 
   const getDateString = () => {
@@ -635,6 +655,7 @@ export default function ManagerDashboard() {
                   timesheets.map((ts) => {
                     const cardId = `${ts.user_id}_${ts.date}`;
                     const isExpanded = expandedCard === cardId;
+                    const isActionable = ts.approval_status === 'SUPERVISOR_APPROVED'; // Only actionable if sup approved
                     return (
                       <div key={cardId} className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -650,11 +671,41 @@ export default function ManagerDashboard() {
                             {ts.approval_status === 'SUPERVISOR_APPROVED' ? '✓ SUP. APPROVED' : '⚠ SUP. PENDING'}
                           </span>
                         </div>
+                        
                         <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                          <button className="btn-view" style={{ flex: 1, borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }} onClick={() => setExpandedCard(isExpanded ? null : cardId)}>{isExpanded ? 'Hide Details' : 'Details'}</button>
-                          <button className="btn-view" style={{ flex: 1, color: 'var(--color-go)', borderColor: 'var(--color-go)' }} onClick={() => setApproveModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id) })}>Approve</button>
-                          <button className="btn-view" style={{ flex: 1, color: 'var(--color-urgent)', borderColor: 'var(--color-urgent)' }} onClick={() => setRejectModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id), reason: '' })}>Reject</button>
+                          <button className="btn-view" style={{ flex: 1, borderColor: 'var(--accent-cyan)', color: 'var(--accent-cyan)' }} onClick={() => setExpandedCard(isExpanded ? null : cardId)}>
+                            {isExpanded ? 'Hide Details' : 'Details'}
+                          </button>
+                          <button 
+                            className="btn-view" 
+                            style={{ 
+                              flex: 1, 
+                              color: isActionable ? 'var(--color-go)' : 'var(--text-muted)', 
+                              borderColor: isActionable ? 'var(--color-go)' : 'var(--border-subtle)',
+                              cursor: isActionable ? 'pointer' : 'not-allowed',
+                              opacity: isActionable ? 1 : 0.5
+                            }} 
+                            onClick={() => setApproveModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id) })}
+                            disabled={!isActionable}
+                          >
+                            Approve
+                          </button>
+                          <button 
+                            className="btn-view" 
+                            style={{ 
+                              flex: 1, 
+                              color: isActionable ? 'var(--color-urgent)' : 'var(--text-muted)', 
+                              borderColor: isActionable ? 'var(--color-urgent)' : 'var(--border-subtle)',
+                              cursor: isActionable ? 'pointer' : 'not-allowed',
+                              opacity: isActionable ? 1 : 0.5
+                            }} 
+                            onClick={() => setRejectModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id), reason: '' })}
+                            disabled={!isActionable}
+                          >
+                            Reject
+                          </button>
                         </div>
+
                         {isExpanded && (
                           <div className="fade-in" style={{ marginTop: '10px', paddingTop: '15px', borderTop: '1px solid rgba(255,255,255,0.1)', fontSize: '0.85rem' }}>
                             <div style={{ marginBottom: '10px', fontWeight: 600, color: 'var(--accent-gold)' }}>Activity Breakdown:</div>
@@ -745,6 +796,19 @@ export default function ManagerDashboard() {
           {/* ANALYTICS VIEW */}
           {hasClockedIn && activeSection === 'analytics' && (
             <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', overflowY: 'auto' }}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '15px 20px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem' }}>Activity Timeline</h3>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <button className="btn-view" style={{ padding: '8px 16px' }} onClick={() => { const d = new Date(analyticsDate); d.setDate(d.getDate() - 7); setAnalyticsDate(d); }}>← Prev Week</button>
+                    <div style={{ color: 'var(--accent-gold)', fontWeight: 600, margin: '0 10px', fontFamily: 'var(--font-mono)' }}>
+                        Week of {analyticsDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                    <button className="btn-view" style={{ padding: '8px 16px' }} onClick={() => { const d = new Date(analyticsDate); d.setDate(d.getDate() + 7); setAnalyticsDate(d); }}>Next Week →</button>
+                    <button className="btn-action btn-standard" style={{ padding: '8px 16px', marginLeft: '10px' }} onClick={() => setAnalyticsDate(new Date())}>Current Week</button>
+                </div>
+              </div>
+
               {analyticsLoading || !analyticsData ? (
                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, color: 'var(--accent-gold)' }}>Loading Department Analytics...</div>
               ) : (
@@ -871,9 +935,18 @@ export default function ManagerDashboard() {
                       <h4 style={{ color: 'var(--text-main)', marginBottom: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '5px' }}>Security</h4>
                       <div style={{ background: 'var(--bg-input)', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Change Password</div>
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '5px' }}>Update your account password using identity verification.</div>
-                          <button className="btn-action btn-standard" onClick={handleStartPasswordChange} style={{ alignSelf: 'flex-start' }} disabled={pwLoading}>
-                              {pwLoading ? "Loading..." : "Update Password"}
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Confirm your email address to receive a verification code.</div>
+                          
+                          <input 
+                              type="email" 
+                              placeholder="Manager Email Address" 
+                              value={managerEmailInput} 
+                              onChange={(e) => setManagerEmailInput(e.target.value)} 
+                              style={{ width: '100%', padding: '12px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px', marginBottom: '5px' }}
+                          />
+
+                          <button className="btn-action btn-standard" onClick={handleStartPasswordChange} style={{ alignSelf: 'flex-start' }} disabled={!managerEmailInput.trim() || pwLoading}>
+                              {pwLoading ? "Sending..." : "Send Verification Code"}
                           </button>
                           {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem' }}>{pwError}</div>}
                       </div>
@@ -903,14 +976,14 @@ export default function ManagerDashboard() {
                                           otpRefs.current[idx - 1]?.focus();
                                       }
                                   }}
-                                  style={{ width: '45px', height: '55px', textAlign: 'center', fontSize: '1.5rem', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', borderRadius: '8px' }}
+                                  style={{ width: '45px', height: '55px', textAlign: 'center', fontSize: '1.5rem', backgroundColor: '#1e1e1e', border: '1px solid #444', color: '#fff', borderRadius: '8px' }}
                               />
                           ))}
                       </div>
 
                       {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
                       
-                      <button className="btn-action btn-go" onClick={handleVerifyOtp} disabled={pwLoading || otp.join('').length < 6}>
+                      <button className="btn-action btn-go" onClick={handleVerifyOtp} disabled={pwLoading || otp.join('').length < 6} style={{opacity: (pwLoading || otp.join('').length < 6) ? 0.5 : 1}}>
                           {pwLoading ? "Verifying..." : "Verify Code"}
                       </button>
                   </div>
@@ -927,13 +1000,14 @@ export default function ManagerDashboard() {
                       </div>
 
                       <input 
-                          type="text" placeholder="Your Answer" className="input-rounded"
+                          type="text" placeholder="Your Answer" 
+                          style={{ width: '100%', padding: '12px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
                           value={secAnswer} onChange={(e) => setSecAnswer(e.target.value)}
                       />
 
                       {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
 
-                      <button className="btn-action btn-go" onClick={handleAnswerQuestion} disabled={pwLoading || !secAnswer.trim()}>
+                      <button className="btn-action btn-go" onClick={handleAnswerQuestion} disabled={pwLoading || !secAnswer.trim()} style={{opacity: (pwLoading || !secAnswer.trim()) ? 0.5 : 1}}>
                           {pwLoading ? "Verifying..." : "Submit Answer"}
                       </button>
                   </div>
@@ -944,14 +1018,27 @@ export default function ManagerDashboard() {
                   <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                       <h4 style={{ color: 'var(--accent-gold)' }}>Create New Password</h4>
                       
-                      <input 
-                          type="password" placeholder="New Password" className="input-rounded"
-                          value={newPassword} onChange={(e) => setNewPassword(e.target.value.slice(0,20))}
-                      />
-                      <input 
-                          type="password" placeholder="Confirm Password" className="input-rounded"
-                          value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value.slice(0,20))}
-                      />
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <input 
+                              type={showPw ? "text" : "password"} placeholder="New Password" 
+                              style={{ width: '100%', padding: '12px', paddingRight: '120px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
+                              value={newPassword} onChange={(e) => setNewPassword(e.target.value.slice(0,20))}
+                          />
+                          <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '5px' }}>
+                              {showPw ? "Hide Password" : "Show Password"}
+                          </button>
+                      </div>
+
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                          <input 
+                              type={showConfirmPw ? "text" : "password"} placeholder="Confirm Password" 
+                              style={{ width: '100%', padding: '12px', paddingRight: '120px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
+                              value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value.slice(0,20))}
+                          />
+                          <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '5px' }}>
+                              {showConfirmPw ? "Hide Password" : "Show Password"}
+                          </button>
+                      </div>
 
                       <div style={{ fontSize: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'var(--bg-input)', padding: '15px', borderRadius: '8px' }}>
                           <div style={{ color: pwValidation.lengthOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• 15-20 characters</div>
@@ -964,7 +1051,7 @@ export default function ManagerDashboard() {
 
                       {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
 
-                      <button className="btn-action btn-go" onClick={handleResetPassword} disabled={pwLoading || !pwValidation.strongOk || !passwordsMatch}>
+                      <button className="btn-action btn-go" onClick={handleResetPassword} disabled={pwLoading || !pwValidation.strongOk || !passwordsMatch} style={{opacity: (pwLoading || !pwValidation.strongOk || !passwordsMatch) ? 0.5 : 1}}>
                           {pwLoading ? "Saving..." : "Set New Password"}
                       </button>
                   </div>
@@ -1029,7 +1116,7 @@ export default function ManagerDashboard() {
                     <label className="hud-label" style={{marginBottom:'5px', display:'block'}}>Reason (Letters, numbers, and .,?! only)</label>
                     <textarea 
                         className="input-rounded" rows={4}
-                        style={{ width: '100%', resize: 'none', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-subtle)', padding: '15px', borderRadius: '8px' }}
+                        style={{ width: '100%', resize: 'none', background: '#1e1e1e', color: '#ffffff', border: '1px solid #444', padding: '15px', borderRadius: '8px' }}
                         value={rejectModal.reason}
                         onChange={(e) => setRejectModal({...rejectModal, reason: e.target.value})}
                         placeholder="e.g. Please verify the end time."
@@ -1091,7 +1178,7 @@ export default function ManagerDashboard() {
                         <label className="hud-label" style={{ marginBottom: '-5px' }}>Assign New Shift</label>
                         <select 
                             className="input-rounded" 
-                            style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid var(--border-subtle)' }}
+                            style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444' }}
                             value={editShiftModal.newShiftId}
                             onChange={(e) => setEditShiftModal({...editShiftModal, newShiftId: e.target.value})}
                         >
@@ -1189,6 +1276,7 @@ export default function ManagerDashboard() {
                                     setSchedSearch(e.target.value);
                                     setSelectedEmp(null); 
                                 }}
+                                style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
                             />
                             {schedResults.length > 0 && !selectedEmp && (
                                 <div style={{ 
@@ -1218,20 +1306,20 @@ export default function ManagerDashboard() {
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                             <div>
                                 <label className="hud-label" style={{marginBottom:'5px', display:'block'}}>Date</label>
-                                <input type="date" className="input-rounded" value={schedForm.date} onChange={(e) => setSchedForm({...schedForm, date: e.target.value})} />
+                                <input type="date" className="input-rounded" value={schedForm.date} onChange={(e) => setSchedForm({...schedForm, date: e.target.value})} style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }} />
                             </div>
                             <div>
                                 <label className="hud-label" style={{marginBottom:'5px', display:'block'}}>Time Slot (Start - End)</label>
                                 <div style={{ display:'flex', gap:'5px' }}>
-                                    <input type="time" className="input-rounded" value={schedForm.start} onChange={(e) => setSchedForm({...schedForm, start: e.target.value})} />
-                                    <input type="time" className="input-rounded" value={schedForm.end} onChange={(e) => setSchedForm({...schedForm, end: e.target.value})} />
+                                    <input type="time" className="input-rounded" value={schedForm.start} onChange={(e) => setSchedForm({...schedForm, start: e.target.value})} style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }} />
+                                    <input type="time" className="input-rounded" value={schedForm.end} onChange={(e) => setSchedForm({...schedForm, end: e.target.value})} style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }} />
                                 </div>
                             </div>
                         </div>
 
                         <div>
                             <label className="hud-label" style={{marginBottom:'5px', display:'block'}}>Assigned Task</label>
-                            <input type="text" className="input-rounded" placeholder="e.g. Emergency Room Support" value={schedForm.task} onChange={(e) => setSchedForm({...schedForm, task: e.target.value})} />
+                            <input type="text" className="input-rounded" placeholder="e.g. Emergency Room Support" value={schedForm.task} onChange={(e) => setSchedForm({...schedForm, task: e.target.value})} style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }} />
                         </div>
                     </div>
                 </div>
@@ -1254,7 +1342,7 @@ export default function ManagerDashboard() {
                 </div>
                 <div className="modal-body">
                     <div style={{ display: 'flex', gap: '10px' }}>
-                         <input type="text" className="input-rounded" placeholder="New Activity Code" />
+                         <input type="text" className="input-rounded" placeholder="New Activity Code" style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }} />
                          <button className="btn-view" style={{ color: 'var(--color-go)', borderColor: 'var(--color-go)' }}>Add</button>
                     </div>
                 </div>

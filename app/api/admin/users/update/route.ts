@@ -1,4 +1,3 @@
-// app/api/admin/users/update/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -21,11 +20,11 @@ export async function PUT(request: Request) {
 
     if (!user_id) return NextResponse.json({ message: "User ID required" }, { status: 400 });
 
-    // 1. Check existence first (Read operation)
+    // 1. Check existence first
     const existingUser = await prisma.d_tbluser.findUnique({ where: { user_id } });
     if (!existingUser) return NextResponse.json({ message: "User not found" }, { status: 404 });
 
-    // 2. Prepare Data
+    // 2. Prepare Data Safely for Partial Updates
     const updateData: any = {};
     if (first_name !== undefined) updateData.first_name = first_name;
     if (last_name !== undefined) updateData.last_name = last_name;
@@ -33,10 +32,12 @@ export async function PUT(request: Request) {
     if (role_id !== undefined) updateData.role_id = parseInt(role_id);
     if (pos_id !== undefined) updateData.pos_id = parseInt(pos_id);
     if (dept_id !== undefined) updateData.dept_id = parseInt(dept_id);
-    // Explicitly handle NULL for relations
-    updateData.team_id = team_id ? parseInt(team_id) : null;
-    updateData.supervisor_id = supervisor_id || null;
-    updateData.manager_id = manager_id || null;
+    
+    // Explicitly check for undefined before handling NULL for relations
+    if (team_id !== undefined) updateData.team_id = team_id ? parseInt(team_id) : null;
+    if (supervisor_id !== undefined) updateData.supervisor_id = supervisor_id || null;
+    if (manager_id !== undefined) updateData.manager_id = manager_id || null;
+    
     if (account_status !== undefined) updateData.account_status = account_status;
 
     // Date Handling
@@ -45,14 +46,14 @@ export async function PUT(request: Request) {
     if (original_hire_date !== undefined) updateData.original_hire_date = original_hire_date ? new Date(original_hire_date) : null;
     if (original_resignation_date !== undefined) updateData.original_resignation_date = original_resignation_date ? new Date(original_resignation_date) : null;
 
-    // 3. EXECUTE TRANSACTION with Increased Timeout
+    // 3. EXECUTE TRANSACTION
     const updatedUser = await prisma.$transaction(async (tx) => {
         const u = await tx.d_tbluser.update({
             where: { user_id },
             data: updateData,
         });
 
-        // Only touch auth table if unlocking
+        // Only touch auth table if unlocking an account
         if (account_status === 'ACTIVE') {
             try {
                 await tx.d_tbluser_authentication.update({
@@ -65,19 +66,19 @@ export async function PUT(request: Request) {
         }
         return u;
     }, {
-        maxWait: 5000, // Wait max 5s for a connection
-        timeout: 10000 // Allow transaction to run for 10s
+        maxWait: 5000, 
+        timeout: 10000 
     });
 
-    // 4. Create Audit Log (Outside transaction to prevent locking)
+    // 4. Create Audit Log
     try {
         await prisma.d_tblaudit_log.create({
             data: {
                 changed_by: user.user_id,
                 action_type: "UPDATE_USER",
                 table_affected: "D_tbluser",
-                old_value: JSON.stringify(existingUser).substring(0, 250), // Truncate to safety limit
-                new_value: JSON.stringify(updatedUser).substring(0, 250), // Truncate to safety limit
+                old_value: JSON.stringify(existingUser).substring(0, 250), 
+                new_value: JSON.stringify(updatedUser).substring(0, 250), 
             },
         });
     } catch (logError) {
