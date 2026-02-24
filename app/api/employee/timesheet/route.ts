@@ -81,6 +81,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const fromParam = url.searchParams.get("from");
     const toParam = url.searchParams.get("to");
+    const statusParam = url.searchParams.get("status"); // "pending", "rejected", or undefined
 
     const today = new Date();
     const defaultFrom = new Date(today);
@@ -133,10 +134,16 @@ export async function GET(req: Request) {
     }
 
     // 3) Time logs in range
-    const timeLogs = await prisma.d_tbltime_log.findMany({
+    let timeLogs = await prisma.d_tbltime_log.findMany({
       where: {
         user_id: String(userId),
         log_date: { gte: from, lte: to },
+        // TODO: Add 'NOT_SUBMITTED' status after DB update
+        ...(statusParam === "pending"
+          ? { approval_status: "PENDING" }
+          : statusParam === "rejected"
+          ? { approval_status: "REJECTED" }
+          : {}),
       },
       orderBy: [{ log_date: "desc" }, { start_time: "desc" }],
       select: {

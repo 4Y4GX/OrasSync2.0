@@ -141,6 +141,24 @@ export async function POST(req: Request) {
       email: userProfile.email ?? null,
     });
 
+    let streakStats = null;
+    if (roleId === 1) {
+      // Only fetch streak for employees
+      streakStats = await prisma.d_tbluser_stats.findUnique({
+        where: { user_id: userProfile.user_id },
+      });
+      // If not present, create default stats
+      if (!streakStats) {
+        streakStats = await prisma.d_tbluser_stats.create({
+          data: {
+            user_id: userProfile.user_id,
+            streak_count: 0,
+            total_absences: 0,
+          },
+        });
+      }
+    }
+
     const res = NextResponse.json({
       message: "Login successful",
       user: {
@@ -151,6 +169,7 @@ export async function POST(req: Request) {
       },
       isFirstLogin: false,
       redirect,
+      ...(roleId === 1 && streakStats ? { streak: streakStats.streak_count } : {}),
     });
 
     const cookie = sessionCookieOptions();
