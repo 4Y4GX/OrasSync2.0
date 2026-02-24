@@ -284,12 +284,21 @@ export default function DashboardPage() {
     return "09:00:00";
   }, [scheduleToday]);
 
-  const isEarlyClockOut = useMemo(() => {
+const isEarlyClockOut = useMemo(() => {
     if (!scheduleToday.hasSchedule || !scheduleToday.shift?.end_time) return false;
+
+    if (clockInTimeRef.current) {
+      const clockInDate = new Date(clockInTimeRef.current).toDateString();
+      const todayDate = now.toDateString();
+      if (clockInDate !== todayDate) {
+        return false;
+      }
+    }
+
     const end = new Date(scheduleToday.shift.end_time).getTime();
     return Date.now() < end;
   }, [scheduleToday, now]);
-
+  
   const doClockIn = useCallback(async () => {
     if (actionBusy) return;
     setActionBusy(true);
