@@ -46,7 +46,7 @@ async function createIncidentIfMissing(userId: string, incidentType: "RECOVERY_L
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({} as any));
-    const raw = (body?.email ?? body?.identifier ?? "").toString().trim();
+    const raw = (body?.email ?? body?.identifier ?? "").toString().trim().toLowerCase();
 
     await sleep(120);
 
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
 
     // Normal OTP generation
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log(`[AUTH] Generated OTP for ${raw}: ${otpCode}`);
+    console.log(`[AUTH] Recovery OTP for ${raw}: ${otpCode}`);
 
     await prisma.d_tblotp_log.create({
       data: {
