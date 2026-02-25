@@ -64,27 +64,40 @@ export async function GET() {
 
   const scheduleToday = await getTodayShiftForUser(userId);
 
-  // Real user info (name / dept / team / position + streak_count)
-  const userProfile = await prisma.d_tbluser.findFirst({
+  // Real user info (name / dept / team / position)
+  const user = await prisma.d_tbluser.findFirst({
     where: { user_id: userId },
     select: {
       user_id: true,
       first_name: true,
       last_name: true,
-      streak_count: true, // ✅ add this
       D_tbldepartment: { select: { dept_name: true } },
       D_tblteam: { select: { team_name: true } },
       D_tblposition: { select: { pos_name: true } },
     },
   });
 
-  const first = (userProfile?.first_name ?? "").toString().trim();
-  const last = (userProfile?.last_name ?? "").toString().trim();
+  // Fetch streak_count from stats table
+  let userStats = await prisma.d_tbluser_stats.findUnique({
+    where: { user_id: userId },
+  });
+  if (!userStats) {
+    userStats = await prisma.d_tbluser_stats.create({
+      data: {
+        user_id: userId,
+        streak_count: 0,
+        total_absences: 0,
+      },
+    });
+  }
+
+  const first = (user?.first_name ?? "").toString().trim();
+  const last = (user?.last_name ?? "").toString().trim();
   const fullName = `${first}${last ? ` ${last}` : ""}`.trim() || null;
 
-  const dept = userProfile?.D_tbldepartment?.dept_name ?? null;
-  const team = userProfile?.D_tblteam?.team_name ?? null;
-  const position = userProfile?.D_tblposition?.pos_name ?? null;
+  const dept = user?.D_tbldepartment?.dept_name ?? null;
+  const team = user?.D_tblteam?.team_name ?? null;
+  const position = user?.D_tblposition?.pos_name ?? null;
 
   return NextResponse.json({
     isClockedIn: !!activeShift,
@@ -96,12 +109,12 @@ export async function GET() {
       user_id: userId,
       role_id: sessionUser.role_id, // ✅ include role_id for schedule check logic
       name: fullName,
-      first_name: userProfile?.first_name ?? null,
-      last_name: userProfile?.last_name ?? null,
+      first_name: user?.first_name ?? null,
+      last_name: user?.last_name ?? null,
       dept_name: dept,
       team_name: team,
       pos_name: position,
-      streak_count: userProfile?.streak_count ?? 0,
+      streak_count: userStats?.streak_count ?? 0,
     },
   });
 }
