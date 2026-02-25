@@ -232,8 +232,8 @@ export default function SupervisorDashboard() {
             </div>
           </div>
 
-          <div 
-            className="profile-card" 
+          <div
+            className="profile-card"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             ref={profileMenuRef}
           >
@@ -257,10 +257,10 @@ export default function SupervisorDashboard() {
 
         <main className="workspace-panel">
           <div className="top-bar" style={{ position: 'absolute', top: 20, right: 30, padding: 0, zIndex: 10, display: 'flex', gap: '10px' }}>
-            <button 
-              className="theme-btn" 
-              onClick={handleRefreshNow} 
-              title="Refresh Data" 
+            <button
+              className="theme-btn"
+              onClick={handleRefreshNow}
+              title="Refresh Data"
               style={{ width: 32, height: 32, fontSize: '1rem' }}
             >
               🔄
@@ -403,23 +403,23 @@ export default function SupervisorDashboard() {
                     <div className="section-title">
                       <span>Team Performance Overview</span>
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        <button 
-                          className="week-nav-btn" 
+                        <button
+                          className="week-nav-btn"
                           onClick={() => setWeekOffset(weekOffset - 1)}
                           title="Previous Week"
                         >
                           ← Prev Week
                         </button>
-                        <button 
-                          className="week-nav-btn" 
+                        <button
+                          className="week-nav-btn"
                           onClick={() => setWeekOffset(0)}
                           disabled={weekOffset === 0}
                           title="Current Week"
                         >
                           Current Week
                         </button>
-                        <button 
-                          className="week-nav-btn" 
+                        <button
+                          className="week-nav-btn"
                           onClick={() => setWeekOffset(weekOffset + 1)}
                           disabled={weekOffset >= 0}
                           title="Next Week"
@@ -438,13 +438,13 @@ export default function SupervisorDashboard() {
                         <div key={`${day.day}-${i}`} className="bar-group">
                           <div
                             className="bar bar-actual supervisor-bar"
-                            style={{ 
+                            style={{
                               height: `${Math.max(day.percentage, 5)}%`,
                               minHeight: day.percentage > 0 ? '10px' : '0px'
                             }}
                             title={`${day.day}: ${day.hours} hours (${day.percentage.toFixed(1)}%)`}
                           >
-                            {day.hours > 0 && (
+                            {Number(day.hours) > 0 && (
                               <div style={{
                                 position: 'absolute',
                                 top: '-25px',
@@ -468,8 +468,8 @@ export default function SupervisorDashboard() {
                   {/* Team Member Compliance Table */}
                   <div className="glass-card" style={{ marginTop: '1.5rem' }}>
                     <div className="section-title">Team Member Compliance</div>
-                    <div className="compliance-info" style={{ 
-                      padding: '1rem', 
+                    <div className="compliance-info" style={{
+                      padding: '1rem',
                       marginBottom: '1rem',
                       background: 'rgba(167, 139, 250, 0.1)',
                       border: '1px solid rgba(167, 139, 250, 0.3)',
@@ -500,7 +500,7 @@ export default function SupervisorDashboard() {
                               const weeklyHours = (parseFloat(todayHours) * 5 + Math.random() * 5).toFixed(1);
                               const isOverDaily = parseFloat(todayHours) > 8;
                               const isOverWeekly = parseFloat(weeklyHours) > 40;
-                              
+
                               return (
                                 <tr key={i}>
                                   <td style={{ fontWeight: 600 }}>Team Member {i + 1}</td>
@@ -515,7 +515,7 @@ export default function SupervisorDashboard() {
                                   <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>40.0 hrs</td>
                                   <td>
                                     <div className="compliance-bar">
-                                      <div 
+                                      <div
                                         className={`compliance-fill ${isOverWeekly ? 'over' : 'ok'}`}
                                         style={{ width: `${Math.min((parseFloat(weeklyHours) / 40) * 100, 100)}%` }}
                                       />
@@ -545,14 +545,14 @@ export default function SupervisorDashboard() {
                   {/* Profile Settings Card */}
                   <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
                     <div className="section-title">Profile Settings</div>
-                    
+
                     <div className="settings-section">
                       <div className="settings-header">
                         <div>
                           <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Change Password</h4>
                           <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Update your account password</p>
                         </div>
-                        <button 
+                        <button
                           className="btn-settings-action"
                           onClick={() => window.location.href = '/auth/change-password'}
                         >
@@ -565,7 +565,7 @@ export default function SupervisorDashboard() {
                   {/* Appearance Settings Card */}
                   <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
                     <div className="section-title">Appearance</div>
-                    
+
                     <div className="settings-row">
                       <div>
                         <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Theme Mode</div>
@@ -597,8 +597,7 @@ export default function SupervisorDashboard() {
                             try {
                               localStorage.setItem("orasync-theme-locked", e.target.checked ? "true" : "false");
                               if (e.target.checked) {
-                                setMessage('Theme locked. Unlock to change theme.');
-                                setTimeout(() => setMessage(''), 3000);
+                                alert('Theme locked. Unlock to change theme.');
                               }
                             } catch { }
                           }}
@@ -611,7 +610,7 @@ export default function SupervisorDashboard() {
                   {/* Notification Settings Card */}
                   <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
                     <div className="section-title">Notifications</div>
-                    
+
                     <div className="settings-row">
                       <div>
                         <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Email Notifications</div>
@@ -642,7 +641,7 @@ export default function SupervisorDashboard() {
                   {/* Workflow Settings Card */}
                   <div className="glass-card">
                     <div className="section-title">Workflow Automation</div>
-                    
+
                     <div className="settings-row">
                       <div>
                         <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Auto-Approve Under 8 Hours</div>

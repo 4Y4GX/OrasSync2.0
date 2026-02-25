@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     const timesheets = await prisma.d_tbltime_log.findMany({
       where: whereClause,
       include: {
-        D_tbluser: {
+        D_tbluser_D_tbltime_log_user_idToD_tbluser: {
           select: {
             user_id: true,
             first_name: true,
@@ -74,9 +74,9 @@ export async function GET(request: Request) {
     const rows = timesheets.map(t => [
       t.tlog_id,
       t.user_id,
-      `${t.D_tbluser?.first_name} ${t.D_tbluser?.last_name}`,
-      t.D_tbluser?.email || "",
-      t.log_date.toISOString().split('T')[0],
+      `${t.D_tbluser_D_tbltime_log_user_idToD_tbluser?.first_name} ${t.D_tbluser_D_tbltime_log_user_idToD_tbluser?.last_name}`,
+      t.D_tbluser_D_tbltime_log_user_idToD_tbluser?.email || "",
+      t.log_date?.toISOString().split('T')[0] || "",
       t.D_tblactivity?.activity_name || "",
       t.D_tblactivity?.activity_code || "",
       t.D_tblactivity?.is_billable ? "Yes" : "No",

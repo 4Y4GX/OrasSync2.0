@@ -747,6 +747,8 @@ body.light-mode .menu-item.danger:hover {
   flex: 1;
   overflow-y: auto;
   border-top: none;
+  border-radius: var(--radius-standard);
+  overflow: hidden;
 }
 
 /* --- SCROLLBARS --- */
@@ -847,6 +849,53 @@ body.light-mode .data-table td {
 /* Alternating Row Colors for Depth */
 body.light-mode .data-table tr:nth-child(even) {
   background: #f8fafc;
+}
+
+/* --- TAGS / STATUS BADGES --- */
+.tag {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.tag-in {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--color-go);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.tag-out {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.tag-sup {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent-blue);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+body.light-mode .tag-out {
+  background: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+body.light-mode .tag-in {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+body.light-mode .tag-sup {
+  background: #e0e7ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
 }
 
 body.light-mode .data-table tr:hover {
@@ -950,6 +999,14 @@ body.light-mode .data-table td:nth-child(2) {
 .btn-urgent:hover {
   background: var(--color-urgent);
   color: white;
+}
+
+body.light-mode .manager-dashboard .btn-action {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .manager-dashboard .btn-action:hover {
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
 }
 
 /* --- LANDING CARD --- */
@@ -2435,6 +2492,7 @@ body.light-mode .cal-day-header {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -2457,6 +2515,7 @@ body.light-mode .cal-day-header {
     transform: translateY(-20px) scale(0.95);
     opacity: 0;
   }
+
   to {
     transform: translateY(0) scale(1);
     opacity: 1;
@@ -2638,6 +2697,39 @@ body.light-mode .calendar-modal-overlay {
 
 body.light-mode .calendar-modal {
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+}
+
+/* --- LOADING SPINNER --- */
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-subtle);
+  border-top: 3px solid var(--accent-cyan);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 body.light-mode .future-activity-item {
