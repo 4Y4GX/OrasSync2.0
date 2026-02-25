@@ -1267,3 +1267,32 @@
 .spinner {
   animation: spin 1s linear infinite;
 }
+
+/* --- SHAKE ERROR ANIMATION --- */
+@keyframes shakeEffect {
+  0% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-4px);
+  }
+
+  50% {
+    transform: translateX(4px);
+  }
+
+  75% {
+    transform: translateX(-4px);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.shakeError {
+  animation: shakeEffect 0.3s ease-in-out;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3) !important;
+}

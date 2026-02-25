@@ -70,6 +70,7 @@ export default function ChangePasswordPage() {
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [shakeError, setShakeError] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [message, setMessage] = useState("");
@@ -335,16 +336,23 @@ export default function ChangePasswordPage() {
     setStep(3);
   };
 
+  const triggerShake = () => {
+    setShakeError(true);
+    setTimeout(() => setShakeError(false), 400);
+  };
+
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (!q1 || !q2 || !q3) {
       setError("SELECT 3 QUESTIONS");
+      triggerShake();
       return;
     }
     if (q1 === q2 || q1 === q3 || q2 === q3) {
       setError("SELECT UNIQUE QUESTIONS");
+      triggerShake();
       return;
     }
 
@@ -357,10 +365,12 @@ export default function ChangePasswordPage() {
 
     if (!A1 || !A2 || !A3 || !C1 || !C2 || !C3) {
       setError("ANSWER AND CONFIRM ALL");
+      triggerShake();
       return;
     }
     if (A1 !== C1 || A2 !== C2 || A3 !== C3) {
       setError("ANSWERS DO NOT MATCH");
+      triggerShake();
       return;
     }
 
@@ -703,7 +713,7 @@ export default function ChangePasswordPage() {
             <div className={styles.securityGrid}>
               <div className={styles.inputGroup}>
                 <label className={styles.label}>QUESTION 1</label>
-                <select className={styles.selectField} value={q1} onChange={(e) => setQ1(e.target.value)} required>
+                <select className={`${styles.selectField} ${shakeError && (!q1 || q1 === q2 || q1 === q3) ? styles.shakeError : ""}`} value={q1} onChange={(e) => setQ1(e.target.value)}>
                   <option value="" disabled>
                     Select Question...
                   </option>
@@ -718,17 +728,19 @@ export default function ChangePasswordPage() {
                   <input
                     type="text"
                     placeholder="Answer"
-                    className={styles.input}
+                    className={`${styles.input} ${shakeError && (!a1 || a1 !== a1Confirm) ? styles.shakeError : ""}`}
                     value={a1}
                     onChange={(e) => setA1(stripEmojis(e.target.value))}
+                    style={{ borderColor: a1 && a1Confirm ? (a1 === a1Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
                   <input
                     type="text"
                     placeholder="Confirm"
-                    className={styles.input}
+                    className={`${styles.input} ${shakeError && (!a1Confirm || a1 !== a1Confirm) ? styles.shakeError : ""}`}
                     value={a1Confirm}
                     onChange={(e) => setA1Confirm(stripEmojis(e.target.value))}
+                    style={{ borderColor: a1 && a1Confirm ? (a1 === a1Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
                 </div>
@@ -736,7 +748,7 @@ export default function ChangePasswordPage() {
 
               <div className={styles.inputGroup}>
                 <label className={styles.label}>QUESTION 2</label>
-                <select className={styles.selectField} value={q2} onChange={(e) => setQ2(e.target.value)} required>
+                <select className={`${styles.selectField} ${shakeError && (!q2 || q2 === q1 || q2 === q3) ? styles.shakeError : ""}`} value={q2} onChange={(e) => setQ2(e.target.value)}>
                   <option value="" disabled>
                     Select Question...
                   </option>
@@ -753,17 +765,19 @@ export default function ChangePasswordPage() {
                   <input
                     type="text"
                     placeholder="Answer"
-                    className={styles.input}
+                    className={`${styles.input} ${shakeError && (!a2 || a2 !== a2Confirm) ? styles.shakeError : ""}`}
                     value={a2}
                     onChange={(e) => setA2(stripEmojis(e.target.value))}
+                    style={{ borderColor: a2 && a2Confirm ? (a2 === a2Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
                   <input
                     type="text"
                     placeholder="Confirm"
-                    className={styles.input}
+                    className={`${styles.input} ${shakeError && (!a2Confirm || a2 !== a2Confirm) ? styles.shakeError : ""}`}
                     value={a2Confirm}
                     onChange={(e) => setA2Confirm(stripEmojis(e.target.value))}
+                    style={{ borderColor: a2 && a2Confirm ? (a2 === a2Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
                 </div>
@@ -771,7 +785,7 @@ export default function ChangePasswordPage() {
 
               <div className={styles.inputGroup}>
                 <label className={styles.label}>QUESTION 3</label>
-                <select className={styles.selectField} value={q3} onChange={(e) => setQ3(e.target.value)} required>
+                <select className={`${styles.selectField} ${shakeError && (!q3 || q3 === q1 || q3 === q2) ? styles.shakeError : ""}`} value={q3} onChange={(e) => setQ3(e.target.value)}>
                   <option value="" disabled>
                     Select Question...
                   </option>
@@ -788,17 +802,19 @@ export default function ChangePasswordPage() {
                   <input
                     type="text"
                     placeholder="Answer"
-                    className={styles.input}
+                    className={`${styles.input} ${shakeError && (!a3 || a3 !== a3Confirm) ? styles.shakeError : ""}`}
                     value={a3}
                     onChange={(e) => setA3(stripEmojis(e.target.value))}
+                    style={{ borderColor: a3 && a3Confirm ? (a3 === a3Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
                   <input
                     type="text"
                     placeholder="Confirm"
-                    className={styles.input}
+                    className={`${styles.input} ${shakeError && (!a3Confirm || a3 !== a3Confirm) ? styles.shakeError : ""}`}
                     value={a3Confirm}
                     onChange={(e) => setA3Confirm(stripEmojis(e.target.value))}
+                    style={{ borderColor: a3 && a3Confirm ? (a3 === a3Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
                 </div>

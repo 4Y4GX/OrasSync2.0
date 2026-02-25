@@ -51,11 +51,10 @@ export default function ForgotPasswordPage() {
 
   const emailOk = useMemo(() => isPlausibleEmail(username), [username]);
 
-  // ✅ no leaks (generic validation line)
+  // ✅ Zero-trust field errors (no format hints)
   const identifierError = useMemo(() => {
-    if (username.length === 0) return "";
-    return emailOk ? "" : "CHECK YOUR INPUT";
-  }, [username, emailOk]);
+    return "";
+  }, []);
 
   const canSendOtp = emailOk && !loading;
 
@@ -174,6 +173,11 @@ export default function ForgotPasswordPage() {
         newOtp[index - 1] = "";
         setOtp(newOtp);
         otpRefs.current[index - 1]?.focus();
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (otp.join("").length === 6) {
+        handleVerifyOtp();
       }
     }
 
