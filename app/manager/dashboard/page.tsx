@@ -652,7 +652,7 @@ export default function ManagerDashboard() {
                       </>
                     ) : (
                       <>
-                        <div className="section-title" style={{ padding: '15px 25px', margin: 0, border: 'none', background: 'rgba(0,0,0,0.1)', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <div className="section-title" style={{ padding: '15px 25px', margin: 0, background: 'rgba(0,0,0,0.1)', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                             <button className="btn-view" style={{ padding: '6px 14px', margin: 0 }} onClick={() => { setSelectedTeam(null); setSearchQuery(""); }}>← Back</button>
                             <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-muted)' }}>|</span>
@@ -668,7 +668,7 @@ export default function ManagerDashboard() {
                               {filteredAndSortedRoster.map(emp => (
                                 <tr key={emp.user_id}>
                                   <td style={{ fontWeight: 700 }}>{emp.name}</td>
-                                  <td>{emp.role_id === 4 && <span className="tag tag-sup">HEAD</span>} {emp.position || (emp.role_id === 4 ? 'Supervisor' : 'Employee')}</td>
+                                  <td style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{emp.role_id === 4 && <span className="tag tag-sup">HEAD</span>} {emp.position || (emp.role_id === 4 ? 'Supervisor' : 'Employee')}</td>
                                   <td>{emp.status === 'in' ? <span className="tag tag-in">Clocked In</span> : <span className="tag tag-out">Clocked Out</span>}</td>
                                 </tr>
                               ))}
@@ -706,7 +706,7 @@ export default function ManagerDashboard() {
 
               return (
                 <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
-                  <div className="section-title" style={{ padding: '15px 25px', margin: 0, border: '1px solid var(--border-subtle)', background: 'var(--bg-panel)', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', borderRadius: '12px 12px 0 0' }}>
+                  <div className="section-title" style={{ padding: '15px 25px', margin: 0, border: '1px solid var(--border-subtle)', background: 'var(--bg-panel)', justifyContent: 'space-between', alignItems: 'center', borderRadius: '12px 12px 0 0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                       <span style={{ fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>Pending Timesheet Approvals</span>
                       <span className="status-badge go" style={{ background: 'var(--bg-input)', padding: '5px 15px', color: 'var(--color-go)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}>{filteredTimesheets.length} Submissions</span>
@@ -721,7 +721,7 @@ export default function ManagerDashboard() {
                       <input type="text" placeholder="Search approvals..." className="input-rounded" style={{ width: '220px', padding: '8px 15px' }} value={tsSearch} onChange={(e) => setTsSearch(e.target.value)} />
                     </div>
                   </div>
-                  <div className="table-container" style={{ padding: '20px', paddingBottom: '30px', background: 'var(--bg-deep)', borderRadius: '0 0 12px 12px', border: '1px solid var(--border-subtle)', borderTop: 'none', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px', alignContent: 'start', overflowY: 'auto', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 30px), transparent 100%)', maskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 30px), transparent 100%)' }}>
+                  <div className="table-container" style={{ padding: '20px', paddingBottom: '30px', background: 'var(--bg-deep)', borderRadius: '0 0 12px 12px', borderBottom: '1px solid var(--border-subtle)', borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px', alignContent: 'start', overflowY: 'auto', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 30px), transparent 100%)', maskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 30px), transparent 100%)' }}>
                     {tsLoading ? (
                       <div className="fade-in" style={{ color: 'var(--text-muted)', gridColumn: '1 / -1', minHeight: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '100px' }}>
                         <div className="loading-spinner"></div>
@@ -802,7 +802,7 @@ export default function ManagerDashboard() {
             {/* CALENDAR VIEW */}
             {hasClockedIn && activeSection === 'calendar' && (
               <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
-                <div className="section-title" style={{ padding: '15px 25px', margin: 0, border: '1px solid var(--border-subtle)', background: 'var(--bg-panel)', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', borderRadius: '12px 12px 0 0' }}>
+                <div className="section-title" style={{ padding: '15px 25px', margin: 0, border: '1px solid var(--border-subtle)', background: 'var(--bg-panel)', justifyContent: 'space-between', alignItems: 'center', borderRadius: '12px 12px 0 0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <span style={{ fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>Department Schedule</span>
                     <span className="status-badge" style={{ background: 'var(--bg-input)', padding: '5px 15px', color: 'var(--accent-blue)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}>
@@ -823,7 +823,7 @@ export default function ManagerDashboard() {
                   </div>
                 </div>
 
-                <div className="table-container" style={{ padding: '20px', paddingBottom: '30px', background: 'var(--bg-deep)', borderRadius: '0 0 12px 12px', border: '1px solid var(--border-subtle)', borderTop: 'none', flex: 1, overflowY: 'auto' }}>
+                <div className="table-container" style={{ padding: '20px', paddingBottom: '30px', background: 'var(--bg-deep)', borderRadius: '0 0 12px 12px', borderBottom: '1px solid var(--border-subtle)', borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)', flex: 1, overflowY: 'auto' }}>
                   {calendarView === 'weekly' ? (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '15px', height: '100%' }}>
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {

@@ -21,9 +21,15 @@ export async function GET(request: Request) {
 
     const deptId = managerData.dept_id;
 
-    // 1. Get all employees in the department to calculate Target Hours
+    // 1. Get ONLY employees in the department to calculate Target Hours
+    // FIXED: Swapped hardcoded role_ids for a strict relational check on "Employee"
     const deptUsers = await prisma.d_tbluser.findMany({
-      where: { dept_id: deptId, role_id: { in: [1, 4] } },
+      where: { 
+        dept_id: deptId, 
+        D_tblrole: {
+          role_name: "Employee"
+        } 
+      },
       include: { D_tblteam: true }
     });
     
@@ -54,7 +60,7 @@ export async function GET(request: Request) {
     const startOfMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
     const endOfMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 1);
 
-    // 3. Fetch Time Logs (Now with strictly defined 'lt' upper boundaries)
+    // 3. Fetch Time Logs (Only for strictly verified Employees)
     const weeklyLogs = await prisma.d_tbltime_log.findMany({
       where: { 
         user_id: { in: userIds }, 
