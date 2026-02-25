@@ -16,7 +16,6 @@ export async function GET(request: Request) {
     const userId = searchParams.get("user_id");
 
     if (userId) {
-      // Get specific user schedule
       const schedule = await prisma.d_tblweekly_schedule.findFirst({
         where: {
           user_id: userId,
@@ -31,25 +30,22 @@ export async function GET(request: Request) {
               email: true,
             },
           },
-          D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
         },
       });
 
       return NextResponse.json({ schedule });
     }
 
-    // For supervisors, get their team's schedules
-    // For managers/admins, get all schedules
     let teamMembers;
 
-    if (user.role_id === 2) {
-      // Supervisor: get team members
+    if (user.role_id === 4 || user.role_id === 2) {
       teamMembers = await prisma.d_tbluser.findMany({
         where: {
           supervisor_id: user.user_id,
@@ -69,23 +65,22 @@ export async function GET(request: Request) {
           D_tblweekly_schedule: {
             where: { is_active: true },
             include: {
-              D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
             },
           },
         },
       });
     } else {
-      // Manager/Admin: get all members
       teamMembers = await prisma.d_tbluser.findMany({
         where: {
           account_status: "ACTIVE",
-          role_id: 1, // Only employees
+          role_id: 1, 
         },
         select: {
           user_id: true,
@@ -101,13 +96,13 @@ export async function GET(request: Request) {
           D_tblweekly_schedule: {
             where: { is_active: true },
             include: {
-              D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
             },
           },
         },

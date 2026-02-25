@@ -7,14 +7,14 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const weekOffset = parseInt(searchParams.get('weekOffset') || '0', 10);
         const user = await getUserFromCookie();
+        
         if (!user || (user.role_id !== 4 && user.role_id !== 3 && user.role_id !== 2)) {
             return NextResponse.json({ message: "Unauthorized. Supervisor access required." }, { status: 403 });
         }
 
-        // Get team members for supervisor (same logic as team status)
+        // Get team members for supervisor
         let teamMembers;
         if (user.role_id === 4) {
-            // Supervisor: only their own team
             teamMembers = await prisma.d_tbluser.findMany({
                 where: {
                     supervisor_id: user.user_id,
@@ -24,7 +24,6 @@ export async function GET(req: Request) {
                 select: { user_id: true },
             });
         } else {
-            // Manager/Admin: all employees
             teamMembers = await prisma.d_tbluser.findMany({
                 where: {
                     role_id: 1,
@@ -33,15 +32,14 @@ export async function GET(req: Request) {
                 select: { user_id: true },
             });
         }
+        
         const teamIds = teamMembers.map((m: any) => m.user_id);
 
-        // Today
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(today.getDate() + 1);
 
-        // Get all clock logs for today for team
         const clocks = await prisma.d_tblclock_log.findMany({
             where: {
                 user_id: { in: teamIds },
@@ -49,7 +47,6 @@ export async function GET(req: Request) {
             },
         });
 
-        // Get all time logs for today for team
         const timeLogs = await prisma.d_tbltime_log.findMany({
             where: {
                 user_id: { in: teamIds },
@@ -57,11 +54,11 @@ export async function GET(req: Request) {
             },
         });
 
-        // Calculate stats
         const totalMembers = teamIds.length;
         let currentlyWorking = 0;
         let offline = 0;
         let totalHours = 0;
+
         for (const id of teamIds) {
             const userClocks = clocks.filter(c => c.user_id === id);
             const isWorking = userClocks.some(c => !c.clock_out_time);
@@ -71,7 +68,6 @@ export async function GET(req: Request) {
             totalHours += userLogs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
         }
 
-        // Weekly stats for graph and performance
         const startOfWeek = new Date(today);
         startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + (weekOffset * 7));
         startOfWeek.setHours(0, 0, 0, 0);
@@ -85,26 +81,29 @@ export async function GET(req: Request) {
             },
         });
 
-        // Graph data: hours per day
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const graphData = Array(7).fill(0).map((_, i) => {
             const d = new Date(startOfWeek);
             d.setDate(d.getDate() + i);
+            
             const logs = weekLogs.filter(l => {
                 if (!l.log_date) return false;
                 const logDate = l.log_date instanceof Date ? l.log_date : new Date(l.log_date);
-                return logDate.getFullYear() === d.getFullYear() && logDate.getMonth() === d.getMonth() && logDate.getDate() === d.getDate();
+                return logDate.getFullYear() === d.getFullYear() && 
+                       logDate.getMonth() === d.getMonth() && 
+                       logDate.getDate() === d.getDate();
             });
+            
             const hours = logs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
-            const percentage = totalMembers > 0 ? Math.min(100, Math.max(5, (hours / (totalMembers * 8)) * 100)) : 0;
+            const percentage = totalMembers > 0 ? Math.min(100, (hours / (totalMembers * 8)) * 100) : 0;
+            
             return {
                 day: days[d.getDay()],
                 hours: hours.toFixed(1),
-                percentage,
+                percentage: percentage,
             };
         });
 
-        // Weekly performance
         const weeklyTotal = weekLogs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
         const avgPerPerson = totalMembers > 0 ? (weeklyTotal / totalMembers).toFixed(1) : '0.0';
         const productivity = totalMembers > 0 ? Math.min(100, (weeklyTotal / (totalMembers * 40)) * 100).toFixed(0) : '0';
@@ -121,6 +120,7 @@ export async function GET(req: Request) {
                 productivity: `${productivity}%`
             }
         };
+        
         return NextResponse.json(response);
     } catch (error: any) {
         console.error("SUPERVISOR_STATS_ERROR:", error);
