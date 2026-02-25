@@ -211,6 +211,12 @@ export default function ChangePasswordPage() {
         newOtp[index] = "";
         setOtp(newOtp);
       }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      // Ensure all 6 digits are filled before auto-submitting
+      if (otp.join("").length === 6) {
+        handleVerifyOtp();
+      }
     }
   };
 

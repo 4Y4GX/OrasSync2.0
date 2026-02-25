@@ -40,7 +40,7 @@ export default function AuthShell({
   // Clock
   useEffect(() => {
     const updateTime = () =>
-      setClock(`IT'S CURRENTLY ${new Date().toLocaleTimeString()}`);
+      setClock(new Date().toLocaleTimeString());
 
     updateTime();
     const timer = setInterval(updateTime, 1000);
@@ -120,10 +120,10 @@ export default function AuthShell({
 
         <div className={styles.contentWrapper}>
           <div className={styles.brandTitle}>ORASYNC</div>
-          <div className={styles.brandSubtitle}>AI-POWERED PRODUCTIVITY</div>
+
           <div className={styles.clockWrapper}>
             <div className={styles.liveClock}>
-              {clock}
+              IT'S CURRENTLY <span style={{ color: "white" }}>{clock}</span>
             </div>
           </div>
         </div>

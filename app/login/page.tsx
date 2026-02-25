@@ -30,19 +30,16 @@ export default function LoginPage() {
   const emailOk = useMemo(() => isPlausibleEmail(identifier), [identifier]);
   const canSubmit = emailOk && password.length > 0 && !loading;
 
-  // ✅ Zero-trust field errors (no format hints)
+  // ✅ Zero-trust field errors (only show upon form submission error)
   const idError = useMemo(() => {
-    if (!touchedId) return "";
-    if (identifier.trim().length === 0) return "INVALID CREDENTIALS";
-    if (!emailOk) return "INVALID CREDENTIALS";
+    // We only show format errors if they tried to submit and the format is bad
+    // Otherwise, we rely on the main `error` state from the API response
     return "";
-  }, [touchedId, identifier, emailOk]);
+  }, []);
 
   const pwError = useMemo(() => {
-    if (!touchedPw) return "";
-    if (password.length === 0) return "INVALID CREDENTIALS";
     return "";
-  }, [touchedPw, password]);
+  }, []);
 
   // ✅ Keep caps lock state updated globally.
   // This lets it show immediately when you re-focus the password field.
@@ -147,6 +144,7 @@ export default function LoginPage() {
                 }}
                 onFocus={() => setTouchedId(true)}
                 onBlur={() => setTouchedId(true)}
+                autoFocus
                 required
               />
             </div>

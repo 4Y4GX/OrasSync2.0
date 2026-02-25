@@ -114,34 +114,34 @@
 
 /* --- GLOBAL ANIMATED BACKGROUND (Dark Mode) --- */
 .animatedBackground {
-  display: none;
-  /* REMOVED per user request */
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
 
-  /* UI-team style grid (2 layers) */
-  /* UI-team style grid (Simplified: 1 layer) */
-  background-image: repeating-linear-gradient(0deg,
-      var(--right-grid-line) 0px,
-      var(--right-grid-line) 1px,
+  /* Clean, professional dark gradient (SaaS style) */
+  background: radial-gradient(ellipse at top left,
+      rgba(30, 41, 59, 1) 0%,
+      var(--bg-deep) 100%);
+
+  /* Very subtle, static architectural grid pattern */
+  background-image:
+    radial-gradient(ellipse at top left,
+      rgba(30, 41, 59, 0.8) 0%,
+      transparent 100%),
+    repeating-linear-gradient(0deg,
+      rgba(255, 255, 255, 0.015) 0px,
+      rgba(255, 255, 255, 0.015) 1px,
       transparent 1px,
-      transparent 80px),
+      transparent 40px),
     repeating-linear-gradient(90deg,
-      var(--right-grid-line) 0px,
-      var(--right-grid-line) 1px,
+      rgba(255, 255, 255, 0.015) 0px,
+      rgba(255, 255, 255, 0.015) 1px,
       transparent 1px,
-      transparent 80px);
+      transparent 40px);
 
-  opacity: 0.6;
-  /* Slightly reduced opacity for subtlety */
-  transform: translateZ(0);
   background-color: var(--bg-deep);
-  /* Base dark color */
-
-  /* subtle movement - SLOWED DOWN significantly */
-  animation: gridDrift 60s linear infinite;
+  background-blend-mode: overlay;
 }
 
 /* --- ANIMATIONS (Ported & Slowed) --- */
@@ -436,28 +436,11 @@
 }
 
 .dataPixel {
-  width: 10px;
-  height: 10px;
-  background-color: var(--accent-orange-dim);
-  opacity: 0.4;
-  border-radius: 2px;
-  animation: breathe 6s ease-in-out infinite;
-  /* Slower */
-}
-
-/* Stagger animations for a "living" data effect */
-.dataPixel:nth-child(odd) {
-  animation-duration: 8s;
-  animation-delay: 1s;
-}
-
-.dataPixel:nth-child(2n) {
-  animation-duration: 5s;
-  animation-delay: 2s;
-}
-
-.dataPixel:nth-child(3n) {
-  animation-delay: 0.5s;
+  width: 4px;
+  height: 4px;
+  background-color: var(--pure-white);
+  opacity: 0.15;
+  border-radius: 50%;
 }
 
 .copyright {
@@ -471,24 +454,24 @@
 }
 
 .brandTitle {
-  font-size: clamp(2.5rem, 6vw, 5.5rem);
-  font-weight: 700;
-  line-height: 0.9;
-  letter-spacing: 5px;
-  margin-bottom: 10px;
-  text-transform: uppercase;
-  text-shadow: 0 0 30px rgba(255, 255, 255, 0.05);
-  /* Faint shadow */
+  font-family: var(--font-body);
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -2px;
+  margin-bottom: 16px;
+  color: #ffffff;
+  text-transform: none;
 }
 
 .brandSubtitle {
-  font-size: clamp(0.8rem, 1.2vw, 1.2rem);
-  color: var(--accent-orange);
-  letter-spacing: 4px;
-  font-weight: 700;
-  text-transform: uppercase;
+  font-family: var(--font-body);
+  font-size: clamp(0.9rem, 1vw, 1rem);
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  text-transform: none;
   margin-bottom: 40px;
-  opacity: 0.8;
 }
 
 .clockWrapper {
@@ -496,16 +479,28 @@
 }
 
 .liveClock {
-  background: rgba(15, 52, 166, 0.1);
-  /* Lighter background */
-  padding: 12px 24px;
-  border-left: 3px solid var(--accent-orange);
-  /* Thinner border */
-  font-size: clamp(0.75rem, 1vw, 1rem);
-  font-weight: 600;
-  letter-spacing: 2px;
-  border-radius: 0 8px 8px 0;
-  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--font-body);
+  font-size: clamp(0.75rem, 1vw, 0.85rem);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Add a clean, static indicator dot */
+.liveClock::before {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 .footer {
@@ -597,9 +592,7 @@
       transparent 1px,
       transparent 80px);
 
-  /* Animate to match global background (even if alignment isn't perfect, it feels alive) */
-  animation: gridDrift 60s linear infinite;
-  /* Slower */
+  /* Removed animation to keep layout clean and professional */
 }
 
 /* FIXED THE WIDTH ISSUE */
