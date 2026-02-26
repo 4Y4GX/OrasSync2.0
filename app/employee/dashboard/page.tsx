@@ -726,10 +726,20 @@ export default function DashboardPage() {
   }, [scheduleToday]);
 
   const isEarlyClockOut = useMemo(() => {
-    if (!scheduleToday.hasSchedule || !scheduleToday.shift?.end_time) return false;
-    const end = new Date(scheduleToday.shift.end_time).getTime();
-    return Date.now() < end;
-  }, [scheduleToday, now]);
+  if (!scheduleToday.hasSchedule || !scheduleToday.shift?.end_time) return false;
+
+  if (clockInTime) {
+    const clockInDate = new Date(clockInTime).toDateString();
+    const todayDate = now.toDateString();
+    
+    if (clockInDate !== todayDate) {
+      return false;
+    }
+  }
+
+  const end = new Date(scheduleToday.shift.end_time).getTime();
+  return Date.now() < end;
+}, [scheduleToday, now, clockInTime]);
 
   const doClockIn = useCallback(async () => {
     if (actionBusy) return;
