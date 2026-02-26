@@ -61,14 +61,12 @@ export default function SupervisorScheduleManagement() {
   const [schedLoading, setSchedLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  // Modals matching Manager Dashboard flow, styled with Supervisor CSS
   const [editShiftModal, setEditShiftModal] = useState({
       show: false, empId: "", empName: "", day: "", currentShift: "", newShiftId: "", scheduleId: null as number | null 
   });
   const [saveShiftConfirmModal, setSaveShiftConfirmModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Original Supervisor Add Activity Modal State
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [futureActivities, setFutureActivities] = useState<FutureActivity[]>([]);
   const [futureLoading, setFutureLoading] = useState(true);
@@ -77,6 +75,8 @@ export default function SupervisorScheduleManagement() {
     employee_id: '',
     activity_date: '',
     activity_type: 'MEETING',
+    start_time: '',
+    end_time: '',
     notes: ''
   });
 
@@ -88,13 +88,11 @@ export default function SupervisorScheduleManagement() {
         const data = await res.json();
         setTeamMembers(data.teamMembers || []);
         
-        // Helper to format Prisma db.Time into a readable 12-hour format
         const formatTime = (dateObj: Date | string | null) => {
             if (!dateObj) return null;
             return new Date(dateObj).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
         };
 
-        // Restructure the data to match the grid logic
         const formattedSchedule = (data.teamMembers || []).map((emp: any) => {
             const sched = emp.D_tblweekly_schedule[0];
             
@@ -206,14 +204,13 @@ export default function SupervisorScheduleManagement() {
   };
 
   const handleSaveActivity = async () => {
-    if (!activityFormData.employee_id || !activityFormData.activity_date || !activityFormData.notes.trim()) {
+    if (!activityFormData.employee_id || !activityFormData.activity_date || !activityFormData.start_time || !activityFormData.end_time || !activityFormData.notes.trim()) {
       alert('Please fill all required fields');
       return;
     }
 
     setIsSaving(true);
     try {
-      // Map string type to integer ID for the database
       const activityMap: Record<string, number> = {
         'MEETING': 1, 'TRAINING': 2, 'LEAVE': 3, 'OFF_SITE': 4, 'PROJECT': 5, 'OTHER': 6
       };
@@ -224,8 +221,8 @@ export default function SupervisorScheduleManagement() {
         body: JSON.stringify({ 
             user_id: activityFormData.employee_id, 
             shift_date: activityFormData.activity_date, 
-            start_time: '09:00', // Auto-filled since the original form didn't ask for it
-            end_time: '17:00', 
+            start_time: activityFormData.start_time, 
+            end_time: activityFormData.end_time, 
             activity_id: activityMap[activityFormData.activity_type] || 1, 
             notes: activityFormData.notes 
         })
@@ -235,7 +232,7 @@ export default function SupervisorScheduleManagement() {
           setMessage("Future activity added successfully!"); 
           setTimeout(() => setMessage(''), 3000);
           setShowActivityModal(false); 
-          setActivityFormData({ employee_id: '', activity_date: '', activity_type: 'MEETING', notes: '' }); 
+          setActivityFormData({ employee_id: '', activity_date: '', activity_type: 'MEETING', start_time: '', end_time: '', notes: '' }); 
           loadFutureActivities();
       } 
       else { alert("Failed to add activity."); }
@@ -331,7 +328,7 @@ export default function SupervisorScheduleManagement() {
         )}
       </div>
 
-      {/* Team Schedule Panel (Manager-Style Grid) */}
+      {/* Team Schedule Panel */}
       <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
@@ -407,7 +404,7 @@ export default function SupervisorScheduleManagement() {
 
       {/* --- MODALS --- */}
       
-      {/* 1. ORIGINAL ADD ACTIVITY MODAL (REVERTED) */}
+      {/* 1. ORIGINAL ADD ACTIVITY MODAL WITH FIXES FOR DROPDOWN VISIBILITY */}
       {showActivityModal && (
         <div className="modal-overlay" onClick={() => setShowActivityModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "550px" }}>
@@ -415,8 +412,9 @@ export default function SupervisorScheduleManagement() {
             <div style={{ marginTop: "1rem" }}>
               <div style={{ marginBottom: "1rem" }}>
                 <label className="label-sm">Employee *</label>
+                {/* ADDED class custom-select */}
                 <select
-                  className="select"
+                  className="select custom-select"
                   value={activityFormData.employee_id}
                   onChange={(e) => setActivityFormData({ ...activityFormData, employee_id: e.target.value })}
                 >
@@ -428,20 +426,47 @@ export default function SupervisorScheduleManagement() {
                   ))}
                 </select>
               </div>
+              
               <div style={{ marginBottom: "1rem" }}>
                 <label className="label-sm">Activity Date *</label>
                 <input
                   type="date"
                   className="select"
+                  style={{ colorScheme: 'dark' }}
                   value={activityFormData.activity_date}
                   onChange={(e) => setActivityFormData({ ...activityFormData, activity_date: e.target.value })}
                   min={new Date().toISOString().split('T')[0]}
                 />
               </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: "1rem" }}>
+                <div>
+                  <label className="label-sm">Start Time *</label>
+                  <input
+                    type="time"
+                    className="select"
+                    style={{ colorScheme: 'dark' }}
+                    value={activityFormData.start_time}
+                    onChange={(e) => setActivityFormData({ ...activityFormData, start_time: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="label-sm">End Time *</label>
+                  <input
+                    type="time"
+                    className="select"
+                    style={{ colorScheme: 'dark' }}
+                    value={activityFormData.end_time}
+                    onChange={(e) => setActivityFormData({ ...activityFormData, end_time: e.target.value })}
+                  />
+                </div>
+              </div>
+
               <div style={{ marginBottom: "1rem" }}>
                 <label className="label-sm">Activity Type *</label>
+                {/* ADDED class custom-select */}
                 <select
-                  className="select"
+                  className="select custom-select"
                   value={activityFormData.activity_type}
                   onChange={(e) => setActivityFormData({ ...activityFormData, activity_type: e.target.value })}
                 >
@@ -459,9 +484,9 @@ export default function SupervisorScheduleManagement() {
                   className="select"
                   rows={3}
                   placeholder="Enter activity details..."
+                  style={{ resize: 'vertical' }}
                   value={activityFormData.notes}
                   onChange={(e) => setActivityFormData({ ...activityFormData, notes: e.target.value })}
-                  style={{ resize: 'vertical' }}
                 />
               </div>
             </div>
@@ -493,8 +518,9 @@ export default function SupervisorScheduleManagement() {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <label className="label-sm">Assign New Shift</label>
+                        {/* ADDED class custom-select */}
                         <select 
-                            className="select"
+                            className="select custom-select"
                             value={editShiftModal.newShiftId}
                             onChange={(e) => setEditShiftModal({...editShiftModal, newShiftId: e.target.value})}
                         >
@@ -551,6 +577,12 @@ export default function SupervisorScheduleManagement() {
       )}
 
       <style jsx>{`
+        /* Global override for options inside custom-select */
+        .custom-select option {
+          background-color: #1e1e1e;
+          color: #ffffff;
+        }
+
         .shift-chip {
           display: inline-block;
           padding: 0.25rem 0.75rem;

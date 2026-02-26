@@ -1,4 +1,3 @@
-// app/api/supervisor/schedules/list/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -8,6 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const user = await getUserFromCookie();
+    // Use role_id 4 for Supervisor based on your previous messages
     if (!user || (user.role_id !== 2 && user.role_id !== 3 && user.role_id !== 4)) {
       return NextResponse.json({ message: "Unauthorized. Supervisor access required." }, { status: 403 });
     }
@@ -16,6 +16,7 @@ export async function GET(request: Request) {
     const userId = searchParams.get("user_id");
 
     if (userId) {
+      // Get specific user schedule
       const schedule = await prisma.d_tblweekly_schedule.findFirst({
         where: {
           user_id: userId,
@@ -46,10 +47,12 @@ export async function GET(request: Request) {
     let teamMembers;
 
     if (user.role_id === 4 || user.role_id === 2) {
+      // Supervisor: get specifically their team members, excluding other supervisors
       teamMembers = await prisma.d_tbluser.findMany({
         where: {
           supervisor_id: user.user_id,
           account_status: "ACTIVE",
+          role_id: 1, // Only fetch regular employees
         },
         select: {
           user_id: true,
@@ -77,6 +80,7 @@ export async function GET(request: Request) {
         },
       });
     } else {
+      // Manager/Admin: get all active members
       teamMembers = await prisma.d_tbluser.findMany({
         where: {
           account_status: "ACTIVE",

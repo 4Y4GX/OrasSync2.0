@@ -19,14 +19,19 @@ export default function SupervisorDashboard() {
   const [activeSection, setActiveSection] = useState('team');
   const [lightMode, setLightMode] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  
+  // UPDATED: Added new stat fields for Monthly data and Compliance array
   const [stats, setStats] = useState({
     totalMembers: 0,
     currentlyWorking: 0,
     totalHours: '0.0',
     offline: 0,
     graphData: [] as { day: string; hours: string; percentage: number }[],
+    complianceData: [] as any[],
     teamPerformance: {
       weeklyTotal: '0.0',
+      monthlyTotal: '0.0',
+      targetWeeklyHours: 0,
       avgPerPerson: '0.0',
       productivity: '0%'
     }
@@ -123,7 +128,6 @@ export default function SupervisorDashboard() {
     initials: '...'
   });
 
-  // For showing temporary messages in settings
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -165,14 +169,12 @@ export default function SupervisorDashboard() {
 
   const loadStats = async (offset: number = 0) => {
     try {
-      console.log('Loading stats with offset:', offset);
       const res = await fetch(`/api/supervisor/stats?weekOffset=${offset}`);
       if (res.ok) {
         const data = await res.json();
-        console.log('Stats loaded:', data);
         setStats(data);
       } else {
-        console.error('Failed to load stats:', res.status, await res.text());
+        console.error('Failed to load stats:', res.status);
       }
     } catch (err) {
       console.error("Failed to load supervisor stats", err);
@@ -204,34 +206,19 @@ export default function SupervisorDashboard() {
           <div className="brand-logo">ORASync</div>
 
           <ul className="nav-links">
-            <li
-              className={`nav-item ${activeSection === 'team' ? 'active' : ''}`}
-              onClick={() => setActiveSection('team')}
-            >
+            <li className={`nav-item ${activeSection === 'team' ? 'active' : ''}`} onClick={() => setActiveSection('team')}>
               Team Overview
             </li>
-            <li
-              className={`nav-item ${activeSection === 'approval' ? 'active' : ''}`}
-              onClick={() => setActiveSection('approval')}
-            >
+            <li className={`nav-item ${activeSection === 'approval' ? 'active' : ''}`} onClick={() => setActiveSection('approval')}>
               Timesheet Approval
             </li>
-            <li
-              className={`nav-item ${activeSection === 'schedule' ? 'active' : ''}`}
-              onClick={() => setActiveSection('schedule')}
-            >
+            <li className={`nav-item ${activeSection === 'schedule' ? 'active' : ''}`} onClick={() => setActiveSection('schedule')}>
               Team Schedule
             </li>
-            <li
-              className={`nav-item ${activeSection === 'analytics' ? 'active' : ''}`}
-              onClick={() => setActiveSection('analytics')}
-            >
+            <li className={`nav-item ${activeSection === 'analytics' ? 'active' : ''}`} onClick={() => setActiveSection('analytics')}>
               Team Analytics
             </li>
-            <li
-              className={`nav-item ${activeSection === 'settings' ? 'active' : ''}`}
-              onClick={() => setActiveSection('settings')}
-            >
+            <li className={`nav-item ${activeSection === 'settings' ? 'active' : ''}`} onClick={() => setActiveSection('settings')}>
               Settings
             </li>
           </ul>
@@ -256,7 +243,6 @@ export default function SupervisorDashboard() {
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{userProfile.role}</div>
             </div>
 
-            {/* Profile Dropdown Menu */}
             {showProfileMenu && (
               <div className="profile-dropdown">
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
@@ -379,74 +365,57 @@ export default function SupervisorDashboard() {
               </div>
             )}
 
+            {/* --- COMPLETELY REBUILT ANALYTICS SECTION --- */}
             {activeSection === 'analytics' && (
               <div className="section-view active fade-in">
                 <div className="section-animate">
-                  {/* Top Three Panels - Improved Alignment */}
+                  
+                  {/* Top Analytics Panels */}
                   <div className="analytics-top-row">
                     <div className="analytics-card">
                       <div className="analytics-icon">📊</div>
                       <div className="analytics-content">
-                        <div className="analytics-label">TEAM HOURS (WEEK)</div>
-                        <div className="analytics-value accent-cyan">{stats.teamPerformance?.weeklyTotal || '0.0'}</div>
-                        <div className="analytics-sub">Total Hours Logged</div>
+                        <div className="analytics-label">THIS WEEK</div>
+                        <div className="analytics-value accent-cyan">
+                          {stats.teamPerformance?.weeklyTotal || '0.0'} <span style={{fontSize:'1rem', color:'var(--text-muted)'}}>hrs</span>
+                        </div>
+                        <div className="analytics-sub">Target: {stats.teamPerformance?.targetWeeklyHours || '0'} hrs</div>
+                      </div>
+                    </div>
+                    <div className="analytics-card">
+                      <div className="analytics-icon">📅</div>
+                      <div className="analytics-content">
+                        <div className="analytics-label">THIS MONTH</div>
+                        <div className="analytics-value">
+                          {stats.teamPerformance?.monthlyTotal || '0.0'} <span style={{fontSize:'1rem', color:'var(--text-muted)'}}>hrs</span>
+                        </div>
+                        <div className="analytics-sub">Total Monthly Hours</div>
                       </div>
                     </div>
                     <div className="analytics-card">
                       <div className="analytics-icon">📈</div>
                       <div className="analytics-content">
-                        <div className="analytics-label">AVG HOURS/PERSON</div>
-                        <div className="analytics-value">{stats.teamPerformance?.avgPerPerson || '0.0'}</div>
-                        <div className="analytics-sub">Per Team Member</div>
-                      </div>
-                    </div>
-                    <div className="analytics-card">
-                      <div className="analytics-icon">🎯</div>
-                      <div className="analytics-content">
-                        <div className="analytics-label">PRODUCTIVITY RATE</div>
+                        <div className="analytics-label">WEEKLY ACTIVITY %</div>
                         <div className="analytics-value success">{stats.teamPerformance?.productivity || '0%'}</div>
-                        <div className="analytics-sub">Overall Efficiency</div>
+                        <div className="analytics-sub">Of Total Expected Capacity</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Team Performance Graph */}
-                  <div className="glass-card">
+                  <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
                     <div className="section-title">
                       <span>Team Performance Overview</span>
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        <button 
-                          className="week-nav-btn" 
-                          onClick={() => setWeekOffset(weekOffset - 1)}
-                          title="Previous Week"
-                        >
-                          ← Prev Week
-                        </button>
-                        <button 
-                          className="week-nav-btn" 
-                          onClick={() => setWeekOffset(0)}
-                          disabled={weekOffset === 0}
-                          title="Current Week"
-                        >
-                          Current Week
-                        </button>
-                        <button 
-                          className="week-nav-btn" 
-                          onClick={() => setWeekOffset(weekOffset + 1)}
-                          disabled={weekOffset >= 0}
-                          title="Next Week"
-                        >
-                          Next Week →
-                        </button>
+                        <button className="week-nav-btn" onClick={() => setWeekOffset(weekOffset - 1)} title="Previous Week">← Prev Week</button>
+                        <button className="week-nav-btn" onClick={() => setWeekOffset(0)} disabled={weekOffset === 0} title="Current Week">Current Week</button>
+                        <button className="week-nav-btn" onClick={() => setWeekOffset(weekOffset + 1)} disabled={weekOffset >= 0} title="Next Week">Next Week →</button>
                       </div>
                     </div>
                     <div className="graph-container">
                       {!stats.graphData || stats.graphData.length === 0 ? (
-                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-                          Loading graph data...
-                          <div style={{ fontSize: '0.85rem', marginTop: '10px' }}>If this persists, check console for errors</div>
-                        </div>
-                      ) : stats.graphData.map((day, i) => (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Loading graph data...</div>
+                      ) : stats.graphData.map((day: any, i: number) => (
                         <div key={`${day.day}-${i}`} className="bar-group">
                           <div
                             className="bar bar-actual supervisor-bar"
@@ -458,14 +427,8 @@ export default function SupervisorDashboard() {
                           >
                             {Number(day.hours) > 0 && (
                               <div style={{
-                                position: 'absolute',
-                                top: '-25px',
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                color: 'var(--accent-primary)',
-                                whiteSpace: 'nowrap'
+                                position: 'absolute', top: '-25px', left: '50%', transform: 'translateX(-50%)',
+                                fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-primary)', whiteSpace: 'nowrap'
                               }}>
                                 {day.hours}h
                               </div>
@@ -477,75 +440,131 @@ export default function SupervisorDashboard() {
                     </div>
                   </div>
 
-                  {/* Team Member Compliance Table */}
-                  <div className="glass-card" style={{ marginTop: '1.5rem' }}>
-                    <div className="section-title">Team Member Compliance</div>
-                    <div className="compliance-info" style={{ 
-                      padding: '1rem', 
-                      marginBottom: '1rem',
-                      background: 'rgba(167, 139, 250, 0.1)',
-                      border: '1px solid rgba(167, 139, 250, 0.3)',
-                      borderRadius: '8px',
-                      color: 'var(--text-main)',
-                      fontSize: '0.9rem'
-                    }}>
-                      <strong>Daily Limit:</strong> 8 hours per day | <strong>Weekly Limit:</strong> 40 hours per week
-                    </div>
-                    <div className="table-container" style={{ maxHeight: '400px' }}>
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Employee</th>
-                            <th>Today's Hours</th>
-                            <th>Daily Limit</th>
-                            <th>Status</th>
-                            <th>Weekly Total</th>
-                            <th>Weekly Limit</th>
-                            <th>Compliance</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {stats.totalMembers > 0 ? (
-                            // Placeholder data - In production, this would come from API
-                            Array.from({ length: Math.min(stats.totalMembers, 5) }, (_, i) => {
-                              const todayHours = (Math.random() * 10).toFixed(1);
-                              const weeklyHours = (parseFloat(todayHours) * 5 + Math.random() * 5).toFixed(1);
-                              const isOverDaily = parseFloat(todayHours) > 8;
-                              const isOverWeekly = parseFloat(weeklyHours) > 40;
-                              
-                              return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
+                    
+                    {/* Team Member Compliance Table */}
+                    <div className="glass-card">
+                      <div className="section-title">Team Member Compliance</div>
+                      <div className="compliance-info" style={{ 
+                        padding: '1rem', marginBottom: '1rem', background: 'rgba(167, 139, 250, 0.1)',
+                        border: '1px solid rgba(167, 139, 250, 0.3)', borderRadius: '8px', color: 'var(--text-main)', fontSize: '0.9rem'
+                      }}>
+                        <strong>Daily Limit:</strong> 8 hours per day | <strong>Weekly Limit:</strong> 40 hours per week
+                      </div>
+                      <div className="table-container" style={{ maxHeight: '300px' }}>
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Employee</th>
+                              <th>Today's Hours</th>
+                              <th>Daily Limit</th>
+                              <th>Status</th>
+                              <th>Weekly Total</th>
+                              <th>Weekly Limit</th>
+                              <th>Compliance</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {stats.complianceData && stats.complianceData.length > 0 ? (
+                              stats.complianceData.map((emp: any, i: number) => (
                                 <tr key={i}>
-                                  <td style={{ fontWeight: 600 }}>Team Member {i + 1}</td>
-                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{todayHours} hrs</td>
+                                  <td style={{ fontWeight: 600 }}>{emp.name}</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{emp.todayHours} hrs</td>
                                   <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>8.0 hrs</td>
                                   <td>
-                                    <span className={`status-badge ${isOverDaily ? 'warn' : 'ok'}`}>
-                                      {isOverDaily ? '⚠ OVERTIME' : '✓ OK'}
+                                    <span className={`status-badge ${emp.isOverDaily ? 'warn' : 'ok'}`}>
+                                      {emp.isOverDaily ? '⚠ OVERTIME' : '✓ OK'}
                                     </span>
                                   </td>
-                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{weeklyHours} hrs</td>
+                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{emp.weeklyHours} hrs</td>
                                   <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>40.0 hrs</td>
                                   <td>
                                     <div className="compliance-bar">
                                       <div 
-                                        className={`compliance-fill ${isOverWeekly ? 'over' : 'ok'}`}
-                                        style={{ width: `${Math.min((parseFloat(weeklyHours) / 40) * 100, 100)}%` }}
+                                        className={`compliance-fill ${emp.isOverWeekly ? 'over' : 'ok'}`}
+                                        style={{ width: `${Math.min((parseFloat(emp.weeklyHours) / 40) * 100, 100)}%` }}
                                       />
                                     </div>
                                   </td>
                                 </tr>
-                              );
-                            })
-                          ) : (
-                            <tr>
-                              <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                                No team members to display
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                                  No team members to display
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
+
+                    {/* Generate Reports Panel */}
+                    <div className="glass-card" style={{ background: 'rgba(167, 139, 250, 0.05)', borderColor: 'rgba(167, 139, 250, 0.2)' }}>
+                      <div className="section-title" style={{ padding: 0, border: 'none', marginBottom: '15px', color: 'var(--accent-primary)' }}>Generate Reports</div>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>Export historical hours and activity data for your team.</p>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <select id="reportTarget" className="input-rounded" style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid var(--border-subtle)' }}>
+                            <option value="all" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>All Direct Reports</option>
+                            {stats.complianceData && stats.complianceData.map((emp: any, i: number) => ( 
+                              <option key={`report-${i}`} value={emp.user_id || emp.name} style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>{emp.name}</option> 
+                            ))}
+                        </select>
+                        
+                        <select id="reportFormat" className="input-rounded" style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid var(--border-subtle)' }}>
+                            <option value="csv" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>CSV Format</option>
+                            <option value="json" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>JSON Format</option>
+                        </select>
+
+                        <button 
+                          className="btn-improved btn-primary" 
+                          style={{ width: '100%', padding: '12px', marginTop: '10px', justifyContent: 'center' }}
+                          onClick={async () => {
+                            const target = (document.getElementById('reportTarget') as HTMLSelectElement).value;
+                            const format = (document.getElementById('reportFormat') as HTMLSelectElement).value;
+                            try {
+                              const res = await fetch('/api/supervisor/reports/generate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  report_type: 'custom',
+                                  format: format,
+                                  employee_id: target,
+                                  start_date: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+                                  end_date: new Date().toISOString().split('T')[0]
+                                })
+                              });
+                              
+                              if (res.ok) {
+                                const data = await res.json();
+                                if (format === 'csv') {
+                                  const blob = new Blob([data.report.content], { type: 'text/csv' });
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = data.report.filename;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  a.remove();
+                                } else {
+                                  alert("JSON Report generated. Check console.");
+                                  console.log(data);
+                                }
+                              } else {
+                                alert("Failed to generate report.");
+                              }
+                            } catch(e) {
+                              alert("Error connecting to report server.");
+                            }
+                          }}
+                        >
+                          Generate & Export
+                        </button>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               </div>
@@ -727,7 +746,6 @@ export default function SupervisorDashboard() {
                   placeholder="e.g., Hours do not match scheduled shift, missing activity details, unauthorized overtime..."
                   value={rejectionReason}
                   onChange={(e) => {
-                    // Only allow letters, numbers, periods, commas, and spaces
                     const sanitized = e.target.value
                       .replace(/[^a-zA-Z0-9.,\s]/g, "")
                       .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");

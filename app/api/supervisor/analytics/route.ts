@@ -1,4 +1,3 @@
-// app/api/supervisor/analytics/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -12,8 +11,8 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is a supervisor
-    if (user.role_id !== 2) {
+    // Check if user is a supervisor (using role_id 4 based on previous context)
+    if (user.role_id !== 2 && user.role_id !== 4) {
       return NextResponse.json({ message: "Supervisor access only" }, { status: 403 });
     }
 
@@ -27,10 +26,11 @@ export async function GET() {
     endOfWeek.setDate(startOfWeek.getDate() + 7);
 
     // Get all team members supervised by this user
+    // FIX: Changed 'status' to 'account_status' to match Prisma Schema
     const teamMembers = await prisma.d_tbluser.findMany({
       where: {
         supervisor_id: user.user_id,
-        status: "Active",
+        account_status: "ACTIVE", 
       },
       select: {
         user_id: true,
@@ -64,8 +64,9 @@ export async function GET() {
     });
 
     // Calculate total team hours this week
+    // FIX: Convert Prisma Decimal to Number before adding
     const totalTeamHours = weeklyLogs.reduce(
-      (sum, log) => sum + (log.total_hours || 0),
+      (sum, log) => sum + Number(log.total_hours || 0),
       0
     );
 
@@ -75,9 +76,10 @@ export async function GET() {
       : 0;
 
     // Calculate productivity rate (billable hours / total hours)
+    // FIX: Convert Prisma Decimal to Number before adding
     const billableHours = weeklyLogs
       .filter((log) => log.D_tblactivity?.is_billable)
-      .reduce((sum, log) => sum + (log.total_hours || 0), 0);
+      .reduce((sum, log) => sum + Number(log.total_hours || 0), 0);
 
     const productivityRate = totalTeamHours > 0
       ? Math.round((billableHours / totalTeamHours) * 100)
@@ -96,11 +98,13 @@ export async function GET() {
       nextDay.setDate(day.getDate() + 1);
 
       const dayLogs = weeklyLogs.filter((log) => {
+        if (!log.log_date) return false; // FIX: Handle null dates
         const logDate = new Date(log.log_date);
         return logDate >= day && logDate < nextDay;
       });
 
-      const dayHours = dayLogs.reduce((sum, log) => sum + (log.total_hours || 0), 0);
+      // FIX: Convert Prisma Decimal to Number before adding
+      const dayHours = dayLogs.reduce((sum, log) => sum + Number(log.total_hours || 0), 0);
 
       dailyBreakdown.push({
         day: daysOfWeek[i],

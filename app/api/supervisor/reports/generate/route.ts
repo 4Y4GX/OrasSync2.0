@@ -1,4 +1,3 @@
-// app/api/supervisor/reports/generate/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -8,7 +7,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
-    if (!user || user.role_id !== 2) {
+    // Assuming role_id 4 is Supervisor (as fixed in the Schedule logic)
+    if (!user || (user.role_id !== 2 && user.role_id !== 4)) {
       return NextResponse.json(
         { message: "Unauthorized. Supervisor access required." },
         { status: 403 }
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         );
     }
 
-    // Get team members
+    // Get team members (using supervisor_id OR historically logged supervisor_id)
     const teamMembers = await prisma.d_tbluser.findMany({
       where: {
         supervisor_id: user.user_id,
@@ -91,7 +91,8 @@ export async function POST(request: Request) {
         total_hours: { not: null },
       },
       include: {
-        D_tbluser: {
+        // FIX: Using exact Prisma relation name from schema
+        D_tbluser_D_tbltime_log_user_idToD_tbluser: {
           select: {
             first_name: true,
             last_name: true,
@@ -110,8 +111,8 @@ export async function POST(request: Request) {
       },
     });
 
-    // Get clock records for attendance
-    const clockRecords = await prisma.d_tblclock.findMany({
+    // Get clock records for attendance (FIX: Used correct table name D_tblclock_log)
+    const clockRecords = await prisma.d_tblclock_log.findMany({
       where: {
         user_id: { in: teamUserIds },
         clock_in_time: {
@@ -137,21 +138,24 @@ export async function POST(request: Request) {
       const memberLogs = timeLogs.filter((log) => log.user_id === member.user_id);
       const memberClocks = clockRecords.filter((clock) => clock.user_id === member.user_id);
 
-      const totalHours = memberLogs.reduce((sum, log) => sum + (log.total_hours || 0), 0);
+      // FIX: Ensure total_hours (Decimal) is converted to a Number before adding
+      const totalHours = memberLogs.reduce((sum, log) => sum + Number(log.total_hours || 0), 0);
       const billableHours = memberLogs
         .filter((log) => log.D_tblactivity?.is_billable)
-        .reduce((sum, log) => sum + (log.total_hours || 0), 0);
+        .reduce((sum, log) => sum + Number(log.total_hours || 0), 0);
 
       // Activity breakdown
       const activityBreakdown: { [key: string]: number } = {};
       memberLogs.forEach((log) => {
         const activityName = log.D_tblactivity?.activity_name || "Unknown";
-        activityBreakdown[activityName] = (activityBreakdown[activityName] || 0) + (log.total_hours || 0);
+        activityBreakdown[activityName] = (activityBreakdown[activityName] || 0) + Number(log.total_hours || 0);
       });
 
       // Attendance summary
       const daysPresent = new Set(
-        memberClocks.map((clock) => clock.clock_in_time.toISOString().split("T")[0])
+        memberClocks
+          .filter(clock => clock.clock_in_time) // safety check
+          .map((clock) => clock.clock_in_time!.toISOString().split("T")[0])
       ).size;
 
       return {
@@ -170,6 +174,13 @@ export async function POST(request: Request) {
     // Generate report based on format
     let reportData;
     
+    // We only need the user_id for the audit log, but we'll fetch full name for the report metadata
+    const requestingUser = await prisma.d_tbluser.findUnique({
+      where: { user_id: user.user_id },
+      select: { first_name: true, last_name: true }
+    });
+    const generatedByName = requestingUser ? `${requestingUser.first_name} ${requestingUser.last_name}` : user.user_id;
+
     if (format === "json") {
       reportData = {
         report_type,
@@ -177,14 +188,13 @@ export async function POST(request: Request) {
           start: startDate.toISOString().split("T")[0],
           end: endDate.toISOString().split("T")[0],
         },
-        generated_by: `${user.first_name} ${user.last_name}`,
+        generated_by: generatedByName,
         generated_at: new Date().toISOString(),
         summary,
         total_team_hours: summary.reduce((sum, s) => sum + s.total_hours, 0),
         total_team_billable: summary.reduce((sum, s) => sum + s.billable_hours, 0),
       };
     } else if (format === "csv") {
-      // CSV format
       const csvHeaders = [
         "Employee Name",
         "Email",
@@ -224,7 +234,7 @@ export async function POST(request: Request) {
           start: startDate.toISOString().split("T")[0],
           end: endDate.toISOString().split("T")[0],
         },
-        generated_by: `${user.first_name} ${user.last_name}`,
+        generated_by: generatedByName,
         generated_at: new Date().toISOString(),
         summary,
         total_team_hours: summary.reduce((sum, s) => sum + s.total_hours, 0),

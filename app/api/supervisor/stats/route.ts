@@ -12,24 +12,20 @@ export async function GET(req: Request) {
             return NextResponse.json({ message: "Unauthorized. Supervisor access required." }, { status: 403 });
         }
 
-        // Get team members for supervisor
         let teamMembers;
-        if (user.role_id === 4) {
+        if (user.role_id === 4 || user.role_id === 2) {
             teamMembers = await prisma.d_tbluser.findMany({
                 where: {
                     supervisor_id: user.user_id,
                     account_status: "ACTIVE",
                     role_id: 1,
                 },
-                select: { user_id: true },
+                select: { user_id: true, first_name: true, last_name: true },
             });
         } else {
             teamMembers = await prisma.d_tbluser.findMany({
-                where: {
-                    role_id: 1,
-                    account_status: "ACTIVE",
-                },
-                select: { user_id: true },
+                where: { role_id: 1, account_status: "ACTIVE" },
+                select: { user_id: true, first_name: true, last_name: true },
             });
         }
         
@@ -41,23 +37,17 @@ export async function GET(req: Request) {
         tomorrow.setDate(today.getDate() + 1);
 
         const clocks = await prisma.d_tblclock_log.findMany({
-            where: {
-                user_id: { in: teamIds },
-                shift_date: { gte: today, lt: tomorrow },
-            },
+            where: { user_id: { in: teamIds }, shift_date: { gte: today, lt: tomorrow } },
         });
 
         const timeLogs = await prisma.d_tbltime_log.findMany({
-            where: {
-                user_id: { in: teamIds },
-                log_date: { gte: today, lt: tomorrow },
-            },
+            where: { user_id: { in: teamIds }, log_date: { gte: today, lt: tomorrow } },
         });
 
         const totalMembers = teamIds.length;
         let currentlyWorking = 0;
         let offline = 0;
-        let totalHours = 0;
+        let totalHoursToday = 0;
 
         for (const id of teamIds) {
             const userClocks = clocks.filter(c => c.user_id === id);
@@ -65,9 +55,10 @@ export async function GET(req: Request) {
             if (isWorking) currentlyWorking++;
             else offline++;
             const userLogs = timeLogs.filter(l => l.user_id === id);
-            totalHours += userLogs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
+            totalHoursToday += userLogs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
         }
 
+        // WEEKLY LOGIC
         const startOfWeek = new Date(today);
         startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + (weekOffset * 7));
         startOfWeek.setHours(0, 0, 0, 0);
@@ -75,11 +66,12 @@ export async function GET(req: Request) {
         weekEnd.setDate(startOfWeek.getDate() + 7);
 
         const weekLogs = await prisma.d_tbltime_log.findMany({
-            where: {
-                user_id: { in: teamIds },
-                log_date: { gte: startOfWeek, lt: weekEnd },
-            },
+            where: { user_id: { in: teamIds }, log_date: { gte: startOfWeek, lt: weekEnd } },
         });
+
+        const weeklyTotal = weekLogs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
+        const targetWeeklyHours = totalMembers * 40; // Assuming 40 hours per member
+        const productivity = targetWeeklyHours > 0 ? Math.min(100, (weeklyTotal / targetWeeklyHours) * 100).toFixed(0) : '0';
 
         const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const graphData = Array(7).fill(0).map((_, i) => {
@@ -94,7 +86,7 @@ export async function GET(req: Request) {
                        logDate.getDate() === d.getDate();
             });
             
-            const hours = logs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
+            const hours = logs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
             const percentage = totalMembers > 0 ? Math.min(100, (hours / (totalMembers * 8)) * 100) : 0;
             
             return {
@@ -104,29 +96,48 @@ export async function GET(req: Request) {
             };
         });
 
-        const weeklyTotal = weekLogs.reduce((sum, l) => sum + (l.total_hours?.toNumber() || 0), 0);
-        const avgPerPerson = totalMembers > 0 ? (weeklyTotal / totalMembers).toFixed(1) : '0.0';
-        const productivity = totalMembers > 0 ? Math.min(100, (weeklyTotal / (totalMembers * 40)) * 100).toFixed(0) : '0';
+        // MONTHLY LOGIC
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth() + (weekOffset === 0 ? 0 : weekOffset / 4), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1 + (weekOffset === 0 ? 0 : weekOffset / 4), 0);
 
-        const response = {
+        const monthLogs = await prisma.d_tbltime_log.findMany({
+            where: { user_id: { in: teamIds }, log_date: { gte: startOfMonth, lt: endOfMonth } },
+        });
+        const monthlyTotal = monthLogs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
+
+        // COMPLIANCE DATA
+        const complianceData = teamMembers.map((member: any) => {
+            const memberWeekLogs = weekLogs.filter(l => l.user_id === member.user_id);
+            const memberTodayLogs = timeLogs.filter(l => l.user_id === member.user_id);
+            const weekHrs = memberWeekLogs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
+            const todayHrs = memberTodayLogs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
+            
+            return {
+                name: `${member.first_name} ${member.last_name}`,
+                todayHours: todayHrs.toFixed(1),
+                weeklyHours: weekHrs.toFixed(1),
+                isOverDaily: todayHrs > 8,
+                isOverWeekly: weekHrs > 40
+            };
+        });
+
+        return NextResponse.json({
             totalMembers,
             currentlyWorking,
-            totalHours: totalHours.toFixed(1),
             offline,
+            totalHours: totalHoursToday.toFixed(1),
             graphData,
+            complianceData,
             teamPerformance: {
                 weeklyTotal: weeklyTotal.toFixed(1),
-                avgPerPerson,
+                monthlyTotal: monthlyTotal.toFixed(1),
+                targetWeeklyHours: targetWeeklyHours,
+                avgPerPerson: totalMembers > 0 ? (weeklyTotal / totalMembers).toFixed(1) : '0.0',
                 productivity: `${productivity}%`
             }
-        };
-        
-        return NextResponse.json(response);
+        });
     } catch (error: any) {
         console.error("SUPERVISOR_STATS_ERROR:", error);
-        return NextResponse.json(
-            { message: "Failed to fetch stats", error: error.message },
-            { status: 500 }
-        );
+        return NextResponse.json({ message: "Failed to fetch stats" }, { status: 500 });
     }
 }
