@@ -27,17 +27,7 @@ type UserProfile = {
   streak_count: number | null;
 };
 
-/**
- * ✅ Strong emoji blocking:
- * - \p{Extended_Pictographic} catches most emoji pictographs
- * - Variation Selector-16 and ZWJ are used in emoji sequences
- */
 const EMOJI_LIKE = /[\p{Extended_Pictographic}\uFE0F\u200D]/gu;
-
-/**
- * ✅ Allowed characters ONLY:
- * letters (A-Z a-z), space, period, comma
- */
 const ALLOWED_REASON_CHARS = /^[A-Za-z .,]*$/;
 
 function sanitizeReasonInput(raw: string) {
@@ -49,15 +39,9 @@ function sanitizeReasonInput(raw: string) {
   return s;
 }
 
-/**
- * ✅ NEW HELPER: Formats ISO strings to just Time (e.g., "09:00 AM")
- * preventing the display of "1970-01-01"
- */
 function formatShiftTime(isoString: string) {
   if (!isoString) return "";
-  // If it's already a simple time (e.g. "09:00"), return it
   if (!isoString.includes("T")) return isoString;
-
   const date = new Date(isoString);
   return date.toLocaleTimeString([], {
     hour: '2-digit',
@@ -94,7 +78,6 @@ function formatDateLine(d: Date) {
 
 function formatScheduleRange(startISO?: string, endISO?: string) {
   if (!startISO || !endISO) return "NO SCHEDULE TODAY";
-  // Updated to use the new helper
   return `${formatShiftTime(startISO)} — ${formatShiftTime(endISO)}`.toUpperCase();
 }
 
@@ -109,9 +92,6 @@ function formatDuration(ms: number) {
     .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-/**
- * Format decimal hours to hours and minutes (e.g., 1.5 -> "1h 30m")
- */
 function formatHoursMinutes(decimalHours: number | null | undefined): string {
   if (decimalHours == null || isNaN(decimalHours)) return "-";
   const totalMinutes = Math.round(decimalHours * 60);
@@ -153,7 +133,7 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [isClockedIn, setIsClockedIn] = useState(false);
-  const [ledgerData, setLedgerData] = useState<any[]>([]); // ✅ NEW: State for ledger data
+  const [ledgerData, setLedgerData] = useState<any[]>([]); 
 
   const [scheduleToday, setScheduleToday] = useState<ScheduleToday>({
     hasSchedule: false,
@@ -170,38 +150,31 @@ export default function DashboardPage() {
   const [reasonErr, setReasonErr] = useState("");
   const [reasonShake, setReasonShake] = useState(false);
 
-  // ✅ Logout prompt modal after clock-out
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
-
-  // ✅ Timesheet submit confirmation modal
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
-  // for timers - clock in time as state for reactive updates
+  // for timers
   const [clockInTime, setClockInTime] = useState<number | null>(null);
-  // Accumulated worked time from previous sessions today (in milliseconds)
   const [accumulatedMs, setAccumulatedMs] = useState<number>(0);
+  // ✅ NEW: State for current active activity start time
+  const [activeActivityStart, setActiveActivityStart] = useState<number | null>(null);
 
   // theme
   const [lightMode, setLightMode] = useState(false);
-
-  // prevent double submit
   const [actionBusy, setActionBusy] = useState(false);
 
-  // Auto-logout inactivity while clocked out
   const INACTIVITY_LIMIT_MS = 30 * 60 * 1000;
   const inactivityTimerRef = useRef<number | null>(null);
 
-  // ✅ Profile dropdown menu
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuWrapRef = useRef<HTMLDivElement | null>(null);
 
-  // Active section for navigation
   const [activeSection, setActiveSection] = useState<"dashboard" | "calendar" | "timesheet" | "analytics">("dashboard");
 
   /* --- ANALYTICS STATE --- */
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
-  const [analyticsWeekOffset, setAnalyticsWeekOffset] = useState(0); // 0 = current week, -1 = last week, etc.
+  const [analyticsWeekOffset, setAnalyticsWeekOffset] = useState(0);
 
   /* --- TIMESHEET STATE --- */
   const [timesheetDays, setTimesheetDays] = useState<any[]>([]);
@@ -212,8 +185,6 @@ export default function DashboardPage() {
   /* --- CALENDAR STATE --- */
   const [calView, setCalView] = useState<"week" | "month">("week");
   const [calDate, setCalDate] = useState(() => new Date());
-
-  /* --- CALENDAR STATE & FETCH --- */
   const [calendar, setCalendar] = useState<Record<string, any>>({});
 
   /* --- FUTURE ACTIVITY STATE --- */
@@ -235,8 +206,6 @@ export default function DashboardPage() {
       try {
         const year = calDate.getFullYear();
         const month = calDate.getMonth();
-
-        // ✅ Corrected URL Path
         const res = await fetch(`/api/calendar?userId=${userProfile.user_id}&year=${year}&month=${month}`);
 
         if (!res.ok) {
@@ -245,7 +214,6 @@ export default function DashboardPage() {
         }
 
         const data = await res.json();
-
         const map: Record<string, any> = {};
         if (Array.isArray(data)) {
           data.forEach((item: any) => {
@@ -282,7 +250,6 @@ export default function DashboardPage() {
     return `${monthNames[calDate.getMonth()]} ${calDate.getFullYear()}`;
   };
 
-  // Timeline navigation helpers
   const navigateTimelineDate = (dir: number) => {
     const d = new Date(selectedTimelineDate);
     d.setDate(d.getDate() + dir);
@@ -309,13 +276,11 @@ export default function DashboardPage() {
     return `${dayName}, ${monthDay}`;
   };
 
-  // Get activities for the selected timeline date
   const selectedDayActivities = useMemo(() => {
     const dayData = timesheetDays.find(d => d.date === selectedTimelineDate);
     return dayData?.activities || [];
   }, [timesheetDays, selectedTimelineDate]);
 
-  // Fetch activities list for future scheduling
   useEffect(() => {
     const fetchActivities = async () => {
       try {
@@ -331,7 +296,6 @@ export default function DashboardPage() {
     fetchActivities();
   }, []);
 
-  // Fetch future schedules
   useEffect(() => {
     const fetchFutureSchedules = async () => {
       if (!userProfile?.user_id) return;
@@ -358,7 +322,6 @@ export default function DashboardPage() {
     fetchFutureSchedules();
   }, [userProfile?.user_id, calDate]);
 
-  // Future activity modal handlers
   const openFutureModal = (dateKey?: string) => {
     setFutureModalError("");
     setFutureModalActivity("");
@@ -391,14 +354,11 @@ export default function DashboardPage() {
     setFutureModalShiftTimes(null);
   };
 
-  // Close future modal on Escape key
   useEffect(() => {
     if (!showFutureModal) return;
-    
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeFutureModal();
     };
-    
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [showFutureModal]);
@@ -455,7 +415,6 @@ export default function DashboardPage() {
         return;
       }
 
-      // Refresh future schedules
       const year = calDate.getFullYear();
       const month = calDate.getMonth();
       const refreshRes = await fetch(`/api/employee/schedule/future?userId=${userProfile?.user_id}&year=${year}&month=${month}`);
@@ -488,7 +447,6 @@ export default function DashboardPage() {
       });
 
       if (res.ok) {
-        // Refresh future schedules
         const year = calDate.getFullYear();
         const month = calDate.getMonth();
         const refreshRes = await fetch(`/api/employee/schedule/future?userId=${userProfile?.user_id}&year=${year}&month=${month}`);
@@ -510,13 +468,11 @@ export default function DashboardPage() {
     }
   };
 
-  // tick clock (UI)
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(t);
   }, []);
 
-  // restore theme
   useEffect(() => {
     try {
       const saved = localStorage.getItem("orasync-theme");
@@ -546,14 +502,12 @@ export default function DashboardPage() {
       setServerMsg("");
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
-      // ignore
     } finally {
       setActionBusy(false);
       window.location.href = "/login";
     }
   }, [isClockedIn]);
 
-  // Fetch Logs (Timesheet)
   const fetchLogs = useCallback(async () => {
     try {
       const res = await fetch("/api/employee/timesheet");
@@ -566,9 +520,7 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Submit Timesheet for Review
   const submitTimesheet = useCallback(async () => {
-    // Collect all pending tlog_ids from timesheetDays
     const allTlogIds: number[] = [];
     for (const day of timesheetDays) {
       for (const act of day.activities || []) {
@@ -596,12 +548,10 @@ export default function DashboardPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // Simple success message
         setSubmitMsg({
           type: "success",
           text: "Time logs submitted for review",
         });
-        // Refresh timesheet data
         await fetchLogs();
       } else {
         setSubmitMsg({ type: "error", text: data.message || "Submission failed" });
@@ -614,7 +564,6 @@ export default function DashboardPage() {
     }
   }, [timesheetDays, fetchLogs]);
 
-  // Load status on mount
   useEffect(() => {
     (async () => {
       try {
@@ -629,7 +578,6 @@ export default function DashboardPage() {
           : null;
         setClockInTime(cin);
 
-        // Set accumulated time from previous sessions today
         setAccumulatedMs(data?.accumulatedMs ?? 0);
 
         setScheduleToday({
@@ -642,11 +590,9 @@ export default function DashboardPage() {
         setLoading(false);
       }
     })();
-    // Fetch logs initially too
     fetchLogs();
   }, [fetchLogs]);
 
-  // ✅ DAILY SENTIMENT GATE
   useEffect(() => {
     if (loading) return;
 
@@ -662,7 +608,6 @@ export default function DashboardPage() {
     })();
   }, [loading, router]);
 
-  // ✅ NEW: Fetch ledger data when clocked in
   useEffect(() => {
     if (!isClockedIn) {
       setLedgerData([]);
@@ -682,7 +627,6 @@ export default function DashboardPage() {
 
     fetchLedger();
 
-    // Refresh ledger every 5 seconds while clocked in
     const interval = setInterval(fetchLedger, 5000);
     return () => clearInterval(interval);
   }, [isClockedIn]);
@@ -700,17 +644,23 @@ export default function DashboardPage() {
   const canClockIn = scheduleToday.hasSchedule && !loading && !actionBusy;
 
   const sessionDuration = useMemo(() => {
-    // If clocked in, show accumulated time + current session time
     if (isClockedIn && clockInTime) {
       const currentSessionMs = Date.now() - clockInTime;
       return formatDuration(accumulatedMs + currentSessionMs);
     }
-    // If not clocked in but have accumulated time today, show that
     if (accumulatedMs > 0) {
       return formatDuration(accumulatedMs);
     }
     return "00:00:00";
   }, [isClockedIn, clockInTime, accumulatedMs, now]);
+
+  // ✅ NEW: Calculate the duration for the currently active task
+  const currentActivityDuration = useMemo(() => {
+    if (isClockedIn && activeActivityStart) {
+      return formatDuration(now.getTime() - activeActivityStart);
+    }
+    return "00:00:00";
+  }, [isClockedIn, activeActivityStart, now]);
 
   const targetHours = useMemo(() => {
     if (
@@ -782,7 +732,6 @@ export default function DashboardPage() {
           return;
         }
 
-        // Add current session time to accumulated before clearing
         if (clockInTime) {
           const currentSessionMs = Date.now() - clockInTime;
           setAccumulatedMs(prev => prev + currentSessionMs);
@@ -790,12 +739,12 @@ export default function DashboardPage() {
 
         setIsClockedIn(false);
         setClockInTime(null);
+        setActiveActivityStart(null); // Reset task timer
 
         setReason("");
         setReasonErr("");
         setShowEarlyModal(false);
 
-        // ✅ After clock out, ask if they want to logout
         setShowLogoutPrompt(true);
       } finally {
         setActionBusy(false);
@@ -807,7 +756,6 @@ export default function DashboardPage() {
   const confirmClockOutFlow = () => {
     if (actionBusy) return;
 
-    // Close the confirmation modal first
     setModalConfirm(null);
 
     if (!scheduleToday.hasSchedule || !scheduleToday.shift?.end_time) {
@@ -825,7 +773,6 @@ export default function DashboardPage() {
     void doClockOut("");
   };
 
-  // ✅ realtime reason validation
   useEffect(() => {
     if (!showEarlyModal) return;
     const err = validateReasonClient(reason);
@@ -843,7 +790,6 @@ export default function DashboardPage() {
     void doClockOut(reason.trim());
   };
 
-  // ✅ Auto logout after 30 minutes inactivity while clocked out
   useEffect(() => {
     if (inactivityTimerRef.current) {
       window.clearTimeout(inactivityTimerRef.current);
@@ -880,7 +826,6 @@ export default function DashboardPage() {
     };
   }, [isClockedIn, loading, doLogout]);
 
-  // ✅ Close profile menu on outside click + ESC
   useEffect(() => {
     if (!profileMenuOpen) return;
 
@@ -902,14 +847,12 @@ export default function DashboardPage() {
     };
   }, [profileMenuOpen]);
 
-  /* --- ANALYTICS DATA FETCHING --- */
   useEffect(() => {
     if (activeSection !== "analytics") return;
 
     const fetchAnalytics = async () => {
       setAnalyticsLoading(true);
       try {
-        // Calculate the Monday of the selected week
         const today = new Date();
         const dayOfWeek = today.getDay();
         const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -932,9 +875,7 @@ export default function DashboardPage() {
     void fetchAnalytics();
   }, [activeSection, analyticsWeekOffset]);
 
-  /* --- REAL LEDGER DATA REPLACES MOCK --- */
   const ledgerRows = useMemo(() => {
-    // Return empty if not clocked in or no data
     if (!isClockedIn || !ledgerData || ledgerData.length === 0) {
       return [];
     }
@@ -945,7 +886,6 @@ export default function DashboardPage() {
       start: log.start_time ? formatShiftTime(log.start_time) : "",
       end: log.end_time ? formatShiftTime(log.end_time) : "...",
       endAccent: !!log.is_active,
-      // Optional: sort if needed, assuming data comes compliant or we map specific fields
     }));
   }, [isClockedIn, ledgerData]);
 
@@ -969,7 +909,6 @@ export default function DashboardPage() {
 
   const avatarText = useMemo(() => initialsFrom(userProfile), [userProfile]);
 
-  // ✅ BLOCKING HANDLERS for reason input
   const onReasonBeforeInput = (e: React.FormEvent<HTMLInputElement>) => {
     const ev = e.nativeEvent as InputEvent;
     const data = ev.data ?? "";
@@ -1085,7 +1024,6 @@ export default function DashboardPage() {
             </button>
           </div>
 
-
           <div className="content-area">
             {!isClockedIn ? (
               <div id="layout-initial" className="fade-in" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1136,7 +1074,8 @@ export default function DashboardPage() {
                           <div className="hud-bg-icon">🔥</div>
                           <div className="hud-label">ACTIVITY DURATION</div>
                           <div className="hud-val warn">
-                            {sessionDuration}
+                            {/* 🚨 UPDATED TO DISPLAY INDIVIDUAL TASK DURATION */}
+                            {currentActivityDuration}
                           </div>
                           <div className="status-badge warn" style={{ marginTop: 5, alignSelf: "flex-start", fontSize: "0.7rem" }}>
                             Active Task
@@ -1181,7 +1120,12 @@ export default function DashboardPage() {
                               Switch tasks below. Time is logged automatically.
                             </p>
 
-                            <ActivityTracker isClockedIn={isClockedIn} onActivityChange={fetchLogs} />
+                            {/* 🚨 NEW PROP ADDED TO TRACK TIME IN PARENT */}
+                            <ActivityTracker 
+                              isClockedIn={isClockedIn} 
+                              onActivityChange={fetchLogs} 
+                              onActivityTimeChange={setActiveActivityStart}
+                            />
 
                             <div className="ap-divider" />
 
@@ -1211,8 +1155,6 @@ export default function DashboardPage() {
 
                   {activeSection === 'timesheet' && (
                     <div className="ts-split">
-
-                      {/* LEFT PANEL: TIMELINE */}
                       <div className="ts-left">
                         <div className="glass-card" style={{ padding: 20, height: "100%", display: "flex", flexDirection: "column" }}>
                           <div className="section-title"
@@ -1233,7 +1175,6 @@ export default function DashboardPage() {
                             </div>
                           </div>
 
-                          {/* Date Navigation Controls */}
                           <div className="timeline-date-nav">
                             <button 
                               className="timeline-nav-btn" 
@@ -1289,7 +1230,6 @@ export default function DashboardPage() {
                               {selectedDayActivities.map((act: any, idx: number) => {
                                 if (!act.start_time || !act.end_time) return null;
                                 
-                                // Parse HH:MM string format
                                 const parseTime = (t: string) => {
                                   const [hh, mm] = t.split(':').map(Number);
                                   return hh * 60 + mm;
@@ -1298,7 +1238,7 @@ export default function DashboardPage() {
                                 const startMin = parseTime(act.start_time);
                                 let endMin = parseTime(act.end_time);
 
-                                if (endMin < startMin) endMin += 1440; // Overnight
+                                if (endMin < startMin) endMin += 1440;
 
                                 const totalMin = 1440;
                                 const left = (startMin / totalMin) * 100;
@@ -1334,7 +1274,6 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      {/* RIGHT PANEL: LOGS */}
                       <div className="ts-right">
                         <div className="glass-card" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", padding: 0 }}>
                           <div className="section-title" style={{ padding: 20 }}>Detailed Logs</div>
@@ -1366,8 +1305,8 @@ export default function DashboardPage() {
                                           fontSize: "0.75rem",
                                           fontWeight: 600,
                                           backgroundColor: act.approval_status === "PENDING" ? "rgba(234, 179, 8, 0.2)" : 
-                                                          act.approval_status === "SUPERVISOR_APPROVED" ? "rgba(34, 197, 94, 0.2)" :
-                                                          act.approval_status === "REJECTED" ? "rgba(239, 68, 68, 0.2)" : "rgba(100, 100, 100, 0.2)",
+                                                           act.approval_status === "SUPERVISOR_APPROVED" ? "rgba(34, 197, 94, 0.2)" :
+                                                           act.approval_status === "REJECTED" ? "rgba(239, 68, 68, 0.2)" : "rgba(100, 100, 100, 0.2)",
                                           color: act.approval_status === "PENDING" ? "#eab308" :
                                                  act.approval_status === "SUPERVISOR_APPROVED" ? "#22c55e" :
                                                  act.approval_status === "REJECTED" ? "#ef4444" : "#888",
@@ -1522,7 +1461,6 @@ export default function DashboardPage() {
                                   )
                                 )}
 
-                                {/* Future Activities */}
                                 {!isDiffMonth && dayFutureActivities.length > 0 && (
                                   <div className="future-activities-list">
                                     {dayFutureActivities.map((fs: any) => (
@@ -1552,7 +1490,6 @@ export default function DashboardPage() {
                         })()}
                       </div>
 
-                      {/* Add Future Activity Modal */}
                       {showFutureModal && (
                         <div className="calendar-modal-overlay">
                           <div className="calendar-modal">
@@ -1667,7 +1604,6 @@ export default function DashboardPage() {
                               <div className="stat-big">
                                 {(() => {
                                   const total = analyticsData?.summary?.totalHours || 0;
-                                  // Assuming 40h work week target for % calculation
                                   const target = 40;
                                   const pct = total > 0 ? (total / target) * 100 : 0;
                                   return pct.toFixed(1);
@@ -1721,15 +1657,13 @@ export default function DashboardPage() {
 
                             <div className="graph-container">
                               {(() => {
-                                // Generate chart for selected week (Mon-Sun)
                                 const days = [];
                                 const today = new Date();
                                 const TARGET_HOURS = 9;
                                 const MAX_SCALE = 12;
 
-                                // Calculate Monday of selected week
-                                const currentDay = today.getDay(); // 0 is Sunday
-                                const diff = currentDay === 0 ? 6 : currentDay - 1; // adjust when day is sunday
+                                const currentDay = today.getDay(); 
+                                const diff = currentDay === 0 ? 6 : currentDay - 1; 
                                 const monday = new Date(today);
                                 monday.setDate(today.getDate() - diff + (analyticsWeekOffset * 7));
 
@@ -1740,11 +1674,9 @@ export default function DashboardPage() {
                                   const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
                                   const hours = analyticsData?.dailyHours?.[dateKey] || 0;
 
-                                  // Calculate height
                                   const actualHeight = Math.min((hours / MAX_SCALE) * 100, 100);
                                   const targetHeight = (TARGET_HOURS / MAX_SCALE) * 100;
 
-                                  // Determine color
                                   let barColor = "var(--bg-card)";
                                   if (hours > 0) {
                                     if (hours > TARGET_HOURS) barColor = "var(--accent-cyan)";
@@ -1755,7 +1687,6 @@ export default function DashboardPage() {
 
                                   days.push(
                                     <div key={dateKey} className="bar-group">
-                                      {/* Target Marker moved to background to avoid z-index overlap issues if needed, but keeping absolute as per design */}
                                       <div className="bar-target" style={{ height: `${targetHeight}%` }} />
 
                                       <div className="bar" style={{ height: `${actualHeight}%`, background: barColor, zIndex: 2, opacity: 0.9 }} />
@@ -1780,7 +1711,6 @@ export default function DashboardPage() {
                   )}
 
                 </div>
-                {/* end section-animate */}
               </div>
             )}
           </div>

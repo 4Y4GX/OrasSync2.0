@@ -22,38 +22,26 @@ type CurrentActivity = {
 type ActivityTrackerProps = {
   isClockedIn: boolean;
   onActivityChange?: () => void;
+  onActivityTimeChange?: (startTime: number | null) => void;
 };
 
-function formatDuration(ms: number) {
-  if (ms < 0) ms = 0;
-  const totalSeconds = Math.floor(ms / 1000);
-  const h = Math.floor(totalSeconds / 3600);
-  const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  return `${h.toString().padStart(2, "0")}:${m
-    .toString()
-    .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-}
-
-export default function ActivityTracker({ isClockedIn, onActivityChange }: ActivityTrackerProps) {
+export default function ActivityTracker({ isClockedIn, onActivityChange, onActivityTimeChange }: ActivityTrackerProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [currentActivity, setCurrentActivity] = useState<CurrentActivity | null>(null);
   const [selectedActivityId, setSelectedActivityId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [now, setNow] = useState(new Date());
   const [activityStartTime, setActivityStartTime] = useState<number | null>(null);
 
-  // Tick clock for duration display
+  // ✅ Send the start time up to DashboardPage whenever it changes
   useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(t);
-  }, []);
+    if (onActivityTimeChange) {
+      onActivityTimeChange(activityStartTime);
+    }
+  }, [activityStartTime, onActivityTimeChange]);
 
-  // Load activities list
   useEffect(() => {
     if (!isClockedIn) return;
-
     (async () => {
       try {
         const res = await fetch("/api/employee/activity/list");
@@ -67,7 +55,6 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
     })();
   }, [isClockedIn]);
 
-  // Load current activity
   const loadCurrentActivity = useCallback(async () => {
     if (!isClockedIn) {
       setCurrentActivity(null);
@@ -76,18 +63,23 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
     }
 
     try {
-      const res = await fetch("/api/employee/activity/current");
+      // 🚨 CACHE BUSTER
+      const res = await fetch(`/api/employee/activity/current?t=${Date.now()}`, { 
+        cache: "no-store",
+        headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+      });
+      
       if (res.ok) {
         const data = await res.json();
         if (data.hasActiveActivity && data.currentActivity) {
           setCurrentActivity(data.currentActivity);
           setSelectedActivityId(data.currentActivity.activity_id.toString());
 
-          // Calculate start time timestamp
           const startDate = new Date(data.currentActivity.log_date);
           const startTimeStr = data.currentActivity.start_time;
           const [hours, minutes, seconds] = startTimeStr.split(':');
-          startDate.setHours(parseInt(hours), parseInt(minutes), parseInt(seconds || '0'));
+          startDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), parseInt(seconds || '0', 10));
+          
           setActivityStartTime(startDate.getTime());
         } else {
           setCurrentActivity(null);
@@ -104,11 +96,7 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
   }, [loadCurrentActivity]);
 
   const handleStartActivity = async () => {
-    if (!selectedActivityId) {
-      setMessage("Please select an activity");
-      return;
-    }
-
+    if (!selectedActivityId) return setMessage("Please select an activity");
     setLoading(true);
     setMessage("");
 
@@ -118,46 +106,28 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activity_id: selectedActivityId }),
       });
-
       const data = await res.json();
 
       if (res.ok) {
         setMessage("Activity started successfully");
-        // Update current activity from response and reset timer to now
-        const activity = data.activity;
-        setCurrentActivity({
-          tlog_id: activity.tlog_id,
-          activity_id: parseInt(selectedActivityId),
-          activity_name: activity.activity_name,
-          activity_code: activity.activity_code,
-          is_billable: activity.is_billable,
-          start_time: new Date().toISOString(),
-          log_date: new Date(),
-        });
-        setActivityStartTime(Date.now());
+        setActivityStartTime(Date.now()); // Optimistic update
+        await loadCurrentActivity(); // Sync with DB
         onActivityChange?.();
       } else {
-        const errDetail = data.error ? `: ${data.error}` : '';
-        setMessage((data.message || "Failed to start activity") + errDetail);
+        setMessage(data.message || "Failed to start activity");
       }
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      setMessage(`Failed to start activity: ${errMsg}`);
       console.error(error);
+      setMessage("Failed to start activity");
     } finally {
       setLoading(false);
     }
   };
 
   const handleSwitchActivity = async () => {
-    if (!selectedActivityId) {
-      setMessage("Please select an activity");
-      return;
-    }
-
+    if (!selectedActivityId) return setMessage("Please select an activity");
     if (currentActivity && selectedActivityId === currentActivity.activity_id.toString()) {
-      setMessage("This activity is already active");
-      return;
+      return setMessage("This activity is already active");
     }
 
     setLoading(true);
@@ -169,30 +139,19 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activity_id: selectedActivityId }),
       });
-
       const data = await res.json();
 
       if (res.ok) {
         setMessage("Activity switched successfully");
-        // Update current activity from response and reset timer to now
-        const activity = data.new_activity;
-        setCurrentActivity({
-          tlog_id: activity.tlog_id,
-          activity_id: parseInt(selectedActivityId),
-          activity_name: activity.activity_name,
-          activity_code: activity.activity_code,
-          is_billable: activity.is_billable,
-          start_time: new Date().toISOString(),
-          log_date: new Date(),
-        });
-        setActivityStartTime(Date.now());
+        setActivityStartTime(Date.now()); // Optimistic update: instantly sets timer to 0
+        await loadCurrentActivity(); // Sync with DB
         onActivityChange?.();
       } else {
         setMessage(data.message || "Failed to switch activity");
       }
     } catch (error) {
-      setMessage("Failed to switch activity");
       console.error(error);
+      setMessage("Failed to switch activity");
     } finally {
       setLoading(false);
     }
@@ -206,7 +165,6 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
       const res = await fetch("/api/employee/activity/end", {
         method: "POST",
       });
-
       const data = await res.json();
 
       if (res.ok) {
@@ -224,38 +182,13 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
     }
   };
 
-  const activityDuration = activityStartTime && currentActivity
-    ? formatDuration(now.getTime() - activityStartTime)
-    : "00:00:00";
+  if (!isClockedIn) return null;
 
-  if (!isClockedIn) {
-    return null;
-  }
-
-  if (!isClockedIn) {
-    return null;
-  }
-
-  // Pre-select current activity in dropdown if available
   useEffect(() => {
     if (currentActivity && !selectedActivityId) {
       setSelectedActivityId(currentActivity.activity_id.toString());
     }
   }, [currentActivity, selectedActivityId]);
-
-  const handleAction = () => {
-    if (!currentActivity) {
-      handleStartActivity();
-    } else {
-      handleSwitchActivity();
-    }
-  };
-
-  const btnText = loading
-    ? "PROCESSING..."
-    : currentActivity
-      ? "LOG CHANGE & UPDATE TIMER"
-      : "START ACTIVITY";
 
   return (
     <div className="ap-container">
@@ -275,10 +208,10 @@ export default function ActivityTracker({ isClockedIn, onActivityChange }: Activ
 
       <button
         className="btn-ap-primary"
-        onClick={handleAction}
+        onClick={() => !currentActivity ? handleStartActivity() : handleSwitchActivity()}
         disabled={loading || !selectedActivityId}
       >
-        {btnText}
+        {loading ? "PROCESSING..." : currentActivity ? "LOG CHANGE & UPDATE TIMER" : "START ACTIVITY"}
       </button>
 
       {message && (
