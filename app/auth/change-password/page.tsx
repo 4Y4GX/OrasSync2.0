@@ -74,6 +74,10 @@ export default function ChangePasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [message, setMessage] = useState("");
+  const [showSuccessSubtitle, setShowSuccessSubtitle] = useState(false);
+  const [sentSuccess, setSentSuccess] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   const [userId, setUserId] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -179,6 +183,7 @@ export default function ChangePasswordPage() {
 
   // --- OTP handlers ---
   const handleOtpChange = (index: number, value: string) => {
+    if (error) setError("");
     const clean = stripEmojis(value).replace(/\D/g, "");
 
     if (clean.length > 1) {
@@ -201,6 +206,7 @@ export default function ChangePasswordPage() {
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (error) setError("");
     if (e.key === "Backspace") {
       if (!otp[index] && index > 0) {
         const newOtp = [...otp];
@@ -223,6 +229,7 @@ export default function ChangePasswordPage() {
 
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
+    if (error) setError("");
     const pasteData = e.clipboardData
       .getData("text")
       .replace(/\D/g, "")
@@ -254,11 +261,16 @@ export default function ChangePasswordPage() {
       });
 
       if (res.ok) {
-        setOtpSent(true);
         setCountdown(90);
-        setMessage("VERIFICATION CODE SENT");
+        setShowSuccessSubtitle(true);
+        setTimeout(() => setShowSuccessSubtitle(false), 4000);
+        setSentSuccess(true);
         setOtp(["", "", "", "", "", ""]);
-        otpRefs.current[0]?.focus();
+        setTimeout(() => {
+          setSentSuccess(false);
+          setOtpSent(true);
+          setTimeout(() => otpRefs.current[0]?.focus(), 100);
+        }, 1500);
       } else {
         setError("REQUEST FAILED");
       }
@@ -266,6 +278,34 @@ export default function ChangePasswordPage() {
       setError("CONNECTION ERROR");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (countdown > 0 || resending) return;
+    setError("");
+    setResending(true);
+    try {
+      const res = await fetch("/api/auth/otp/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setCountdown(90);
+        setOtp(["", "", "", "", "", ""]);
+        setResendSent(true);
+        setTimeout(() => {
+          setResendSent(false);
+          otpRefs.current[0]?.focus();
+        }, 1500);
+      } else {
+        setError("RESEND FAILED");
+      }
+    } catch {
+      setError("RESEND FAILED");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -303,7 +343,7 @@ export default function ChangePasswordPage() {
           setSuccess("");
         }, 1500);
       } else {
-        setError("INVALID CODE");
+        setError("VERIFICATION FAILED");
         setOtp(["", "", "", "", "", ""]);
         otpRefs.current[0]?.focus();
       }
@@ -399,7 +439,7 @@ export default function ChangePasswordPage() {
       } else {
         const data = await res.json();
         setError(data.message || "SETUP FAILED");
-        setStep(2);
+        setTimeout(() => setError(""), 1500); // Clear error after 1.5s
         setLoading(false);
       }
     } catch {
@@ -470,9 +510,14 @@ export default function ChangePasswordPage() {
   const cpwCleanupRef = useRef<null | (() => void)>(null);
 
   return (
-    <AuthShell headerTag="FIRST TIME SETUP" title={headerTitle} subtitle={headerSubtitle} expandedMode={step === 3 && !isExiting}>
-      {error && <div className="text-red-500 text-sm font-bold mb-4 text-center uppercase">{error}</div>}
-      {message && !error && <div className="text-green-500 text-sm font-bold mb-4 text-center uppercase">{message}</div>}
+    <AuthShell
+      headerTag="FIRST TIME SETUP"
+      title={headerTitle}
+      subtitle={headerSubtitle}
+      expandedMode={step === 3 && !isExiting}
+      error={step === 1 && otpSent ? null : error}
+      message={message}
+    >
 
       {/* STEP 1 */}
       {step === 1 && (
@@ -490,17 +535,23 @@ export default function ChangePasswordPage() {
                 />
               </div>
 
-              <button type="submit" className={styles.submitBtn} disabled={loading}>
-                {loading ? "SENDING..." : "SEND VERIFICATION CODE"}
+              <button
+                type="submit"
+                className={styles.submitBtn}
+                disabled={loading}
+                style={sentSuccess ? {
+                  background: "#16a34a",
+                  borderColor: "#15803d",
+                  boxShadow: "0 0 18px rgba(34,197,94,0.4)",
+                  color: "#fff",
+                  transition: "all 0.3s ease"
+                } : {}}
+              >
+                {sentSuccess ? "✓ VERIFICATION SENT" : loading ? "SENDING..." : "SEND VERIFICATION CODE"}
               </button>
             </form>
           ) : (
             <div>
-              {success && (
-                <div className="text-green-500 text-sm font-bold mb-4 text-center uppercase">
-                  {success}
-                </div>
-              )}
               <div className={styles.otpGrid}>
                 {otp.map((digit, idx) => (
                   <input
@@ -524,15 +575,21 @@ export default function ChangePasswordPage() {
               <div className={styles.resendWrapper}>
                 <span>{countdown > 0 ? `RESEND IN ${countdown}s` : "CODE EXPIRED?"}</span>
                 <span
-                  className={`${styles.resendBtn} ${countdown === 0 ? styles.active : ""}`}
-                  onClick={() => countdown === 0 && handleSendOtp()}
+                  className={`${styles.resendBtn} ${countdown === 0 && !resending && !resendSent ? styles.active : ""}`}
+                  onClick={handleResendOtp}
+                  style={resendSent ? { color: "#52ff9b", opacity: 1, pointerEvents: "none" } : resending ? { opacity: 0.6, pointerEvents: "none" } : {}}
                 >
-                  RESEND OTP
+                  {resending ? "RESENDING OTP..." : resendSent ? "✓ CODE SENT" : "RESEND OTP"}
                 </span>
               </div>
 
-              <button type="button" className={styles.submitBtn} onClick={handleVerifyOtp} disabled={loading}>
-                {loading ? "VERIFYING..." : "VERIFY CODE"}
+              <button
+                type="button"
+                className={`${styles.submitBtn} ${error ? styles.errorBtn : success ? styles.successBtn : ""}`}
+                onClick={handleVerifyOtp}
+                disabled={loading || !!error || !!success}
+              >
+                {error ? error : success ? "✓ SUCCESS!" : loading ? "VERIFYING..." : "VERIFY CODE"}
               </button>
             </div>
           )}
@@ -594,45 +651,57 @@ export default function ChangePasswordPage() {
                 </button>
               </div>
 
-              {/* Caps Lock indicator (match the simple inline style used on your login page approach) */}
               {capsOn1 && (
                 <div style={{ marginTop: 8, color: "var(--accent-orange)", fontSize: "0.82rem", fontWeight: 700 }}>
                   CAPS LOCK IS ON
                 </div>
               )}
 
-              {pwErrorText ? (
-                <div style={{ marginTop: 8, color: "#ff5b5b", fontSize: "0.82rem", lineHeight: 1.35 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+                <div
+                  style={{
+                    color: "#ff5b5b",
+                    fontSize: "0.82rem",
+                    lineHeight: 1.35,
+                    opacity: pwErrorText ? 1 : 0,
+                    minHeight: "18px",
+                  }}
+                >
                   {pwErrorText}
                 </div>
-              ) : (
-                <div style={{ marginTop: 8, color: "var(--text-grey)", fontSize: "0.82rem", lineHeight: 1.35 }}>
+                <div style={{ color: "var(--text-grey)", fontSize: "0.82rem", lineHeight: 1.35 }}>
                   15–20 chars only. Must include: uppercase, lowercase, number, and one symbol from: <b>! @ ? _ -</b>
                 </div>
-              )}
+              </div>
 
-              {showPwFeedback && password.length > 0 && (
-                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <div style={{ fontSize: "0.78rem", color: checks.lengthOk ? "#52ff9b" : "var(--text-grey)" }}>
-                    • 15–20 chars
-                  </div>
-                  <div style={{ fontSize: "0.78rem", color: checks.upperOk ? "#52ff9b" : "var(--text-grey)" }}>
-                    • Uppercase
-                  </div>
-                  <div style={{ fontSize: "0.78rem", color: checks.lowerOk ? "#52ff9b" : "var(--text-grey)" }}>
-                    • Lowercase
-                  </div>
-                  <div style={{ fontSize: "0.78rem", color: checks.numberOk ? "#52ff9b" : "var(--text-grey)" }}>
-                    • Number
-                  </div>
-                  <div style={{ fontSize: "0.78rem", color: checks.symbolOk ? "#52ff9b" : "var(--text-grey)" }}>
-                    • Symbol (! @ ? _ -)
-                  </div>
-                  <div style={{ fontSize: "0.78rem", color: checks.onlyAllowed ? "#52ff9b" : "#ff5b5b" }}>
-                    • Only allowed chars
-                  </div>
+              {/* Checks grid — always visible */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                  marginTop: 10,
+                }}
+              >
+                <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.lengthOk ? "#52ff9b" : "var(--text-grey)" }}>
+                  • 15–20 chars
                 </div>
-              )}
+                <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.upperOk ? "#52ff9b" : "var(--text-grey)" }}>
+                  • Uppercase
+                </div>
+                <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.lowerOk ? "#52ff9b" : "var(--text-grey)" }}>
+                  • Lowercase
+                </div>
+                <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.numberOk ? "#52ff9b" : "var(--text-grey)" }}>
+                  • Number
+                </div>
+                <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.symbolOk ? "#52ff9b" : "var(--text-grey)" }}>
+                  • Symbol (! @ ? _ -)
+                </div>
+                <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: passwordsMatch ? "#52ff9b" : (confirmPassword.length > 0 ? "#ff5b5b" : "var(--text-grey)") }}>
+                  • Passwords match
+                </div>
+              </div>
             </div>
 
             <div className={styles.inputGroup}>
@@ -692,11 +761,7 @@ export default function ChangePasswordPage() {
                 </div>
               )}
 
-              {confirmErrorText ? (
-                <div style={{ marginTop: 8, color: "#ff5b5b", fontSize: "0.82rem" }}>{confirmErrorText}</div>
-              ) : touchedConfirm && confirmPassword.length > 0 && passwordsMatch ? (
-                <div style={{ marginTop: 8, color: "#52ff9b", fontSize: "0.82rem" }}>PASSWORDS MATCH</div>
-              ) : null}
+
             </div>
 
             <button type="submit" className={styles.submitBtn} disabled={!canProceedPasswordStep}>
@@ -717,11 +782,13 @@ export default function ChangePasswordPage() {
                   <option value="" disabled>
                     Select Question...
                   </option>
-                  {questions.map((q) => (
-                    <option key={q.question_id} value={q.question_id}>
-                      {q.question_text}
-                    </option>
-                  ))}
+                  {questions
+                    .filter((q) => q.question_id !== Number(q2) && q.question_id !== Number(q3))
+                    .map((q) => (
+                      <option key={q.question_id} value={q.question_id}>
+                        {q.question_text}
+                      </option>
+                    ))}
                 </select>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" }}>
@@ -753,7 +820,7 @@ export default function ChangePasswordPage() {
                     Select Question...
                   </option>
                   {questions
-                    .filter((q) => q.question_id !== Number(q1))
+                    .filter((q) => q.question_id !== Number(q1) && q.question_id !== Number(q3))
                     .map((q) => (
                       <option key={q.question_id} value={q.question_id}>
                         {q.question_text}
@@ -821,8 +888,8 @@ export default function ChangePasswordPage() {
               </div>
 
               <div className={styles.securityFooter}>
-                <button type="submit" className={styles.submitBtn} disabled={loading}>
-                  {loading ? "SAVING..." : "SAVE & CONTINUE"}
+                <button type="submit" className={`${styles.submitBtn} ${error && step === 3 ? styles.errorBtn : ""}`} disabled={loading || (!!error && step === 3)}>
+                  {error && step === 3 ? error : loading ? "SAVING..." : "SAVE & CONTINUE"}
                 </button>
               </div>
             </div>

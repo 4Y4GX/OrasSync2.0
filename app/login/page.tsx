@@ -21,6 +21,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [lockedNotice, setLockedNotice] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
   const [showPass, setShowPass] = useState(false);
 
   // touched states
@@ -69,6 +72,7 @@ export default function LoginPage() {
   }, [countdown]);
 
   const handleOtpChange = (index: number, rawValue: string) => {
+    if (error) setError("");
     const clean = removeEmojis(rawValue).replace(/\D/g, "");
     if (clean.length > 1) {
       const paste = clean.slice(0, 6).split("");
@@ -87,6 +91,7 @@ export default function LoginPage() {
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (error) setError("");
     if (e.key === "Backspace") {
       e.preventDefault();
       const newOtp = [...otp];
@@ -121,6 +126,38 @@ export default function LoginPage() {
     });
     setOtp(newOtp);
     otpRefs.current[Math.min(chars.length, 5)]?.focus();
+  };
+
+  const handleResendOtp = async () => {
+    if (countdown > 0 || loading || resending) return;
+    setError("");
+    setResending(true);
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: normalizeIdentifier(identifier),
+          password: removeEmojis(password),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.requiresOtp) {
+        setCountdown(90);
+        setOtp(["", "", "", "", "", ""]);
+        setResendSent(true);
+        setTimeout(() => {
+          setResendSent(false);
+          otpRefs.current[0]?.focus();
+        }, 1500);
+      } else {
+        setError("RESEND FAILED");
+      }
+    } catch {
+      setError("RESEND FAILED");
+    } finally {
+      setResending(false);
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -169,11 +206,12 @@ export default function LoginPage() {
       }
 
       if (!res.ok) {
-        setError(data?.message?.toUpperCase() || "INVALID CREDENTIALS");
         if (step === 2 && data?.message !== "OTP Required") {
+          setError("INVALID CODE");
           setOtp(["", "", "", "", "", ""]);
           otpRefs.current[0]?.focus();
         } else {
+          setError(data?.message?.toUpperCase() || "INVALID CREDENTIALS");
           setPassword("");
         }
         return;
@@ -196,7 +234,13 @@ export default function LoginPage() {
       localStorage.setItem("user_id", data.user.user_id);
       localStorage.setItem("user_name", data.user.name ?? "");
       console.log("LOGIN CLIENT DEBUG: Redirecting to:", data.redirect, "Role:", data.user.role_id);
-      router.push(data.redirect);
+      // ✅ Flash green success before redirect
+      if (step === 2) {
+        setVerified(true);
+        setTimeout(() => router.push(data.redirect), 1200);
+      } else {
+        router.push(data.redirect);
+      }
     } catch {
       setError("CONNECTION ERROR");
     } finally {
@@ -209,8 +253,10 @@ export default function LoginPage() {
       headerTag={step === 1 ? "SECURE LOGIN" : "VERIFICATION"}
       title={step === 1 ? "LOGIN" : "VERIFY CODE"}
       subtitle={step === 1 ? "ENTER YOUR CREDENTIALS." : "ENTER THE 6-DIGIT OTP SENT TO YOUR CONTACT."}
+      error={null}
+      errorPosition="bottom"
+      errorOffset={step === 1 ? "75px" : undefined}
     >
-      {error && <div className="text-red-500 text-sm font-bold mb-3 text-center uppercase">{error}</div>}
 
       {lockedNotice && (
         <div className="text-orange-400 text-sm font-bold mb-4 text-center uppercase">
@@ -302,8 +348,12 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button type="submit" className={styles.submitBtn} disabled={!canSubmit}>
-              {loading ? "SIGNING IN..." : "LOGIN"}
+            <button
+              type="submit"
+              className={`${styles.submitBtn} ${error && step === 1 ? styles.errorBtn : ""}`}
+              disabled={!canSubmit && !error}
+            >
+              {error && step === 1 ? error : loading ? "SIGNING IN..." : "LOGIN"}
             </button>
           </form>
         </div>
@@ -335,22 +385,21 @@ export default function LoginPage() {
           <div className={styles.resendWrapper}>
             <span>{countdown > 0 ? `RESEND IN ${countdown}s` : "CODE EXPIRED?"}</span>
             <span
-              className={`${styles.resendBtn} ${countdown === 0 ? styles.active : ""}`}
-              onClick={() => {
-                if (countdown === 0) {
-                  // Resend means we just re-run handleLogin with step 1 logic
-                  setStep(1);
-                  setOtp(["", "", "", "", "", ""]);
-                  handleLogin({ preventDefault: () => { } } as React.FormEvent);
-                }
-              }}
+              className={`${styles.resendBtn} ${countdown === 0 && !resending && !resendSent ? styles.active : ""}`}
+              onClick={handleResendOtp}
+              style={resendSent ? { color: "#52ff9b", opacity: 1, pointerEvents: "none" } : resending ? { opacity: 0.6, pointerEvents: "none" } : {}}
             >
-              RESEND OTP
+              {resending ? "RESENDING OTP..." : resendSent ? "✓ CODE SENT" : "RESEND OTP"}
             </span>
           </div>
 
-          <button type="button" className={styles.submitBtn} onClick={handleLogin} disabled={loading}>
-            {loading ? "VERIFYING..." : "VERIFY CODE"}
+          <button
+            type="button"
+            className={`${styles.submitBtn} ${error && step === 2 ? styles.errorBtn : verified ? styles.successBtn : ""}`}
+            onClick={handleLogin}
+            disabled={loading || verified || (!!error && step === 2)}
+          >
+            {error && step === 2 ? error : verified ? "✓ SUCCESS!" : loading ? "VERIFYING..." : "VERIFY CODE"}
           </button>
 
           <div className={styles.forgotPass} style={{ textAlign: "center", marginTop: "15px" }} onClick={() => {

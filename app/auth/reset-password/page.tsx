@@ -22,6 +22,7 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [securityVerified, setSecurityVerified] = useState(false);
 
   const [question, setQuestion] = useState("");
   const [questionId, setQuestionId] = useState<number | null>(null);
@@ -133,15 +134,19 @@ export default function ResetPasswordPage() {
       });
 
       if (res.ok) {
-        setStep(2);
-        setAnswer("");
+        setSecurityVerified(true);
+        setTimeout(() => {
+          setStep(2);
+          setAnswer("");
+          setSecurityVerified(false);
+        }, 1000);
       } else {
         setAnswer("");
-        setError("VERIFICATION FAILED");
+        setError("WRONG ANSWER");
       }
     } catch {
       setAnswer("");
-      setError("VERIFICATION FAILED");
+      setError("WRONG ANSWER");
     } finally {
       setLoading(false);
     }
@@ -241,8 +246,6 @@ export default function ResetPasswordPage() {
         </div>
       ) : (
         <>
-          {error && <div className="text-red-500 text-sm font-bold mb-4 text-center uppercase">{error}</div>}
-          {success && <div className="text-green-500 text-sm font-bold mb-4 text-center uppercase">{success}</div>}
 
           {step === 1 && (
             <div className={`${styles.formContainer} ${styles.visibleForm}`}>
@@ -257,17 +260,21 @@ export default function ResetPasswordPage() {
                     className={styles.input}
                     placeholder="YOUR ANSWER"
                     value={answer}
-                    onChange={(e) => setAnswer(removeEmojis(e.target.value))}
-                    onBlur={() => {
-                      if (answer.trim().length === 0) setError("REQUEST FAILED");
+                    onChange={(e) => {
+                      if (error) setError("");
+                      setAnswer(removeEmojis(e.target.value));
                     }}
-                    onFocus={() => setError("")}
+                    onFocus={() => { if (error) setError(""); }}
                     required
                   />
                 </div>
 
-                <button type="submit" className={styles.submitBtn} disabled={loading || !questionId}>
-                  {loading ? "VERIFYING..." : "VERIFY ANSWER"}
+                <button
+                  type="submit"
+                  className={`${styles.submitBtn} ${error ? styles.errorBtn : securityVerified ? styles.successBtn : ""}`}
+                  disabled={loading || !questionId || !!error || securityVerified}
+                >
+                  {error ? error : securityVerified ? "✓ VERIFIED" : loading ? "VERIFYING..." : "VERIFY ANSWER"}
                 </button>
               </form>
             </div>
@@ -328,38 +335,50 @@ export default function ResetPasswordPage() {
                     </div>
                   )}
 
-                  {pwErrorText ? (
-                    <div style={{ marginTop: 8, color: "#ff5b5b", fontSize: "0.82rem", lineHeight: 1.35 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8 }}>
+                    <div
+                      style={{
+                        color: "#ff5b5b",
+                        fontSize: "0.82rem",
+                        lineHeight: 1.35,
+                        opacity: pwErrorText ? 1 : 0,
+                        minHeight: "18px",
+                      }}
+                    >
                       {pwErrorText}
                     </div>
-                  ) : (
-                    <div style={{ marginTop: 8, color: "var(--text-grey)", fontSize: "0.82rem", lineHeight: 1.35 }}>
+                    <div style={{ color: "var(--text-grey)", fontSize: "0.82rem", lineHeight: 1.35 }}>
                       15–20 chars only. Must include: uppercase, lowercase, number, and one symbol from: <b>! @ ? _ -</b>
                     </div>
-                  )}
+                  </div>
 
-                  {showPwFeedback && newPass.length > 0 && (
-                    <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <div style={{ fontSize: "0.78rem", color: checks.lengthOk ? "#52ff9b" : "var(--text-grey)" }}>
-                        • 15–20 chars
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: checks.upperOk ? "#52ff9b" : "var(--text-grey)" }}>
-                        • Uppercase
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: checks.lowerOk ? "#52ff9b" : "var(--text-grey)" }}>
-                        • Lowercase
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: checks.numberOk ? "#52ff9b" : "var(--text-grey)" }}>
-                        • Number
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: checks.symbolOk ? "#52ff9b" : "var(--text-grey)" }}>
-                        • Symbol (! @ ? _ -)
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: checks.onlyAllowed ? "#52ff9b" : "#ff5b5b" }}>
-                        • Only allowed chars
-                      </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 8,
+                      marginTop: 10,
+                    }}
+                  >
+                    <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.lengthOk ? "#52ff9b" : "var(--text-grey)" }}>
+                      • 15–20 chars
                     </div>
-                  )}
+                    <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.upperOk ? "#52ff9b" : "var(--text-grey)" }}>
+                      • Uppercase
+                    </div>
+                    <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.lowerOk ? "#52ff9b" : "var(--text-grey)" }}>
+                      • Lowercase
+                    </div>
+                    <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.numberOk ? "#52ff9b" : "var(--text-grey)" }}>
+                      • Number
+                    </div>
+                    <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: checks.symbolOk ? "#52ff9b" : "var(--text-grey)" }}>
+                      • Symbol (! @ ? _ -)
+                    </div>
+                    <div style={{ fontSize: "0.78rem", transition: "color 0.3s ease", color: passwordsMatch ? "#52ff9b" : (confirmPass.length > 0 ? "#ff5b5b" : "var(--text-grey)") }}>
+                      • Passwords match
+                    </div>
+                  </div>
                 </div>
 
                 <div className={styles.inputGroup}>
@@ -414,11 +433,7 @@ export default function ResetPasswordPage() {
                     </div>
                   )}
 
-                  {confirmErrorText ? (
-                    <div style={{ marginTop: 8, color: "#ff5b5b", fontSize: "0.82rem" }}>{confirmErrorText}</div>
-                  ) : touchedConfirm && confirmPass.length > 0 && passwordsMatch ? (
-                    <div style={{ marginTop: 8, color: "#52ff9b", fontSize: "0.82rem" }}>PASSWORDS MATCH</div>
-                  ) : null}
+
                 </div>
 
                 <button type="submit" className={styles.submitBtn} disabled={!canSubmitNewPassword}>
