@@ -1011,18 +1011,10 @@ export default function ManagerDashboard() {
                     <h4 style={{ color: 'var(--text-main)', marginBottom: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '5px' }}>Security</h4>
                     <div style={{ background: 'var(--bg-input)', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Change Password</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Confirm your email address to receive a verification code.</div>
-
-                      <input
-                        type="email"
-                        placeholder="Manager Email Address"
-                        value={managerEmailInput}
-                        onChange={(e) => setManagerEmailInput(e.target.value)}
-                        style={{ width: '100%', padding: '12px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px', marginBottom: '5px' }}
-                      />
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A verification code will be sent to your registered email address.</div>
 
                       <button className="btn-action btn-standard" onClick={handleStartPasswordChange} style={{ alignSelf: 'flex-start' }} disabled={!managerEmailInput.trim() || pwLoading}>
-                        {pwLoading ? "Sending..." : "Send Verification Code"}
+                        {pwLoading ? "Sending Code..." : "Change Password"}
                       </button>
                       {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem' }}>{pwError}</div>}
                     </div>

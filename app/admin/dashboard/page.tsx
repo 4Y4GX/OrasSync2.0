@@ -30,7 +30,7 @@ export default function AdminDashboard() {
   // Admin Data State
   const [adminName, setAdminName] = useState('Loading...');
   const [adminInitials, setAdminInitials] = useState('AD');
-  
+
   // Email states for Password Change
   const [adminEmailInput, setAdminEmailInput] = useState('');
 
@@ -91,10 +91,10 @@ export default function AdminDashboard() {
         if (data && data.first_name) {
           const fullName = `${data.first_name} ${data.last_name || ''}`.trim();
           setAdminName(fullName);
-          
+
           // Pre-fill email if available from the token
           if (data.email) {
-             setAdminEmailInput(data.email);
+            setAdminEmailInput(data.email);
           }
 
           const firstInit = data.first_name.charAt(0).toUpperCase();
@@ -141,91 +141,91 @@ export default function AdminDashboard() {
 
   // --- PASSWORD CHANGE HANDLERS ---
   const handleStartPasswordChange = async () => {
-      if (!adminEmailInput.trim()) {
-          setPwError("Please enter your email address.");
-          return;
-      }
+    if (!adminEmailInput.trim()) {
+      setPwError("Please enter your email address.");
+      return;
+    }
 
-      setPwLoading(true);
-      setPwError("");
-      try {
-          const res = await fetch('/api/auth/otp/generate', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              // Using the explicitly entered/confirmed email
-              body: JSON.stringify({ email: adminEmailInput.trim() }) 
-          });
-          if (res.ok) { setPwStep(1); setOtp(["", "", "", "", "", ""]); } 
-          else { setPwError("Failed to send OTP. Check your email address."); }
-      } catch (e) { setPwError("Connection error."); } 
-      finally { setPwLoading(false); }
+    setPwLoading(true);
+    setPwError("");
+    try {
+      const res = await fetch('/api/auth/otp/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        // Using the explicitly entered/confirmed email
+        body: JSON.stringify({ email: adminEmailInput.trim() })
+      });
+      if (res.ok) { setPwStep(1); setOtp(["", "", "", "", "", ""]); }
+      else { setPwError("Failed to send OTP. Check your email address."); }
+    } catch (e) { setPwError("Connection error."); }
+    finally { setPwLoading(false); }
   };
 
   const handleVerifyOtp = async () => {
-      const code = otp.join("");
-      if (code.length < 6) return;
-      setPwLoading(true);
-      setPwError("");
-      try {
-          const res = await fetch('/api/auth/otp/verify', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: adminEmailInput.trim(), otp: code, flow: "recovery" })
-          });
-          if (res.ok) {
-              const qRes = await fetch('/api/manager/security-questions'); 
-              if (qRes.ok) {
-                  const qData = await qRes.json();
-                  setSecQuestion({ id: qData.questionId, text: qData.questionText });
-                  setPwStep(2);
-              } else { 
-                  const errData = await qRes.json().catch(()=>({}));
-                  setPwError(errData.message || "Failed to load security question."); 
-              }
-          } else { setPwError("Invalid or expired OTP."); setOtp(["", "", "", "", "", ""]); }
-      } catch (e) { setPwError("Verification failed."); } 
-      finally { setPwLoading(false); }
+    const code = otp.join("");
+    if (code.length < 6) return;
+    setPwLoading(true);
+    setPwError("");
+    try {
+      const res = await fetch('/api/auth/otp/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: adminEmailInput.trim(), otp: code, flow: "recovery" })
+      });
+      if (res.ok) {
+        const qRes = await fetch('/api/manager/security-questions');
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          setSecQuestion({ id: qData.questionId, text: qData.questionText });
+          setPwStep(2);
+        } else {
+          const errData = await qRes.json().catch(() => ({}));
+          setPwError(errData.message || "Failed to load security question.");
+        }
+      } else { setPwError("Invalid or expired OTP."); setOtp(["", "", "", "", "", ""]); }
+    } catch (e) { setPwError("Verification failed."); }
+    finally { setPwLoading(false); }
   };
 
   const handleAnswerQuestion = async () => {
-      if (!secAnswer.trim()) { setPwError("Please provide an answer."); return; }
-      setPwLoading(true);
-      setPwError("");
-      try {
-          const res = await fetch('/api/auth/security-question', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ questionId: secQuestion.id, answer: secAnswer.trim() })
-          });
-          if (res.ok) { setPwStep(3); } 
-          else { setPwError("Incorrect answer."); }
-      } catch (e) { setPwError("Verification failed."); } 
-      finally { setPwLoading(false); }
+    if (!secAnswer.trim()) { setPwError("Please provide an answer."); return; }
+    setPwLoading(true);
+    setPwError("");
+    try {
+      const res = await fetch('/api/auth/security-question', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId: secQuestion.id, answer: secAnswer.trim() })
+      });
+      if (res.ok) { setPwStep(3); }
+      else { setPwError("Incorrect answer."); }
+    } catch (e) { setPwError("Verification failed."); }
+    finally { setPwLoading(false); }
   };
 
   const handleResetPassword = async () => {
-      if (!pwValidation.strongOk || !passwordsMatch) return;
-      setPwLoading(true);
-      setPwError("");
-      try {
-          const res = await fetch('/api/auth/reset-password', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ newPassword })
-          });
-          if (res.ok) { setPwStep(4); } 
-          else { setPwError("Failed to update password."); }
-      } catch (e) { setPwError("Update failed."); } 
-      finally { setPwLoading(false); }
+    if (!pwValidation.strongOk || !passwordsMatch) return;
+    setPwLoading(true);
+    setPwError("");
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword })
+      });
+      if (res.ok) { setPwStep(4); }
+      else { setPwError("Failed to update password."); }
+    } catch (e) { setPwError("Update failed."); }
+    finally { setPwLoading(false); }
   };
 
   const resetSettingsState = () => {
-      setShowSettingsModal(false);
-      setTimeout(() => { 
-          setPwStep(0); 
-          setPwError(""); 
-          setNewPassword(""); 
-          setConfirmNewPassword(""); 
-          setSecAnswer(""); 
-          setShowPw(false);
-          setShowConfirmPw(false);
-      }, 300);
+    setShowSettingsModal(false);
+    setTimeout(() => {
+      setPwStep(0);
+      setPwError("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setSecAnswer("");
+      setShowPw(false);
+      setShowConfirmPw(false);
+    }, 300);
   };
 
   if (!mounted) return null;
@@ -272,7 +272,7 @@ export default function AdminDashboard() {
                 }}
                 type="button"
               >
-                <span className="menu-icon" style={{marginRight: '8px'}}>⚙</span>
+                <span className="menu-icon" style={{ marginRight: '8px' }}>⚙</span>
                 <span>Settings</span>
               </button>
 
@@ -285,7 +285,7 @@ export default function AdminDashboard() {
                 type="button"
                 disabled={actionBusy}
               >
-                <span className="menu-icon" style={{marginRight: '8px'}}>⎋</span>
+                <span className="menu-icon" style={{ marginRight: '8px' }}>⎋</span>
                 <span>Log Out</span>
               </button>
             </div>
@@ -349,186 +349,172 @@ export default function AdminDashboard() {
               <span className="modal-title" style={{ color: '#3b82f6', fontWeight: 800, fontSize: '1.1rem' }}>Settings</span>
               <span onClick={resetSettingsState} style={{ cursor: 'pointer', fontSize: '1.2rem', color: lightMode ? '#666' : '#aaa' }}>✕</span>
             </div>
-            
+
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '25px', padding: '30px' }}>
               {pwStep === 0 && (
                 <>
                   <div>
-                      <h4 style={{ color: lightMode ? '#1a1a2e' : '#fff', marginBottom: '10px', borderBottom: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)', paddingBottom: '5px' }}>Appearance</h4>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f8f9fa' : 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)' }}>
-                          <div>
-                              <div style={{ fontWeight: 600, color: lightMode ? '#1a1a2e' : '#fff' }}>Theme Mode</div>
-                              <div style={{ fontSize: '0.8rem', color: lightMode ? '#666' : 'rgba(255,255,255,0.5)' }}>Toggle between Dark and Light mode.</div>
-                          </div>
-                          <button 
-                              onClick={() => setLightMode(!lightMode)}
-                              style={{ 
-                                padding: '8px 15px', 
-                                color: lightMode ? '#fff' : '#3b82f6', 
-                                border: lightMode ? 'none' : '1px solid #3b82f6', 
-                                background: lightMode ? '#3b82f6' : 'transparent',
-                                borderRadius: '6px',
-                                fontWeight: 'bold',
-                                cursor: 'pointer'
-                              }}
-                          >
-                              {lightMode ? 'Light Mode' : 'Dark Mode'}
-                          </button>
+                    <h4 style={{ color: lightMode ? '#1a1a2e' : '#fff', marginBottom: '10px', borderBottom: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)', paddingBottom: '5px' }}>Appearance</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: lightMode ? '#f8f9fa' : 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: lightMode ? '#1a1a2e' : '#fff' }}>Theme Mode</div>
+                        <div style={{ fontSize: '0.8rem', color: lightMode ? '#666' : 'rgba(255,255,255,0.5)' }}>Toggle between Dark and Light mode.</div>
                       </div>
+                      <button
+                        onClick={() => setLightMode(!lightMode)}
+                        style={{
+                          padding: '8px 15px',
+                          color: lightMode ? '#fff' : '#3b82f6',
+                          border: lightMode ? 'none' : '1px solid #3b82f6',
+                          background: lightMode ? '#3b82f6' : 'transparent',
+                          borderRadius: '6px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {lightMode ? 'Light Mode' : 'Dark Mode'}
+                      </button>
+                    </div>
                   </div>
 
                   <div>
-                      <h4 style={{ color: lightMode ? '#1a1a2e' : '#fff', marginBottom: '10px', borderBottom: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)', paddingBottom: '5px' }}>Security</h4>
-                      <div style={{ background: lightMode ? '#f8f9fa' : 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px', border: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ fontWeight: 600, color: lightMode ? '#1a1a2e' : '#fff' }}>Change Password</div>
-                          <div style={{ fontSize: '0.8rem', color: lightMode ? '#666' : 'rgba(255,255,255,0.5)' }}>Confirm your email address to receive a verification code.</div>
-                          
-                          <input 
-                              type="email" 
-                              placeholder="Admin Email Address" 
-                              value={adminEmailInput} 
-                              onChange={(e) => setAdminEmailInput(e.target.value)} 
-                              style={{ 
-                                  width: '100%', padding: '10px', borderRadius: '6px', 
-                                  border: lightMode ? '1px solid #ccc' : '1px solid #444', 
-                                  background: lightMode ? '#fff' : 'transparent', 
-                                  color: lightMode ? '#000' : '#fff', 
-                                  marginBottom: '5px' 
-                              }}
-                          />
+                    <h4 style={{ color: lightMode ? '#1a1a2e' : '#fff', marginBottom: '10px', borderBottom: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)', paddingBottom: '5px' }}>Security</h4>
+                    <div style={{ background: lightMode ? '#f8f9fa' : 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px', border: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ fontWeight: 600, color: lightMode ? '#1a1a2e' : '#fff' }}>Change Password</div>
+                      <div style={{ fontSize: '0.8rem', color: lightMode ? '#666' : 'rgba(255,255,255,0.5)' }}>A verification code will be sent to your registered email address.</div>
 
-                          <button onClick={handleStartPasswordChange} style={{ alignSelf: 'flex-start', padding: '10px 20px', borderRadius: '6px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', fontWeight: 'bold', cursor: (!adminEmailInput.trim() || pwLoading) ? 'not-allowed' : 'pointer', opacity: (!adminEmailInput.trim() || pwLoading) ? 0.5 : 1 }} disabled={!adminEmailInput.trim() || pwLoading}>
-                              {pwLoading ? "Sending..." : "Send Verification Code"}
-                          </button>
-                          {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem' }}>{pwError}</div>}
-                      </div>
+                      <button onClick={handleStartPasswordChange} style={{ alignSelf: 'flex-start', padding: '10px 20px', borderRadius: '6px', backgroundColor: '#3b82f6', color: '#fff', border: 'none', fontWeight: 'bold', cursor: (!adminEmailInput.trim() || pwLoading) ? 'not-allowed' : 'pointer', opacity: (!adminEmailInput.trim() || pwLoading) ? 0.5 : 1 }} disabled={!adminEmailInput.trim() || pwLoading}>
+                        {pwLoading ? "Sending Code..." : "Change Password"}
+                      </button>
+                      {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem' }}>{pwError}</div>}
+                    </div>
                   </div>
                 </>
               )}
 
               {/* STEP 1: VERIFY OTP */}
               {pwStep === 1 && (
-                  <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      <h4 style={{ color: '#3b82f6' }}>Verify Identity</h4>
-                      <p style={{ fontSize: '0.85rem', color: lightMode ? '#666' : '#aaa' }}>Enter the 6-digit code sent to your registered contact.</p>
-                      
-                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', margin: '15px 0' }}>
-                          {otp.map((digit, idx) => (
-                              <input 
-                                  key={idx} ref={(el) => { otpRefs.current[idx] = el; }}
-                                  type="text" inputMode="numeric" maxLength={1} value={digit}
-                                  onChange={(e) => {
-                                      const val = e.target.value.replace(/\D/g, "");
-                                      const newOtp = [...otp]; newOtp[idx] = val; setOtp(newOtp);
-                                      if (val && idx < 5) otpRefs.current[idx + 1]?.focus();
-                                  }}
-                                  onKeyDown={(e) => {
-                                      if (e.key === "Backspace" && !otp[idx] && idx > 0) {
-                                          const newOtp = [...otp]; newOtp[idx - 1] = ""; setOtp(newOtp);
-                                          otpRefs.current[idx - 1]?.focus();
-                                      }
-                                  }}
-                                  style={{ width: '45px', height: '55px', textAlign: 'center', fontSize: '1.5rem', background: lightMode ? '#fff' : 'rgba(255,255,255,0.02)', border: lightMode ? '1px solid #ccc' : '1px solid #444', color: lightMode ? '#000' : '#fff', borderRadius: '8px' }}
-                              />
-                          ))}
-                      </div>
+                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <h4 style={{ color: '#3b82f6' }}>Verify Identity</h4>
+                  <p style={{ fontSize: '0.85rem', color: lightMode ? '#666' : '#aaa' }}>Enter the 6-digit code sent to your registered contact.</p>
 
-                      {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
-                      
-                      <button onClick={handleVerifyOtp} disabled={pwLoading || otp.join('').length < 6} style={{ padding: '14px', backgroundColor: '#46e38a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: (pwLoading || otp.join('').length < 6) ? 'not-allowed' : 'pointer', opacity: (pwLoading || otp.join('').length < 6) ? 0.5 : 1 }}>
-                          {pwLoading ? "Verifying..." : "Verify Code"}
-                      </button>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', margin: '15px 0' }}>
+                    {otp.map((digit, idx) => (
+                      <input
+                        key={idx} ref={(el) => { otpRefs.current[idx] = el; }}
+                        type="text" inputMode="numeric" maxLength={1} value={digit}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, "");
+                          const newOtp = [...otp]; newOtp[idx] = val; setOtp(newOtp);
+                          if (val && idx < 5) otpRefs.current[idx + 1]?.focus();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Backspace" && !otp[idx] && idx > 0) {
+                            const newOtp = [...otp]; newOtp[idx - 1] = ""; setOtp(newOtp);
+                            otpRefs.current[idx - 1]?.focus();
+                          }
+                        }}
+                        style={{ width: '45px', height: '55px', textAlign: 'center', fontSize: '1.5rem', background: lightMode ? '#fff' : 'rgba(255,255,255,0.02)', border: lightMode ? '1px solid #ccc' : '1px solid #444', color: lightMode ? '#000' : '#fff', borderRadius: '8px' }}
+                      />
+                    ))}
                   </div>
+
+                  {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
+
+                  <button onClick={handleVerifyOtp} disabled={pwLoading || otp.join('').length < 6} style={{ padding: '14px', backgroundColor: '#46e38a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: (pwLoading || otp.join('').length < 6) ? 'not-allowed' : 'pointer', opacity: (pwLoading || otp.join('').length < 6) ? 0.5 : 1 }}>
+                    {pwLoading ? "Verifying..." : "Verify Code"}
+                  </button>
+                </div>
               )}
 
               {/* STEP 2: SECURITY QUESTION */}
               {pwStep === 2 && (
-                  <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      <h4 style={{ color: '#3b82f6' }}>Security Question</h4>
-                      <p style={{ fontSize: '0.85rem', color: lightMode ? '#666' : '#aaa' }}>Please answer your security question to continue.</p>
-                      
-                      <div style={{ background: lightMode ? '#f8f9fa' : 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600 }}>
-                          {secQuestion.text}
-                      </div>
+                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <h4 style={{ color: '#3b82f6' }}>Security Question</h4>
+                  <p style={{ fontSize: '0.85rem', color: lightMode ? '#666' : '#aaa' }}>Please answer your security question to continue.</p>
 
-                      <input 
-                          type="text" placeholder="Your Answer" 
-                          style={{ padding: '12px', borderRadius: '8px', border: lightMode ? '1px solid #ccc' : '1px solid #444', background: lightMode ? '#fff' : 'transparent', color: lightMode ? '#000' : '#fff' }}
-                          value={secAnswer} onChange={(e) => setSecAnswer(e.target.value)}
-                      />
-
-                      {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
-
-                      <button onClick={handleAnswerQuestion} disabled={pwLoading || !secAnswer.trim()} style={{ padding: '14px', backgroundColor: '#46e38a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: (pwLoading || !secAnswer.trim()) ? 'not-allowed' : 'pointer', opacity: (pwLoading || !secAnswer.trim()) ? 0.5 : 1 }}>
-                          {pwLoading ? "Verifying..." : "Submit Answer"}
-                      </button>
+                  <div style={{ background: lightMode ? '#f8f9fa' : 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600 }}>
+                    {secQuestion.text}
                   </div>
+
+                  <input
+                    type="text" placeholder="Your Answer"
+                    style={{ padding: '12px', borderRadius: '8px', border: lightMode ? '1px solid #ccc' : '1px solid #444', background: lightMode ? '#fff' : 'transparent', color: lightMode ? '#000' : '#fff' }}
+                    value={secAnswer} onChange={(e) => setSecAnswer(e.target.value)}
+                  />
+
+                  {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
+
+                  <button onClick={handleAnswerQuestion} disabled={pwLoading || !secAnswer.trim()} style={{ padding: '14px', backgroundColor: '#46e38a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: (pwLoading || !secAnswer.trim()) ? 'not-allowed' : 'pointer', opacity: (pwLoading || !secAnswer.trim()) ? 0.5 : 1 }}>
+                    {pwLoading ? "Verifying..." : "Submit Answer"}
+                  </button>
+                </div>
               )}
 
               {/* STEP 3: NEW PASSWORD */}
               {pwStep === 3 && (
-                  <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                      <h4 style={{ color: '#3b82f6' }}>Create New Password</h4>
-                      
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                          <input 
-                              type={showPw ? "text" : "password"} placeholder="New Password" 
-                              style={{ width: '100%', padding: '12px', paddingRight: '120px', borderRadius: '8px', border: lightMode ? '1px solid #ccc' : '1px solid #444', background: lightMode ? '#fff' : 'transparent', color: lightMode ? '#000' : '#fff' }}
-                              value={newPassword} onChange={(e) => setNewPassword(e.target.value.slice(0,20))}
-                          />
-                          <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: lightMode ? '#888' : '#aaa', textTransform: 'uppercase', padding: '5px' }}>
-                              {showPw ? "Hide Password" : "Show Password"}
-                          </button>
-                      </div>
+                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <h4 style={{ color: '#3b82f6' }}>Create New Password</h4>
 
-                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                          <input 
-                              type={showConfirmPw ? "text" : "password"} placeholder="Confirm Password" 
-                              style={{ width: '100%', padding: '12px', paddingRight: '120px', borderRadius: '8px', border: lightMode ? '1px solid #ccc' : '1px solid #444', background: lightMode ? '#fff' : 'transparent', color: lightMode ? '#000' : '#fff' }}
-                              value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value.slice(0,20))}
-                          />
-                          <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: lightMode ? '#888' : '#aaa', textTransform: 'uppercase', padding: '5px' }}>
-                              {showConfirmPw ? "Hide Password" : "Show Password"}
-                          </button>
-                      </div>
-
-                      <div style={{ fontSize: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: lightMode ? '#f8f9fa' : 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ color: pwValidation.lengthOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• 15-20 characters</div>
-                          <div style={{ color: pwValidation.upperOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Uppercase letter</div>
-                          <div style={{ color: pwValidation.lowerOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Lowercase letter</div>
-                          <div style={{ color: pwValidation.numberOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Number</div>
-                          <div style={{ color: pwValidation.symbolOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Symbol (! @ ? _ -)</div>
-                          <div style={{ color: passwordsMatch ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Passwords match</div>
-                      </div>
-
-                      {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
-
-                      <button onClick={handleResetPassword} disabled={pwLoading || !pwValidation.strongOk || !passwordsMatch} style={{ padding: '14px', backgroundColor: '#46e38a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: (pwLoading || !pwValidation.strongOk || !passwordsMatch) ? 'not-allowed' : 'pointer', opacity: (pwLoading || !pwValidation.strongOk || !passwordsMatch) ? 0.5 : 1 }}>
-                          {pwLoading ? "Saving..." : "Set New Password"}
-                      </button>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showPw ? "text" : "password"} placeholder="New Password"
+                      style={{ width: '100%', padding: '12px', paddingRight: '120px', borderRadius: '8px', border: lightMode ? '1px solid #ccc' : '1px solid #444', background: lightMode ? '#fff' : 'transparent', color: lightMode ? '#000' : '#fff' }}
+                      value={newPassword} onChange={(e) => setNewPassword(e.target.value.slice(0, 20))}
+                    />
+                    <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: lightMode ? '#888' : '#aaa', textTransform: 'uppercase', padding: '5px' }}>
+                      {showPw ? "Hide Password" : "Show Password"}
+                    </button>
                   </div>
+
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input
+                      type={showConfirmPw ? "text" : "password"} placeholder="Confirm Password"
+                      style={{ width: '100%', padding: '12px', paddingRight: '120px', borderRadius: '8px', border: lightMode ? '1px solid #ccc' : '1px solid #444', background: lightMode ? '#fff' : 'transparent', color: lightMode ? '#000' : '#fff' }}
+                      value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value.slice(0, 20))}
+                    />
+                    <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: lightMode ? '#888' : '#aaa', textTransform: 'uppercase', padding: '5px' }}>
+                      {showConfirmPw ? "Hide Password" : "Show Password"}
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: lightMode ? '#f8f9fa' : 'rgba(255,255,255,0.02)', padding: '15px', borderRadius: '8px', border: lightMode ? '1px solid #eaeaea' : '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ color: pwValidation.lengthOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• 15-20 characters</div>
+                    <div style={{ color: pwValidation.upperOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Uppercase letter</div>
+                    <div style={{ color: pwValidation.lowerOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Lowercase letter</div>
+                    <div style={{ color: pwValidation.numberOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Number</div>
+                    <div style={{ color: pwValidation.symbolOk ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Symbol (! @ ? _ -)</div>
+                    <div style={{ color: passwordsMatch ? '#46e38a' : (lightMode ? '#888' : '#666') }}>• Passwords match</div>
+                  </div>
+
+                  {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
+
+                  <button onClick={handleResetPassword} disabled={pwLoading || !pwValidation.strongOk || !passwordsMatch} style={{ padding: '14px', backgroundColor: '#46e38a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: (pwLoading || !pwValidation.strongOk || !passwordsMatch) ? 'not-allowed' : 'pointer', opacity: (pwLoading || !pwValidation.strongOk || !passwordsMatch) ? 0.5 : 1 }}>
+                    {pwLoading ? "Saving..." : "Set New Password"}
+                  </button>
+                </div>
               )}
 
               {/* STEP 4: SUCCESS */}
               {pwStep === 4 && (
-                  <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', padding: '20px 0' }}>
-                      <div style={{ fontSize: '2rem', fontWeight: 800, color: '#46e38a' }}>SUCCESS</div>
-                      <h4 style={{ color: lightMode ? '#1a1a2e' : '#fff' }}>Password Updated</h4>
-                      <p style={{ fontSize: '0.85rem', color: lightMode ? '#666' : '#aaa', textAlign: 'center' }}>Your admin password has been successfully changed.</p>
-                      <button onClick={resetSettingsState} style={{ marginTop: '10px', padding: '10px 20px', background: 'transparent', border: '1px solid #3b82f6', color: '#3b82f6', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Return to Settings</button>
-                  </div>
+                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', padding: '20px 0' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 800, color: '#46e38a' }}>SUCCESS</div>
+                  <h4 style={{ color: lightMode ? '#1a1a2e' : '#fff' }}>Password Updated</h4>
+                  <p style={{ fontSize: '0.85rem', color: lightMode ? '#666' : '#aaa', textAlign: 'center' }}>Your admin password has been successfully changed.</p>
+                  <button onClick={resetSettingsState} style={{ marginTop: '10px', padding: '10px 20px', background: 'transparent', border: '1px solid #3b82f6', color: '#3b82f6', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>Return to Settings</button>
+                </div>
               )}
 
             </div>
             {pwStep === 0 && (
-                <div className="modal-footer" style={{ borderTop: 'none', padding: '0 30px 30px' }}>
-                    <button style={{ width: '100%', padding: '14px', fontSize: '1rem', background: 'transparent', border: lightMode ? '1px solid #ccc' : '1px solid #444', color: lightMode ? '#555' : '#aaa', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} onClick={resetSettingsState}>Close Menu</button>
-                </div>
+              <div className="modal-footer" style={{ borderTop: 'none', padding: '0 30px 30px' }}>
+                <button style={{ width: '100%', padding: '14px', fontSize: '1rem', background: 'transparent', border: lightMode ? '1px solid #ccc' : '1px solid #444', color: lightMode ? '#555' : '#aaa', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} onClick={resetSettingsState}>Close Menu</button>
+              </div>
             )}
             {pwStep > 0 && pwStep < 4 && (
-                <div className="modal-footer" style={{ borderTop: 'none', padding: '0 30px 30px' }}>
-                    <button style={{ width: '100%', padding: '14px', fontSize: '1rem', background: 'transparent', border: lightMode ? '1px solid #ccc' : '1px solid #444', color: lightMode ? '#555' : '#aaa', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} onClick={resetSettingsState}>Cancel Update</button>
-                </div>
+              <div className="modal-footer" style={{ borderTop: 'none', padding: '0 30px 30px' }}>
+                <button style={{ width: '100%', padding: '14px', fontSize: '1rem', background: 'transparent', border: lightMode ? '1px solid #ccc' : '1px solid #444', color: lightMode ? '#555' : '#aaa', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }} onClick={resetSettingsState}>Cancel Update</button>
+              </div>
             )}
           </div>
         </div>
