@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface ClockProps {
   isClockedIn: boolean;
@@ -10,6 +10,8 @@ interface ClockProps {
   onClockOutRequest: () => void;
 }
 
+const TIMEZONE = "Asia/Manila";
+
 export default function ClockSystem({
   isClockedIn,
   canClockIn,
@@ -17,21 +19,38 @@ export default function ClockSystem({
   onClockIn,
   onClockOutRequest,
 }: ClockProps) {
+  const timeOffsetRef = useRef<number>(Date.now() - performance.now());
   const [time, setTime] = useState(new Date());
   const [confirmType, setConfirmType] = useState<"in" | "out" | null>(null);
 
   useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
+    // 🚨 SECURE SYNC: Fetch absolute server time from our dedicated API
+    fetch("/api/system/time", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.serverTime) {
+          // Lock the offset using the monotonic performance timer
+          timeOffsetRef.current = data.serverTime - performance.now();
+          setTime(new Date(performance.now() + timeOffsetRef.current));
+        }
+      })
+      .catch((err) => console.error("Failed to sync clock with server", err));
+
+    const t = setInterval(() => {
+      setTime(new Date(performance.now() + timeOffsetRef.current));
+    }, 1000);
+    
     return () => clearInterval(t);
   }, []);
 
   const timeString = time
-    .toLocaleTimeString([], { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" })
-    .replace(":", ":");
+    .toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour12: true, hour: "2-digit", minute: "2-digit" });
 
-  const period = time.toLocaleTimeString([], { hour12: true, hour: "2-digit" }).slice(-2);
+  const period = time
+    .toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour12: true, hour: "2-digit" }).slice(-2);
 
-  const dateString = time.toLocaleDateString(undefined, {
+  const dateString = time.toLocaleDateString("en-US", {
+    timeZone: TIMEZONE,
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -94,7 +113,6 @@ export default function ClockSystem({
         </button>
       </div>
 
-      {/* confirm modal */}
       {confirmType && (
         <div className="modal-overlay">
           <div className="modal-card" style={{ width: 520 }}>

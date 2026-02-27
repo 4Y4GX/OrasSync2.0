@@ -25,10 +25,13 @@ type UserProfile = {
   team_name: string | null;
   pos_name: string | null;
   streak_count: number | null;
+  email?: string | null;
 };
 
 const EMOJI_LIKE = /[\p{Extended_Pictographic}\uFE0F\u200D]/gu;
 const ALLOWED_REASON_CHARS = /^[A-Za-z .,]*$/;
+
+const TIMEZONE = "Asia/Manila";
 
 function sanitizeReasonInput(raw: string) {
   let s = raw ?? "";
@@ -43,37 +46,22 @@ function formatShiftTime(isoString: string) {
   if (!isoString) return "";
   if (!isoString.includes("T")) return isoString;
   const date = new Date(isoString);
-  return date.toLocaleTimeString([], {
+  return date.toLocaleTimeString("en-US", {
+    timeZone: TIMEZONE,
     hour: '2-digit',
     minute: '2-digit',
     hour12: true
   });
 }
 
-function formatClockDigits(d: Date) {
-  return d
-    .toLocaleTimeString([], {
-      hour12: true,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-    .split(" ")[0];
-}
-
-function formatPeriod(d: Date) {
-  return d.toLocaleTimeString([], { hour12: true, hour: "2-digit" }).slice(-2);
-}
-
 function formatDateLine(d: Date) {
-  return d
-    .toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    })
-    .toUpperCase();
+  return d.toLocaleDateString("en-US", {
+    timeZone: TIMEZONE,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).toUpperCase();
 }
 
 function formatScheduleRange(startISO?: string, endISO?: string) {
@@ -86,10 +74,7 @@ function formatDuration(ms: number) {
   const totalSeconds = Math.floor(ms / 1000);
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
-  const s = totalSeconds % 60;
-  return `${h.toString().padStart(2, "0")}:${m
-    .toString()
-    .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 }
 
 function formatHoursMinutes(decimalHours: number | null | undefined): string {
@@ -113,11 +98,9 @@ function validateReasonClient(reason: string) {
 
 function initialsFrom(profile: UserProfile | null) {
   if (!profile) return "??";
-
   const a = (profile.first_name ?? "").trim();
   const b = (profile.last_name ?? "").trim();
   if (a || b) return `${a[0] ?? ""}${b[0] ?? ""}`.toUpperCase() || "??";
-
   const n = (profile.name ?? "").trim();
   if (!n) return "??";
   const parts = n.split(/\s+/).filter(Boolean);
@@ -129,6 +112,7 @@ function initialsFrom(profile: UserProfile | null) {
 export default function DashboardPage() {
   const router = useRouter();
 
+  const timeOffsetRef = useRef<number>(Date.now() - performance.now());
   const [now, setNow] = useState(() => new Date());
 
   const [loading, setLoading] = useState(true);
@@ -152,6 +136,19 @@ export default function DashboardPage() {
 
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+
+  // 🚨 MULTI-STEP SETTINGS MODAL STATES
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsStep, setSettingsStep] = useState<"menu" | "otp" | "question" | "password">("menu");
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [secQuestionId, setSecQuestionId] = useState<number | null>(null);
+  const [secQuestion, setSecQuestion] = useState("");
+  const [secAnswer, setSecAnswer] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [settingsMsg, setSettingsMsg] = useState<{ text: string, type: "success" | "error" | "info" | "" }>({ text: "", type: "" });
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   const [clockInTime, setClockInTime] = useState<number | null>(null);
   const [accumulatedMs, setAccumulatedMs] = useState<number>(0);
@@ -193,6 +190,13 @@ export default function DashboardPage() {
   const [futureModalShiftTimes, setFutureModalShiftTimes] = useState<{ start: string; end: string } | null>(null);
 
   useEffect(() => {
+    const t = window.setInterval(() => {
+      setNow(new Date(performance.now() + timeOffsetRef.current));
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  useEffect(() => {
     const fetchCalendar = async () => {
       if (!userProfile?.user_id) return;
       try {
@@ -228,7 +232,8 @@ export default function DashboardPage() {
     if (calView === 'week') {
       const start = new Date(calDate);
       const day = start.getDay();
-      start.setDate(start.getDate() - day);
+      const diff = day === 0 ? 6 : day - 1;
+      start.setDate(start.getDate() - diff);
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
       return `${monthNames[start.getMonth()].substring(0, 3)} ${start.getDate()} — ${monthNames[end.getMonth()].substring(0, 3)} ${end.getDate()}, ${end.getFullYear()}`;
@@ -244,7 +249,7 @@ export default function DashboardPage() {
 
   const formatTimelineDate = (dateStr: string) => {
     const d = new Date(dateStr + "T00:00:00");
-    const today = new Date();
+    const today = new Date(performance.now() + timeOffsetRef.current);
     today.setHours(0, 0, 0, 0);
     const target = new Date(d);
     target.setHours(0, 0, 0, 0);
@@ -254,8 +259,8 @@ export default function DashboardPage() {
     yesterday.setDate(yesterday.getDate() - 1);
     const isYesterday = target.getTime() === yesterday.getTime();
     
-    const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
-    const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const dayName = d.toLocaleDateString("en-US", { weekday: "short", timeZone: TIMEZONE });
+    const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TIMEZONE });
     
     if (isToday) return `Today, ${monthDay}`;
     if (isYesterday) return `Yesterday, ${monthDay}`;
@@ -340,14 +345,30 @@ export default function DashboardPage() {
     setFutureModalShiftTimes(null);
   };
 
+  const closeSettingsModal = () => {
+    setShowSettingsModal(false);
+    setSettingsStep("menu");
+    setConfirmEmail("");
+    setOtpCode("");
+    setSecQuestionId(null);
+    setSecQuestion("");
+    setSecAnswer("");
+    setPwdNew("");
+    setPwdConfirm("");
+    setSettingsMsg({ text: "", type: "" });
+  };
+
+  // Close Modals on Escape
   useEffect(() => {
-    if (!showFutureModal) return;
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeFutureModal();
+      if (e.key === "Escape") {
+        closeFutureModal();
+        closeSettingsModal();
+      }
     };
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
-  }, [showFutureModal]);
+  }, []);
 
   const handleFutureDateChange = (newDate: string) => {
     setFutureModalDate(newDate);
@@ -455,11 +476,6 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(t);
-  }, []);
-
-  useEffect(() => {
     try {
       const saved = localStorage.getItem("orasync-theme");
       const isLight = saved === "light";
@@ -493,6 +509,140 @@ export default function DashboardPage() {
       window.location.href = "/login";
     }
   }, [isClockedIn]);
+
+  // 🚨 MULTI-STEP SECURITY FLOW HANDLERS WITH PAYLOADS
+  
+  // Step 1: Request OTP
+  const handleRequestOTP = async () => {
+    if (!confirmEmail) return setSettingsMsg({ text: "Please enter your email.", type: "error" });
+
+    setSettingsMsg({ text: "", type: "" });
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/auth/otp/generate", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: confirmEmail })
+      });
+      if (res.ok) {
+        setSettingsMsg({ text: "An OTP has been sent to your email.", type: "success" });
+        setSettingsStep("otp");
+      } else {
+        const data = await res.json();
+        setSettingsMsg({ text: data.message || "Failed to send OTP.", type: "error" });
+      }
+    } catch (e) {
+      setSettingsMsg({ text: "Network error. Please try again.", type: "error" });
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Step 2: Verify OTP
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpCode) return setSettingsMsg({ text: "Please enter the OTP.", type: "error" });
+    
+    setSettingsMsg({ text: "", type: "" });
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/auth/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: confirmEmail, otp: otpCode, flow: "recovery" }) 
+      });
+      
+      if (res.ok) {
+        setSettingsMsg({ text: "OTP Verified. Fetching security question...", type: "success" });
+        await fetchSecurityQuestion();
+      } else {
+        const data = await res.json();
+        setSettingsMsg({ text: data.message || "Invalid OTP.", type: "error" });
+      }
+    } catch (e) {
+      setSettingsMsg({ text: "Network error. Please try again.", type: "error" });
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Step 2.5: Fetch Security Question after successful OTP
+  const fetchSecurityQuestion = async () => {
+    try {
+      const res = await fetch("/api/auth/security-question", { cache: "no-store" });
+      const data = await res.json();
+
+      if (res.ok && data.question) {
+        setSecQuestionId(data.questionId); 
+        setSecQuestion(data.question);
+        setSettingsStep("question");
+      } else {
+        setSettingsMsg({ text: data.message || "Could not load security question.", type: "error" });
+      }
+    } catch (e) {
+      setSettingsMsg({ text: "Error loading security question.", type: "error" });
+    }
+  };
+
+  // Step 3: Verify Security Question Answer
+  const handleVerifyAnswer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!secAnswer) return setSettingsMsg({ text: "Please provide an answer.", type: "error" });
+
+    setSettingsMsg({ text: "", type: "" });
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/auth/security-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionId: secQuestionId, answer: secAnswer })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        setSettingsMsg({ text: "Identity confirmed.", type: "success" });
+        setSettingsStep("password");
+      } else {
+        setSettingsMsg({ text: data.message || "Incorrect answer.", type: "error" });
+      }
+    } catch (e) {
+      setSettingsMsg({ text: "Network error. Please try again.", type: "error" });
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Step 4: Submit New Password
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsMsg({ text: "", type: "" });
+    
+    if (!pwdNew || !pwdConfirm) return setSettingsMsg({ text: "Please fill out all fields", type: "error" });
+    if (pwdNew !== pwdConfirm) return setSettingsMsg({ text: "Passwords do not match", type: "error" });
+    if (pwdNew.length < 8) return setSettingsMsg({ text: "Password must be at least 8 characters", type: "error" });
+    
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwdNew }) 
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setSettingsMsg({ text: "Password updated successfully!", type: "success" });
+        setTimeout(() => closeSettingsModal(), 2000);
+      } else {
+        setSettingsMsg({ text: data.message || "Failed to update password", type: "error" });
+      }
+    } catch (err) {
+      setSettingsMsg({ text: "Network error. Please try again.", type: "error" });
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -539,14 +689,14 @@ export default function DashboardPage() {
     const allTlogIds: number[] = [];
     for (const day of timesheetDays) {
       for (const act of day.activities || []) {
-        if (act.approval_status === "PENDING" && act.tlog_id) {
+        if (act.approval_status === "NOT_SUBMITTED" && act.tlog_id) {
           allTlogIds.push(act.tlog_id);
         }
       }
     }
 
     if (allTlogIds.length === 0) {
-      setSubmitMsg({ type: "error", text: "No pending time logs to submit" });
+      setSubmitMsg({ type: "error", text: "No un-submitted time logs found." });
       return;
     }
 
@@ -582,6 +732,15 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
+        const timeRes = await fetch("/api/system/time", { cache: "no-store" });
+        if (timeRes.ok) {
+          const timeData = await timeRes.json();
+          if (timeData.serverTime) {
+            timeOffsetRef.current = timeData.serverTime - performance.now();
+            setNow(new Date(performance.now() + timeOffsetRef.current));
+          }
+        }
+
         const res = await fetch("/api/employee/clock/status", { cache: "no-store" });
         const data = await res.json().catch(() => ({}));
 
@@ -637,20 +796,20 @@ export default function DashboardPage() {
 
   const sessionDuration = useMemo(() => {
     if (isClockedIn && clockInTime) {
-      const currentSessionMs = Date.now() - clockInTime;
+      const currentSessionMs = now.getTime() - clockInTime;
       return formatDuration(accumulatedMs + currentSessionMs);
     }
     if (accumulatedMs > 0) {
       return formatDuration(accumulatedMs);
     }
-    return "00:00:00";
+    return "00:00";
   }, [isClockedIn, clockInTime, accumulatedMs, now]);
 
   const currentActivityDuration = useMemo(() => {
     if (isClockedIn && activeActivityStart) {
       return formatDuration(now.getTime() - activeActivityStart);
     }
-    return "00:00:00";
+    return "00:00";
   }, [isClockedIn, activeActivityStart, now]);
 
   const targetHours = useMemo(() => {
@@ -663,14 +822,13 @@ export default function DashboardPage() {
       const e = new Date(scheduleToday.shift.end_time).getTime();
       return formatDuration(Math.max(0, e - s));
     }
-    return "09:00:00";
+    return "09:00";
   }, [scheduleToday]);
 
-  // 🚨 THE FIX: Remove the overnight block that bypassed the check
   const isEarlyClockOut = useMemo(() => {
     if (!scheduleToday.hasSchedule || !scheduleToday.shift?.end_time) return false;
     const end = new Date(scheduleToday.shift.end_time).getTime();
-    return Date.now() < end;
+    return now.getTime() < end;
   }, [scheduleToday, now]);
 
   const doClockIn = useCallback(async () => {
@@ -689,11 +847,11 @@ export default function DashboardPage() {
 
       const clockIn = data?.activeShift?.clock_in_time;
       setIsClockedIn(true);
-      setClockInTime(clockIn ? new Date(clockIn).getTime() : Date.now());
+      setClockInTime(clockIn ? new Date(clockIn).getTime() : now.getTime());
     } finally {
       setActionBusy(false);
     }
-  }, [actionBusy]);
+  }, [actionBusy, now]);
 
   const doClockOut = useCallback(
     async (earlyReason?: string) => {
@@ -715,7 +873,7 @@ export default function DashboardPage() {
         }
 
         if (clockInTime) {
-          const currentSessionMs = Date.now() - clockInTime;
+          const currentSessionMs = now.getTime() - clockInTime;
           setAccumulatedMs(prev => prev + currentSessionMs);
         }
 
@@ -732,7 +890,7 @@ export default function DashboardPage() {
         setActionBusy(false);
       }
     },
-    [actionBusy, clockInTime]
+    [actionBusy, clockInTime, now]
   );
 
   const confirmClockOutFlow = () => {
@@ -956,7 +1114,7 @@ export default function DashboardPage() {
                   className="menu-item"
                   onClick={() => {
                     setProfileMenuOpen(false);
-                    setServerMsg("Settings is UI-only for now.");
+                    setShowSettingsModal(true);
                   }}
                 >
                   <span className="menu-icon">⚙</span> Settings
@@ -1012,9 +1170,9 @@ export default function DashboardPage() {
                 <div className="landing-card">
                   <div className="hero-clock-label">Current Time</div>
                   <div className="hero-clock-row">
-                    {now.toLocaleTimeString("en-US", { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" }).split(" ")[0]}
+                    {now.toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour12: true, hour: "2-digit", minute: "2-digit" }).split(" ")[0]}
                     <span className="clock-ampm">
-                      {now.toLocaleTimeString("en-US", { hour12: true }).split(" ")[1]}
+                      {now.toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour12: true }).split(" ")[1]}
                     </span>
                   </div>
                   <div className="hero-date-display">
@@ -1036,7 +1194,7 @@ export default function DashboardPage() {
                           <div className="hud-bg-icon">⏱</div>
                           <div className="hud-label">CURRENT TIME</div>
                           <div className="hud-val accent-cyan">
-                            {now.toLocaleTimeString([], { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                            {now.toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour12: true, hour: "2-digit", minute: "2-digit" })}
                           </div>
                           <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 5, textTransform: "uppercase", letterSpacing: 2 }}>
                             {formatDateLine(now)}
@@ -1116,7 +1274,7 @@ export default function DashboardPage() {
                               </div>
                               {clockInTime && (
                                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 20 }}>
-                                  Since {new Date(clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+                                  Since {new Date(clockInTime).toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: true })}
                                 </div>
                               )}
 
@@ -1284,14 +1442,16 @@ export default function DashboardPage() {
                                           borderRadius: 4,
                                           fontSize: "0.75rem",
                                           fontWeight: 600,
-                                          backgroundColor: act.approval_status === "PENDING" ? "rgba(234, 179, 8, 0.2)" : 
+                                          backgroundColor: act.approval_status === "NOT_SUBMITTED" ? "rgba(156, 163, 175, 0.2)" : 
+                                                           act.approval_status === "PENDING" ? "rgba(234, 179, 8, 0.2)" : 
                                                            act.approval_status === "SUPERVISOR_APPROVED" ? "rgba(34, 197, 94, 0.2)" :
                                                            act.approval_status === "REJECTED" ? "rgba(239, 68, 68, 0.2)" : "rgba(100, 100, 100, 0.2)",
-                                          color: act.approval_status === "PENDING" ? "#eab308" :
+                                          color: act.approval_status === "NOT_SUBMITTED" ? "#9ca3af" :
+                                                 act.approval_status === "PENDING" ? "#eab308" :
                                                  act.approval_status === "SUPERVISOR_APPROVED" ? "#22c55e" :
                                                  act.approval_status === "REJECTED" ? "#ef4444" : "#888",
                                         }}>
-                                          {act.approval_status || "—"}
+                                          {act.approval_status ? act.approval_status.replace('_', ' ') : "—"}
                                         </span>
                                       </td>
                                     </tr>
@@ -1360,7 +1520,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div className={`calendar-grid view-${calView}`}>
-                        {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+                        {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(d => (
                           <div key={d} className="cal-day-header">{d}</div>
                         ))}
 
@@ -1369,16 +1529,19 @@ export default function DashboardPage() {
                           const currMonth = calDate.getMonth();
                           const start = new Date(calDate);
                           let loopCount = 0;
-                          const today = new Date();
+                          const today = new Date(performance.now() + timeOffsetRef.current);
                           today.setHours(0, 0, 0, 0);
 
                           if (calView === 'week') {
                             const day = start.getDay();
-                            start.setDate(start.getDate() - day);
+                            const diff = day === 0 ? 6 : day - 1;
+                            start.setDate(start.getDate() - diff);
                             loopCount = 7;
                           } else {
                             start.setDate(1);
-                            start.setDate(start.getDate() - start.getDay());
+                            const firstDay = start.getDay();
+                            const diff = firstDay === 0 ? 6 : firstDay - 1;
+                            start.setDate(start.getDate() - diff);
                             loopCount = 42;
                           }
 
@@ -1697,6 +1860,168 @@ export default function DashboardPage() {
         </main >
       </div >
 
+      {/* 🚨 MULTI-STEP SETTINGS MODAL */}
+      {showSettingsModal && (
+        <div className="modal-overlay">
+          <div className="modal-card" style={{ width: 450 }}>
+            <div className="modal-header header-normal">
+              <span style={{ fontSize: "1.5rem" }}>⚙️</span>
+              <span className="modal-title">ACCOUNT SETTINGS</span>
+              <button className="calendar-modal-close" onClick={closeSettingsModal}>×</button>
+            </div>
+            
+            <div className="modal-body" style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 20 }}>
+              
+              {settingsStep === "menu" && (
+                <>
+                  <div style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+                    <h4 style={{ marginBottom: 10, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Appearance</h4>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>Dashboard Theme</span>
+                      <button className="btn-standard" onClick={toggleTheme} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
+                        {lightMode ? "Switch to Dark Mode 🌙" : "Switch to Light Mode ☀️"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+                    <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Security</h4>
+                    <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: 15 }}>
+                      Changing your password requires an OTP verification sent to your registered email, followed by a security question.
+                    </p>
+                    
+                    <input
+                      type="email"
+                      className="input-rounded"
+                      placeholder="Confirm your email address"
+                      value={confirmEmail}
+                      onChange={(e) => setConfirmEmail(e.target.value)}
+                      style={{ marginBottom: 10 }}
+                    />
+
+                    <button className="btn-standard" onClick={handleRequestOTP} disabled={settingsLoading || !confirmEmail} style={{ width: "100%" }}>
+                      {settingsLoading ? "SENDING OTP..." : "INITIATE PASSWORD CHANGE"}
+                    </button>
+                    
+                    {settingsMsg.text && (
+                      <div style={{ color: "var(--color-warn)", fontSize: "0.8rem", marginTop: 10, textAlign: "center" }}>
+                        {settingsMsg.text}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {settingsStep === "otp" && (
+                <div className="fade-in" style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+                  <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 1: Enter OTP</h4>
+                  <p style={{ fontSize: "0.85rem", color: "var(--color-go)", marginBottom: 15 }}>{settingsMsg.text}</p>
+                  
+                  <form onSubmit={handleVerifyOTP} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <label className="label-sm">6-DIGIT OTP CODE</label>
+                      <input 
+                        type="text" 
+                        className="input-rounded" 
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                        placeholder="000000"
+                        maxLength={6}
+                      />
+                    </div>
+                    
+                    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                      <button type="button" className="btn-cancel" onClick={() => setSettingsStep("menu")} style={{ flex: 1 }}>CANCEL</button>
+                      <button type="submit" className="btn-standard" disabled={settingsLoading} style={{ flex: 1 }}>
+                        {settingsLoading ? "VERIFYING..." : "VERIFY OTP"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {settingsStep === "question" && (
+                <div className="fade-in" style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+                  <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 2: Security Verification</h4>
+                  
+                  <form onSubmit={handleVerifyAnswer} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <label className="label-sm">SECURITY QUESTION</label>
+                      <div style={{ background: "rgba(0,0,0,0.2)", padding: 10, borderRadius: 6, fontSize: "0.9rem", color: "var(--text-main)", marginBottom: 10 }}>
+                        {secQuestion}
+                      </div>
+                      <input 
+                        type="text" 
+                        className="input-rounded" 
+                        value={secAnswer}
+                        onChange={(e) => setSecAnswer(e.target.value)}
+                        placeholder="Your answer"
+                      />
+                    </div>
+                    
+                    {settingsMsg.text && (
+                      <div style={{ color: settingsMsg.type === "error" ? "var(--color-warn)" : "var(--color-go)", fontSize: "0.8rem", fontWeight: 600 }}>
+                        {settingsMsg.text}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                      <button type="button" className="btn-cancel" onClick={() => setSettingsStep("menu")} style={{ flex: 1 }}>CANCEL</button>
+                      <button type="submit" className="btn-standard" disabled={settingsLoading} style={{ flex: 1 }}>
+                        {settingsLoading ? "VERIFYING..." : "CONFIRM IDENTITY"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {settingsStep === "password" && (
+                <div className="fade-in" style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+                  <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 3: New Password</h4>
+                  
+                  <form onSubmit={handleResetPassword} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <label className="label-sm">NEW PASSWORD</label>
+                      <input 
+                        type="password" 
+                        className="input-rounded" 
+                        value={pwdNew}
+                        onChange={(e) => setPwdNew(e.target.value)}
+                        placeholder="At least 8 characters"
+                      />
+                    </div>
+                    <div>
+                      <label className="label-sm">CONFIRM NEW PASSWORD</label>
+                      <input 
+                        type="password" 
+                        className="input-rounded" 
+                        value={pwdConfirm}
+                        onChange={(e) => setPwdConfirm(e.target.value)}
+                        placeholder="Type new password again"
+                      />
+                    </div>
+                    
+                    {settingsMsg.text && (
+                      <div style={{ color: settingsMsg.type === "success" ? "var(--color-go)" : "var(--color-warn)", fontSize: "0.8rem", marginTop: 5, fontWeight: 600 }}>
+                        {settingsMsg.text}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                      <button type="button" className="btn-cancel" onClick={() => setSettingsStep("menu")} style={{ flex: 1 }}>CANCEL</button>
+                      <button type="submit" className="btn-standard" disabled={settingsLoading} style={{ flex: 1 }}>
+                        {settingsLoading ? "SAVING..." : "SAVE PASSWORD"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODALS */}
       {
         modalConfirm === "out" && (
@@ -1741,7 +2066,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="stat-item">
                     <span className="stat-label">TARGET DURATION</span>
-                    <span className="stat-val">09:00:00</span>
+                    <span className="stat-val">09:00</span>
                   </div>
                 </div>
 

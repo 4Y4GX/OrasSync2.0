@@ -71,7 +71,6 @@ export async function POST(request: Request) {
       select: { dept_id: true, supervisor_id: true, manager_id: true },
     });
 
-    // 🚨 FIX: Strict null checks prevent Foreign Key Constraint crashes
     const newActivity = await prisma.d_tbltime_log.create({
       data: {
         user_id: user.user_id,
@@ -84,7 +83,8 @@ export async function POST(request: Request) {
         supervisor_id: userDetails?.supervisor_id || null,
         manager_id: userDetails?.manager_id || null,
         supervisor_id_at_log: userDetails?.supervisor_id || null,
-        approval_status: "PENDING",
+        // ✅ FIX: Force the starting state to be NOT_SUBMITTED
+        approval_status: "NOT_SUBMITTED",
         clock_id: activeShift.clock_id,
         shift_date: activeShift.shift_date!,
       },

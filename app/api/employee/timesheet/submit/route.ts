@@ -1,4 +1,3 @@
-// app/api/employee/timesheet/submit/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
@@ -42,7 +41,8 @@ export async function POST(req: Request) {
       where: {
         tlog_id: { in: tlog_ids.map((id: number) => parseInt(id.toString())) },
         user_id: String(userId),
-        approval_status: "PENDING", // Only submit pending logs
+        // Look for NOT_SUBMITTED or REJECTED logs (so users can resubmit fixed logs)
+        approval_status: { in: ["NOT_SUBMITTED", "REJECTED"] }, 
       },
       select: {
         tlog_id: true,
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
 
     if (timeLogs.length === 0) {
       return NextResponse.json(
-        { message: "No pending time logs found to submit" },
+        { message: "No eligible un-submitted time logs found to submit" },
         { status: 400 }
       );
     }
@@ -77,7 +77,6 @@ export async function POST(req: Request) {
     function getShiftForDate(date: Date): { shift_id: number | null; shift_name: string } {
       if (!weeklySchedule) return { shift_id: null, shift_name: "Unassigned" };
       
-      // Use local methods (consistent with how dates are stored)
       const weekday = date.getDay();
       
       let shiftId: number | null = null;
@@ -125,13 +124,17 @@ export async function POST(req: Request) {
       groupedByShift[shiftKey].count++;
     }
 
-    // Update all time logs with the supervisor_id_at_log (ensure it's set for approval routing)
+    // ✅ FIX: Setting supervisor and manager columns strictly to "PENDING" instead of null
     const updateResult = await prisma.d_tbltime_log.updateMany({
       where: {
         tlog_id: { in: timeLogs.map((t) => t.tlog_id) },
       },
       data: {
         supervisor_id_at_log: supervisorId ?? "",
+        approval_status: "PENDING",        
+        approved_by_supervisor_id: "PENDING", 
+        approved_by_manager_id: "PENDING",    
+        rejection_reason: null,            
       },
     });
 

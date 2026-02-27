@@ -1,4 +1,3 @@
-// app/api/employee/activity/start/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -90,7 +89,8 @@ export async function POST(request: Request) {
         supervisor_id: userDetails?.supervisor_id || null,
         manager_id: userDetails?.manager_id || null,
         supervisor_id_at_log: userDetails?.supervisor_id || '',
-        approval_status: "PENDING",
+        // ✅ FIX: Force the starting state to be NOT_SUBMITTED
+        approval_status: "NOT_SUBMITTED",
         clock_id: activeShift.clock_id,
         shift_date: activeShift.shift_date!,
       },

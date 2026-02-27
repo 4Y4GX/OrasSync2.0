@@ -73,7 +73,6 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
           setCurrentActivity(data.currentActivity);
           setSelectedActivityId(data.currentActivity.activity_id.toString());
 
-          // 🚨 THE REAL-WORLD SMART DEDUCTION FIX
           if (data.currentActivity.start_time_str) {
             const [hours, minutes, seconds] = data.currentActivity.start_time_str.split(':').map(Number);
             
@@ -81,8 +80,6 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
             const candidate = new Date(now);
             candidate.setHours(hours, minutes, seconds, 0);
 
-            // If candidate is massively in the future (e.g. DB says 11 PM, but it's 1 AM right now)
-            // That means the task started yesterday. (The > 2 hours buffer prevents clock-drift glitches).
             if (candidate.getTime() - now.getTime() > 2 * 60 * 60 * 1000) {
               candidate.setDate(candidate.getDate() - 1);
             }
@@ -182,7 +179,8 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
         <option value="">-- Select Activity --</option>
         {activities.map((activity) => (
           <option key={activity.activity_id} value={activity.activity_id}>
-            {activity.activity_name} {activity.activity_code && `(${activity.activity_code})`}
+            {/* ✅ Added the Billable/Non-Billable flag here! */}
+            {activity.activity_name} {activity.activity_code && `(${activity.activity_code})`} {activity.is_billable ? '(B)' : '(NB)'}
           </option>
         ))}
       </select>
