@@ -117,7 +117,7 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [isClockedIn, setIsClockedIn] = useState(false);
-  const [ledgerData, setLedgerData] = useState<any[]>([]); 
+  const [ledgerData, setLedgerData] = useState<any[]>([]);
 
   const [scheduleToday, setScheduleToday] = useState<ScheduleToday>({
     hasSchedule: false,
@@ -139,14 +139,20 @@ export default function DashboardPage() {
 
   // 🚨 MULTI-STEP SETTINGS MODAL STATES
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsStep, setSettingsStep] = useState<"menu" | "otp" | "question" | "password">("menu");
-  const [confirmEmail, setConfirmEmail] = useState("");
+  const [settingsStep, setSettingsStep] = useState<"menu" | "otp" | "question" | "password" | "success" | "locked">("menu");
   const [otpCode, setOtpCode] = useState("");
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [otpDailyCount, setOtpDailyCount] = useState(0);
+  const [otpAttempts, setOtpAttempts] = useState(0);
+  const otpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [secQuestionId, setSecQuestionId] = useState<number | null>(null);
   const [secQuestion, setSecQuestion] = useState("");
   const [secAnswer, setSecAnswer] = useState("");
+  const [sqAttempts, setSqAttempts] = useState(0);
   const [pwdNew, setPwdNew] = useState("");
   const [pwdConfirm, setPwdConfirm] = useState("");
+  const [showPwdNew, setShowPwdNew] = useState(false);
+  const [showPwdConfirm, setShowPwdConfirm] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<{ text: string, type: "success" | "error" | "info" | "" }>({ text: "", type: "" });
   const [settingsLoading, setSettingsLoading] = useState(false);
 
@@ -253,15 +259,15 @@ export default function DashboardPage() {
     today.setHours(0, 0, 0, 0);
     const target = new Date(d);
     target.setHours(0, 0, 0, 0);
-    
+
     const isToday = target.getTime() === today.getTime();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     const isYesterday = target.getTime() === yesterday.getTime();
-    
+
     const dayName = d.toLocaleDateString("en-US", { weekday: "short", timeZone: TIMEZONE });
     const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TIMEZONE });
-    
+
     if (isToday) return `Today, ${monthDay}`;
     if (isYesterday) return `Yesterday, ${monthDay}`;
     return `${dayName}, ${monthDay}`;
@@ -318,7 +324,7 @@ export default function DashboardPage() {
     setFutureModalActivity("");
     setFutureModalStartTime("");
     setFutureModalEndTime("");
-    
+
     if (dateKey) {
       setFutureModalDate(dateKey);
       const dayData = calendar[dateKey];
@@ -331,7 +337,7 @@ export default function DashboardPage() {
       setFutureModalDate("");
       setFutureModalShiftTimes(null);
     }
-    
+
     setShowFutureModal(true);
   };
 
@@ -348,13 +354,18 @@ export default function DashboardPage() {
   const closeSettingsModal = () => {
     setShowSettingsModal(false);
     setSettingsStep("menu");
-    setConfirmEmail("");
     setOtpCode("");
+    setOtpCountdown(0);
+    setOtpAttempts(0);
+    if (otpTimerRef.current) { clearInterval(otpTimerRef.current); otpTimerRef.current = null; }
     setSecQuestionId(null);
     setSecQuestion("");
     setSecAnswer("");
+    setSqAttempts(0);
     setPwdNew("");
     setPwdConfirm("");
+    setShowPwdNew(false);
+    setShowPwdConfirm(false);
     setSettingsMsg({ text: "", type: "" });
   };
 
@@ -373,7 +384,7 @@ export default function DashboardPage() {
   const handleFutureDateChange = (newDate: string) => {
     setFutureModalDate(newDate);
     setFutureModalError("");
-    
+
     if (calendar[newDate]) {
       const dayData = calendar[newDate];
       if (!dayData.off && dayData.start_time && dayData.end_time) {
@@ -447,7 +458,7 @@ export default function DashboardPage() {
 
   const deleteFutureActivity = async (ftsId: number) => {
     if (!confirm("Are you sure you want to delete this scheduled activity?")) return;
-    
+
     try {
       const res = await fetch(`/api/employee/schedule/future?fts_id=${ftsId}`, {
         method: "DELETE",
@@ -510,29 +521,69 @@ export default function DashboardPage() {
     }
   }, [isClockedIn]);
 
-  // 🚨 MULTI-STEP SECURITY FLOW HANDLERS WITH PAYLOADS
-  
+  // 🚨 MULTI-STEP SECURITY FLOW HANDLERS
+
+  const startOtpCountdown = () => {
+    setOtpCountdown(90);
+    if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+    otpTimerRef.current = setInterval(() => {
+      setOtpCountdown((prev) => {
+        if (prev <= 1) {
+          if (otpTimerRef.current) clearInterval(otpTimerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   // Step 1: Request OTP
   const handleRequestOTP = async () => {
-    if (!confirmEmail) return setSettingsMsg({ text: "Please enter your email.", type: "error" });
-
     setSettingsMsg({ text: "", type: "" });
     setSettingsLoading(true);
     try {
-      const res = await fetch("/api/auth/otp/generate", { 
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: confirmEmail })
-      });
+      const res = await fetch("/api/employee/change-password/otp", { method: "POST" });
+      const data = await res.json();
       if (res.ok) {
-        setSettingsMsg({ text: "An OTP has been sent to your email.", type: "success" });
+        setOtpDailyCount(data.dailyCount ?? 0);
+        setOtpAttempts(0);
+        setOtpCode("");
+        setSettingsMsg({ text: "A verification code has been sent to your registered email.", type: "success" });
         setSettingsStep("otp");
+        startOtpCountdown();
+      } else if (res.status === 429) {
+        setSettingsMsg({ text: "Daily OTP limit reached (5/day). Try again tomorrow.", type: "error" });
       } else {
-        const data = await res.json();
         setSettingsMsg({ text: data.message || "Failed to send OTP.", type: "error" });
       }
-    } catch (e) {
+    } catch {
       setSettingsMsg({ text: "Network error. Please try again.", type: "error" });
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Step 1b: Resend OTP
+  const handleResendOTP = async () => {
+    if (otpCountdown > 0 || otpDailyCount >= 5) return;
+    setSettingsMsg({ text: "", type: "" });
+    setSettingsLoading(true);
+    try {
+      const res = await fetch("/api/employee/change-password/otp", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setOtpDailyCount(data.dailyCount ?? 0);
+        setOtpAttempts(0);
+        setOtpCode("");
+        setSettingsMsg({ text: "A new OTP has been sent.", type: "success" });
+        startOtpCountdown();
+      } else if (res.status === 429) {
+        setSettingsMsg({ text: "Daily OTP limit reached (5/day). Try again tomorrow.", type: "error" });
+      } else {
+        setSettingsMsg({ text: data.message || "Failed to resend OTP.", type: "error" });
+      }
+    } catch {
+      setSettingsMsg({ text: "Network error.", type: "error" });
     } finally {
       setSettingsLoading(false);
     }
@@ -542,24 +593,33 @@ export default function DashboardPage() {
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otpCode) return setSettingsMsg({ text: "Please enter the OTP.", type: "error" });
-    
+
     setSettingsMsg({ text: "", type: "" });
     setSettingsLoading(true);
     try {
-      const res = await fetch("/api/auth/otp/verify", {
+      const res = await fetch("/api/employee/change-password/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: confirmEmail, otp: otpCode, flow: "recovery" }) 
+        body: JSON.stringify({ otp: otpCode }),
       });
-      
+      const data = await res.json();
+
       if (res.ok) {
-        setSettingsMsg({ text: "OTP Verified. Fetching security question...", type: "success" });
+        if (otpTimerRef.current) { clearInterval(otpTimerRef.current); otpTimerRef.current = null; }
+        setSettingsMsg({ text: "OTP verified. Loading security question...", type: "success" });
         await fetchSecurityQuestion();
       } else {
-        const data = await res.json();
-        setSettingsMsg({ text: data.message || "Invalid OTP.", type: "error" });
+        const attempts = data.attempts ?? otpAttempts + 1;
+        setOtpAttempts(attempts);
+        if (data.message === "OTP_EXPIRED") {
+          setSettingsMsg({ text: "OTP has expired. Please request a new one.", type: "error" });
+        } else if (data.message === "MAX_ATTEMPTS_REACHED") {
+          setSettingsMsg({ text: "Maximum attempts reached. Please request a new OTP.", type: "error" });
+        } else {
+          setSettingsMsg({ text: `Incorrect OTP. ${3 - attempts} attempt(s) remaining.`, type: "error" });
+        }
       }
-    } catch (e) {
+    } catch {
       setSettingsMsg({ text: "Network error. Please try again.", type: "error" });
     } finally {
       setSettingsLoading(false);
@@ -569,74 +629,113 @@ export default function DashboardPage() {
   // Step 2.5: Fetch Security Question after successful OTP
   const fetchSecurityQuestion = async () => {
     try {
-      const res = await fetch("/api/auth/security-question", { cache: "no-store" });
+      const res = await fetch("/api/employee/change-password/question", { cache: "no-store" });
       const data = await res.json();
 
       if (res.ok && data.question) {
-        setSecQuestionId(data.questionId); 
+        setSecQuestionId(data.questionId);
         setSecQuestion(data.question);
+        setSqAttempts(0);
+        setSecAnswer("");
         setSettingsStep("question");
+        setSettingsMsg({ text: "", type: "" });
       } else {
         setSettingsMsg({ text: data.message || "Could not load security question.", type: "error" });
       }
-    } catch (e) {
+    } catch {
       setSettingsMsg({ text: "Error loading security question.", type: "error" });
     }
+  };
+
+  // Sanitize security answer input
+  const sanitizeSecAnswer = (raw: string) => {
+    let s = raw ?? "";
+    s = s.replace(EMOJI_LIKE, "");
+    if (s.length > 50) s = s.slice(0, 50);
+    return s;
   };
 
   // Step 3: Verify Security Question Answer
   const handleVerifyAnswer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!secAnswer) return setSettingsMsg({ text: "Please provide an answer.", type: "error" });
+    const trimmed = secAnswer.trim();
+    if (!trimmed) return setSettingsMsg({ text: "Please provide an answer.", type: "error" });
+    if (EMOJI_LIKE.test(trimmed)) return setSettingsMsg({ text: "Emojis are not allowed.", type: "error" });
 
     setSettingsMsg({ text: "", type: "" });
     setSettingsLoading(true);
     try {
-      const res = await fetch("/api/auth/security-question", {
+      const res = await fetch("/api/employee/change-password/question", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questionId: secQuestionId, answer: secAnswer })
+        body: JSON.stringify({ questionId: secQuestionId, answer: trimmed }),
       });
       const data = await res.json();
 
       if (res.ok) {
         setSettingsMsg({ text: "Identity confirmed.", type: "success" });
         setSettingsStep("password");
+      } else if (data.message === "ACCOUNT_DISABLED") {
+        setSettingsStep("locked");
+        setSettingsMsg({ text: "Your account has been disabled due to too many failed attempts. Please contact an admin.", type: "error" });
+        setTimeout(() => { window.location.href = "/login"; }, 4000);
       } else {
-        setSettingsMsg({ text: data.message || "Incorrect answer.", type: "error" });
+        const att = data.attempts ?? sqAttempts + 1;
+        setSqAttempts(att);
+        setSettingsMsg({ text: `Incorrect answer. ${3 - att} attempt(s) remaining.`, type: "error" });
       }
-    } catch (e) {
+    } catch {
       setSettingsMsg({ text: "Network error. Please try again.", type: "error" });
     } finally {
       setSettingsLoading(false);
     }
   };
 
+  // Password strength helper
+  const getPasswordStrength = (pw: string): { level: number; label: string; color: string } => {
+    if (!pw) return { level: 0, label: "", color: "transparent" };
+    let score = 0;
+    if (pw.length >= 8) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[a-z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (pw.length >= 12) score++;
+    if (score <= 2) return { level: 1, label: "Weak", color: "#f8312f" };
+    if (score <= 3) return { level: 2, label: "Medium", color: "#f59e0b" };
+    return { level: 3, label: "Strong", color: "#4ade80" };
+  };
+
   // Step 4: Submit New Password
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setSettingsMsg({ text: "", type: "" });
-    
-    if (!pwdNew || !pwdConfirm) return setSettingsMsg({ text: "Please fill out all fields", type: "error" });
-    if (pwdNew !== pwdConfirm) return setSettingsMsg({ text: "Passwords do not match", type: "error" });
-    if (pwdNew.length < 8) return setSettingsMsg({ text: "Password must be at least 8 characters", type: "error" });
-    
+
+    if (!pwdNew || !pwdConfirm) return setSettingsMsg({ text: "Please fill out all fields.", type: "error" });
+    if (EMOJI_LIKE.test(pwdNew)) return setSettingsMsg({ text: "Password must not contain emojis.", type: "error" });
+    if (pwdNew.length < 8) return setSettingsMsg({ text: "Password must be at least 8 characters.", type: "error" });
+    if (pwdNew.length > 30) return setSettingsMsg({ text: "Password must be at most 30 characters.", type: "error" });
+    if (!/[A-Z]/.test(pwdNew)) return setSettingsMsg({ text: "Must contain at least one uppercase letter.", type: "error" });
+    if (!/[a-z]/.test(pwdNew)) return setSettingsMsg({ text: "Must contain at least one lowercase letter.", type: "error" });
+    if (!/[0-9]/.test(pwdNew)) return setSettingsMsg({ text: "Must contain at least one number.", type: "error" });
+    if (pwdNew !== pwdConfirm) return setSettingsMsg({ text: "Passwords do not match.", type: "error" });
+
     setSettingsLoading(true);
     try {
-      const res = await fetch("/api/auth/reset-password", {
+      const res = await fetch("/api/employee/change-password/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pwdNew }) 
+        body: JSON.stringify({ newPassword: pwdNew }),
       });
       const data = await res.json();
-      
+
       if (res.ok) {
+        setSettingsStep("success");
         setSettingsMsg({ text: "Password updated successfully!", type: "success" });
-        setTimeout(() => closeSettingsModal(), 2000);
+        setTimeout(() => closeSettingsModal(), 3000);
       } else {
-        setSettingsMsg({ text: data.message || "Failed to update password", type: "error" });
+        setSettingsMsg({ text: data.message || "Failed to update password.", type: "error" });
       }
-    } catch (err) {
+    } catch {
       setSettingsMsg({ text: "Network error. Please try again.", type: "error" });
     } finally {
       setSettingsLoading(false);
@@ -879,7 +978,7 @@ export default function DashboardPage() {
 
         setIsClockedIn(false);
         setClockInTime(null);
-        setActiveActivityStart(null); 
+        setActiveActivityStart(null);
 
         setReason("");
         setReasonErr("");
@@ -999,7 +1098,7 @@ export default function DashboardPage() {
         const currentMonday = new Date(today);
         currentMonday.setDate(today.getDate() - diff + (analyticsWeekOffset * 7));
         const startDate = currentMonday.toISOString().split('T')[0];
-        
+
         const res = await fetch(`/api/analytics/dashboard?period=week&startDate=${startDate}`);
         if (res.ok) {
           const data = await res.json();
@@ -1259,8 +1358,8 @@ export default function DashboardPage() {
                               Switch tasks below. Time is logged automatically.
                             </p>
 
-                            <ActivityTracker 
-                              isClockedIn={isClockedIn} 
+                            <ActivityTracker
+                              isClockedIn={isClockedIn}
                               onActivityChange={handleActivityChange}
                               onActivityTimeChange={setActiveActivityStart}
                             />
@@ -1314,8 +1413,8 @@ export default function DashboardPage() {
                           </div>
 
                           <div className="timeline-date-nav">
-                            <button 
-                              className="timeline-nav-btn" 
+                            <button
+                              className="timeline-nav-btn"
                               onClick={() => navigateTimelineDate(-1)}
                               title="Previous Day"
                             >
@@ -1323,16 +1422,16 @@ export default function DashboardPage() {
                             </button>
                             <div className="timeline-date-display">
                               <span className="timeline-date-text">{formatTimelineDate(selectedTimelineDate)}</span>
-                              <input 
-                                type="date" 
+                              <input
+                                type="date"
                                 className="timeline-date-picker"
                                 value={selectedTimelineDate}
                                 onChange={(e) => setSelectedTimelineDate(e.target.value)}
                                 max={new Date().toISOString().slice(0, 10)}
                               />
                             </div>
-                            <button 
-                              className="timeline-nav-btn" 
+                            <button
+                              className="timeline-nav-btn"
                               onClick={() => navigateTimelineDate(1)}
                               title="Next Day"
                               disabled={selectedTimelineDate >= new Date().toISOString().slice(0, 10)}
@@ -1340,7 +1439,7 @@ export default function DashboardPage() {
                             >
                               ❯
                             </button>
-                            <button 
+                            <button
                               className="timeline-today-btn"
                               onClick={() => setSelectedTimelineDate(new Date().toISOString().slice(0, 10))}
                               disabled={selectedTimelineDate === new Date().toISOString().slice(0, 10)}
@@ -1367,12 +1466,12 @@ export default function DashboardPage() {
                             <div id="gantt-body">
                               {selectedDayActivities.map((act: any, idx: number) => {
                                 if (!act.start_time || !act.end_time) return null;
-                                
+
                                 const parseTime = (t: string) => {
                                   const [hh, mm] = t.split(':').map(Number);
                                   return hh * 60 + mm;
                                 };
-                                
+
                                 const startMin = parseTime(act.start_time);
                                 let endMin = parseTime(act.end_time);
 
@@ -1442,14 +1541,14 @@ export default function DashboardPage() {
                                           borderRadius: 4,
                                           fontSize: "0.75rem",
                                           fontWeight: 600,
-                                          backgroundColor: act.approval_status === "NOT_SUBMITTED" ? "rgba(156, 163, 175, 0.2)" : 
-                                                           act.approval_status === "PENDING" ? "rgba(234, 179, 8, 0.2)" : 
-                                                           act.approval_status === "SUPERVISOR_APPROVED" ? "rgba(34, 197, 94, 0.2)" :
-                                                           act.approval_status === "REJECTED" ? "rgba(239, 68, 68, 0.2)" : "rgba(100, 100, 100, 0.2)",
+                                          backgroundColor: act.approval_status === "NOT_SUBMITTED" ? "rgba(156, 163, 175, 0.2)" :
+                                            act.approval_status === "PENDING" ? "rgba(234, 179, 8, 0.2)" :
+                                              act.approval_status === "SUPERVISOR_APPROVED" ? "rgba(34, 197, 94, 0.2)" :
+                                                act.approval_status === "REJECTED" ? "rgba(239, 68, 68, 0.2)" : "rgba(100, 100, 100, 0.2)",
                                           color: act.approval_status === "NOT_SUBMITTED" ? "#9ca3af" :
-                                                 act.approval_status === "PENDING" ? "#eab308" :
-                                                 act.approval_status === "SUPERVISOR_APPROVED" ? "#22c55e" :
-                                                 act.approval_status === "REJECTED" ? "#ef4444" : "#888",
+                                            act.approval_status === "PENDING" ? "#eab308" :
+                                              act.approval_status === "SUPERVISOR_APPROVED" ? "#22c55e" :
+                                                act.approval_status === "REJECTED" ? "#ef4444" : "#888",
                                         }}>
                                           {act.approval_status ? act.approval_status.replace('_', ' ') : "—"}
                                         </span>
@@ -1472,9 +1571,9 @@ export default function DashboardPage() {
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                             {submitMsg && (
-                              <div style={{ 
-                                padding: "6px 12px", 
-                                borderRadius: 6, 
+                              <div style={{
+                                padding: "6px 12px",
+                                borderRadius: 6,
                                 fontSize: "0.85rem",
                                 backgroundColor: submitMsg.type === "success" ? "rgba(34, 197, 94, 0.2)" : "rgba(239, 68, 68, 0.2)",
                                 color: submitMsg.type === "success" ? "#22c55e" : "#ef4444",
@@ -1482,8 +1581,8 @@ export default function DashboardPage() {
                                 {submitMsg.text}
                               </div>
                             )}
-                            <button 
-                              className="ts-submit-btn" 
+                            <button
+                              className="ts-submit-btn"
                               onClick={() => setShowSubmitConfirm(true)}
                               disabled={submitLoading}
                               style={{ opacity: submitLoading ? 0.6 : 1 }}
@@ -1607,15 +1706,15 @@ export default function DashboardPage() {
                                 {!isDiffMonth && dayFutureActivities.length > 0 && (
                                   <div className="future-activities-list">
                                     {dayFutureActivities.map((fs: any) => (
-                                      <div 
-                                        key={fs.fts_id} 
+                                      <div
+                                        key={fs.fts_id}
                                         className="future-activity-item"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         <span className="future-activity-name">{fs.activity_name}</span>
                                         <span className="future-activity-time">{fs.start_time}-{fs.end_time}</span>
-                                        <button 
-                                          className="future-activity-delete" 
+                                        <button
+                                          className="future-activity-delete"
                                           onClick={(e) => { e.stopPropagation(); deleteFutureActivity(fs.fts_id); }}
                                           title="Delete"
                                         >
@@ -1759,8 +1858,8 @@ export default function DashboardPage() {
                             <div className="section-title">
                               Hours Worked vs Target
                               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                <button 
-                                  className="cal-nav-btn" 
+                                <button
+                                  className="cal-nav-btn"
                                   onClick={() => setAnalyticsWeekOffset(prev => prev - 1)}
                                   style={{ padding: "6px 12px" }}
                                 >
@@ -1779,8 +1878,8 @@ export default function DashboardPage() {
                                     return `${fmt(monday)} - ${fmt(sunday)}`;
                                   })()}
                                 </span>
-                                <button 
-                                  className="cal-nav-btn" 
+                                <button
+                                  className="cal-nav-btn"
                                   onClick={() => setAnalyticsWeekOffset(prev => Math.min(prev + 1, 0))}
                                   disabled={analyticsWeekOffset >= 0}
                                   style={{ padding: "6px 12px", opacity: analyticsWeekOffset >= 0 ? 0.4 : 1 }}
@@ -1788,7 +1887,7 @@ export default function DashboardPage() {
                                   ▶
                                 </button>
                                 {analyticsWeekOffset !== 0 && (
-                                  <button 
+                                  <button
                                     onClick={() => setAnalyticsWeekOffset(0)}
                                     style={{ fontSize: "0.75rem", padding: "4px 10px", borderRadius: 4, background: "var(--accent)", color: "#fff", border: "none", cursor: "pointer" }}
                                   >
@@ -1805,8 +1904,8 @@ export default function DashboardPage() {
                                 const TARGET_HOURS = 9;
                                 const MAX_SCALE = 12;
 
-                                const currentDay = today.getDay(); 
-                                const diff = currentDay === 0 ? 6 : currentDay - 1; 
+                                const currentDay = today.getDay();
+                                const diff = currentDay === 0 ? 6 : currentDay - 1;
                                 const monday = new Date(today);
                                 monday.setDate(today.getDate() - diff + (analyticsWeekOffset * 7));
 
@@ -1863,15 +1962,26 @@ export default function DashboardPage() {
       {/* 🚨 MULTI-STEP SETTINGS MODAL */}
       {showSettingsModal && (
         <div className="modal-overlay">
-          <div className="modal-card" style={{ width: 450 }}>
+          <div className="modal-card" style={{ width: 480 }}>
             <div className="modal-header header-normal">
               <span style={{ fontSize: "1.5rem" }}>⚙️</span>
               <span className="modal-title">ACCOUNT SETTINGS</span>
               <button className="calendar-modal-close" onClick={closeSettingsModal}>×</button>
             </div>
-            
+
             <div className="modal-body" style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 20 }}>
-              
+
+              {/* Step indicator dots */}
+              {settingsStep !== "menu" && settingsStep !== "success" && settingsStep !== "locked" && (
+                <div className="cpw-step-indicator">
+                  <div className={`cpw-step-dot ${settingsStep === "otp" ? "active" : "done"}`}>1</div>
+                  <div className="cpw-step-line" />
+                  <div className={`cpw-step-dot ${settingsStep === "question" ? "active" : settingsStep === "password" ? "done" : ""}`}>2</div>
+                  <div className="cpw-step-line" />
+                  <div className={`cpw-step-dot ${settingsStep === "password" ? "active" : ""}`}>3</div>
+                </div>
+              )}
+
               {settingsStep === "menu" && (
                 <>
                   <div style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
@@ -1887,24 +1997,15 @@ export default function DashboardPage() {
                   <div style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
                     <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Security</h4>
                     <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: 15 }}>
-                      Changing your password requires an OTP verification sent to your registered email, followed by a security question.
+                      Change your password through a secure multi-step verification process. An OTP will be sent to your registered email.
                     </p>
-                    
-                    <input
-                      type="email"
-                      className="input-rounded"
-                      placeholder="Confirm your email address"
-                      value={confirmEmail}
-                      onChange={(e) => setConfirmEmail(e.target.value)}
-                      style={{ marginBottom: 10 }}
-                    />
 
-                    <button className="btn-standard" onClick={handleRequestOTP} disabled={settingsLoading || !confirmEmail} style={{ width: "100%" }}>
-                      {settingsLoading ? "SENDING OTP..." : "INITIATE PASSWORD CHANGE"}
+                    <button className="btn-standard" onClick={handleRequestOTP} disabled={settingsLoading} style={{ width: "100%" }}>
+                      {settingsLoading ? "SENDING OTP..." : "🔒 CHANGE PASSWORD"}
                     </button>
-                    
+
                     {settingsMsg.text && (
-                      <div style={{ color: "var(--color-warn)", fontSize: "0.8rem", marginTop: 10, textAlign: "center" }}>
+                      <div style={{ color: settingsMsg.type === "error" ? "var(--color-warn)" : "var(--color-go)", fontSize: "0.8rem", marginTop: 10, textAlign: "center" }}>
                         {settingsMsg.text}
                       </div>
                     )}
@@ -1914,25 +2015,64 @@ export default function DashboardPage() {
 
               {settingsStep === "otp" && (
                 <div className="fade-in" style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
-                  <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 1: Enter OTP</h4>
-                  <p style={{ fontSize: "0.85rem", color: "var(--color-go)", marginBottom: 15 }}>{settingsMsg.text}</p>
-                  
+                  <h4 style={{ marginBottom: 6, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 1: OTP Verification</h4>
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 15 }}>
+                    Enter the 6-digit code sent to your registered email.
+                  </p>
+
                   <form onSubmit={handleVerifyOTP} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div>
                       <label className="label-sm">6-DIGIT OTP CODE</label>
-                      <input 
-                        type="text" 
-                        className="input-rounded" 
+                      <input
+                        type="text"
+                        className="input-rounded cpw-otp-input"
                         value={otpCode}
-                        onChange={(e) => setOtpCode(e.target.value)}
+                        onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                         placeholder="000000"
                         maxLength={6}
+                        autoComplete="one-time-code"
                       />
                     </div>
-                    
-                    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-                      <button type="button" className="btn-cancel" onClick={() => setSettingsStep("menu")} style={{ flex: 1 }}>CANCEL</button>
-                      <button type="submit" className="btn-standard" disabled={settingsLoading} style={{ flex: 1 }}>
+
+                    {/* Status info row */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.75rem" }}>
+                      <div style={{ color: "var(--text-muted)" }}>
+                        Attempts: <span style={{ color: otpAttempts >= 2 ? "var(--color-warn)" : "var(--text-main)", fontWeight: 700 }}>{otpAttempts}/3</span>
+                      </div>
+                      <div style={{ color: "var(--text-muted)" }}>
+                        OTP Requests Today: <span style={{ color: otpDailyCount >= 4 ? "var(--color-warn)" : "var(--text-main)", fontWeight: 700 }}>{otpDailyCount}/5</span>
+                      </div>
+                    </div>
+
+                    {/* Countdown + Resend */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      {otpCountdown > 0 ? (
+                        <div className="cpw-countdown">
+                          <span className="cpw-countdown-icon">⏱</span>
+                          <span>Code expires in <strong>{Math.floor(otpCountdown / 60)}:{(otpCountdown % 60).toString().padStart(2, "0")}</strong></span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: "0.8rem", color: "var(--color-warn)" }}>OTP expired</div>
+                      )}
+                      <button
+                        type="button"
+                        className="cpw-resend-btn"
+                        onClick={handleResendOTP}
+                        disabled={otpCountdown > 0 || otpDailyCount >= 5 || settingsLoading}
+                      >
+                        {otpCountdown > 0 ? `Resend in ${otpCountdown}s` : "Resend OTP"}
+                      </button>
+                    </div>
+
+                    {settingsMsg.text && (
+                      <div style={{ color: settingsMsg.type === "error" ? "var(--color-warn)" : "var(--color-go)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>
+                        {settingsMsg.text}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 10, marginTop: 5 }}>
+                      <button type="button" className="btn-cancel" onClick={() => { closeSettingsModal(); }} style={{ flex: 1 }}>CANCEL</button>
+                      <button type="submit" className="btn-standard" disabled={settingsLoading || otpAttempts >= 3} style={{ flex: 1 }}>
                         {settingsLoading ? "VERIFYING..." : "VERIFY OTP"}
                       </button>
                     </div>
@@ -1942,31 +2082,51 @@ export default function DashboardPage() {
 
               {settingsStep === "question" && (
                 <div className="fade-in" style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
-                  <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 2: Security Verification</h4>
-                  
+                  <h4 style={{ marginBottom: 6, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 2: Security Question</h4>
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 15 }}>
+                    Answer the security question below to verify your identity.
+                  </p>
+
                   <form onSubmit={handleVerifyAnswer} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div>
-                      <label className="label-sm">SECURITY QUESTION</label>
-                      <div style={{ background: "rgba(0,0,0,0.2)", padding: 10, borderRadius: 6, fontSize: "0.9rem", color: "var(--text-main)", marginBottom: 10 }}>
+                      <label className="label-sm">YOUR QUESTION</label>
+                      <div style={{ background: "rgba(0,0,0,0.25)", padding: "12px 14px", borderRadius: 8, fontSize: "0.9rem", color: "var(--text-main)", marginBottom: 10, fontStyle: "italic", borderLeft: "3px solid var(--accent-cyan, #4ade80)" }}>
                         {secQuestion}
                       </div>
-                      <input 
-                        type="text" 
-                        className="input-rounded" 
+                      <label className="label-sm">YOUR ANSWER</label>
+                      <input
+                        type="text"
+                        className="input-rounded"
                         value={secAnswer}
-                        onChange={(e) => setSecAnswer(e.target.value)}
-                        placeholder="Your answer"
+                        onChange={(e) => setSecAnswer(sanitizeSecAnswer(e.target.value))}
+                        placeholder="Type your answer..."
+                        maxLength={50}
                       />
+                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 4 }}>
+                        {secAnswer.length}/50 characters • No emojis allowed
+                      </div>
                     </div>
-                    
+
+                    {/* Attempt counter */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.75rem" }}>
+                      <div style={{ color: "var(--text-muted)" }}>
+                        Attempts: <span style={{ color: sqAttempts >= 2 ? "#f8312f" : "var(--text-main)", fontWeight: 700 }}>{sqAttempts}/3</span>
+                      </div>
+                      {sqAttempts >= 2 && (
+                        <div style={{ color: "#f8312f", fontWeight: 700, fontSize: "0.75rem" }}>
+                          ⚠ Last attempt — account will be locked
+                        </div>
+                      )}
+                    </div>
+
                     {settingsMsg.text && (
-                      <div style={{ color: settingsMsg.type === "error" ? "var(--color-warn)" : "var(--color-go)", fontSize: "0.8rem", fontWeight: 600 }}>
+                      <div style={{ color: settingsMsg.type === "error" ? "var(--color-warn)" : "var(--color-go)", fontSize: "0.8rem", fontWeight: 600, textAlign: "center" }}>
                         {settingsMsg.text}
                       </div>
                     )}
 
-                    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-                      <button type="button" className="btn-cancel" onClick={() => setSettingsStep("menu")} style={{ flex: 1 }}>CANCEL</button>
+                    <div style={{ display: "flex", gap: 10, marginTop: 5 }}>
+                      <button type="button" className="btn-cancel" onClick={() => closeSettingsModal()} style={{ flex: 1 }}>CANCEL</button>
                       <button type="submit" className="btn-standard" disabled={settingsLoading} style={{ flex: 1 }}>
                         {settingsLoading ? "VERIFYING..." : "CONFIRM IDENTITY"}
                       </button>
@@ -1977,43 +2137,100 @@ export default function DashboardPage() {
 
               {settingsStep === "password" && (
                 <div className="fade-in" style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
-                  <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 3: New Password</h4>
-                  
+                  <h4 style={{ marginBottom: 6, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Step 3: New Password</h4>
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 15 }}>
+                    Must contain uppercase, lowercase, and numbers. 8-30 characters. No emojis.
+                  </p>
+
                   <form onSubmit={handleResetPassword} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div>
                       <label className="label-sm">NEW PASSWORD</label>
-                      <input 
-                        type="password" 
-                        className="input-rounded" 
-                        value={pwdNew}
-                        onChange={(e) => setPwdNew(e.target.value)}
-                        placeholder="At least 8 characters"
-                      />
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type={showPwdNew ? "text" : "password"}
+                          className="input-rounded"
+                          value={pwdNew}
+                          onChange={(e) => setPwdNew(e.target.value)}
+                          placeholder="At least 8 characters"
+                          maxLength={30}
+                          style={{ paddingRight: 40 }}
+                        />
+                        <button type="button" onClick={() => setShowPwdNew(!showPwdNew)} className="cpw-eye-btn">
+                          {showPwdNew ? "🙈" : "👁"}
+                        </button>
+                      </div>
                     </div>
+
+                    {/* Password strength bar */}
+                    {pwdNew && (() => {
+                      const s = getPasswordStrength(pwdNew);
+                      return (
+                        <div>
+                          <div className="cpw-strength-bar">
+                            <div className="cpw-strength-fill" style={{ width: `${(s.level / 3) * 100}%`, background: s.color }} />
+                          </div>
+                          <div style={{ fontSize: "0.7rem", color: s.color, fontWeight: 600, marginTop: 3 }}>{s.label}</div>
+                        </div>
+                      );
+                    })()}
+
                     <div>
                       <label className="label-sm">CONFIRM NEW PASSWORD</label>
-                      <input 
-                        type="password" 
-                        className="input-rounded" 
-                        value={pwdConfirm}
-                        onChange={(e) => setPwdConfirm(e.target.value)}
-                        placeholder="Type new password again"
-                      />
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type={showPwdConfirm ? "text" : "password"}
+                          className="input-rounded"
+                          value={pwdConfirm}
+                          onChange={(e) => setPwdConfirm(e.target.value)}
+                          placeholder="Re-enter new password"
+                          maxLength={30}
+                          style={{ paddingRight: 40 }}
+                        />
+                        <button type="button" onClick={() => setShowPwdConfirm(!showPwdConfirm)} className="cpw-eye-btn">
+                          {showPwdConfirm ? "🙈" : "👁"}
+                        </button>
+                      </div>
+                      {pwdConfirm && pwdNew !== pwdConfirm && (
+                        <div style={{ fontSize: "0.75rem", color: "var(--color-warn)", marginTop: 4 }}>Passwords do not match</div>
+                      )}
                     </div>
-                    
+
                     {settingsMsg.text && (
-                      <div style={{ color: settingsMsg.type === "success" ? "var(--color-go)" : "var(--color-warn)", fontSize: "0.8rem", marginTop: 5, fontWeight: 600 }}>
+                      <div style={{ color: settingsMsg.type === "success" ? "var(--color-go)" : "var(--color-warn)", fontSize: "0.8rem", marginTop: 5, fontWeight: 600, textAlign: "center" }}>
                         {settingsMsg.text}
                       </div>
                     )}
 
-                    <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-                      <button type="button" className="btn-cancel" onClick={() => setSettingsStep("menu")} style={{ flex: 1 }}>CANCEL</button>
+                    <div style={{ display: "flex", gap: 10, marginTop: 5 }}>
+                      <button type="button" className="btn-cancel" onClick={() => closeSettingsModal()} style={{ flex: 1 }}>CANCEL</button>
                       <button type="submit" className="btn-standard" disabled={settingsLoading} style={{ flex: 1 }}>
                         {settingsLoading ? "SAVING..." : "SAVE PASSWORD"}
                       </button>
                     </div>
                   </form>
+                </div>
+              )}
+
+              {settingsStep === "success" && (
+                <div className="fade-in" style={{ textAlign: "center", padding: "30px 20px" }}>
+                  <div style={{ fontSize: "3rem", marginBottom: 15 }}>✅</div>
+                  <h3 style={{ color: "var(--color-go)", marginBottom: 10, textTransform: "uppercase", letterSpacing: 2, fontSize: "1rem" }}>Password Updated</h3>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                    Your password has been changed successfully. This dialog will close automatically.
+                  </p>
+                </div>
+              )}
+
+              {settingsStep === "locked" && (
+                <div className="fade-in" style={{ textAlign: "center", padding: "30px 20px" }}>
+                  <div style={{ fontSize: "3rem", marginBottom: 15 }}>🔒</div>
+                  <h3 style={{ color: "#f8312f", marginBottom: 10, textTransform: "uppercase", letterSpacing: 2, fontSize: "1rem" }}>Account Locked</h3>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: 10 }}>
+                    Your account has been disabled due to too many failed security question attempts. You will be redirected to the login page.
+                  </p>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                    Please contact an administrator to re-enable your account.
+                  </p>
                 </div>
               )}
 
@@ -2139,8 +2356,8 @@ export default function DashboardPage() {
                 <button className="btn-cancel" onClick={() => setShowSubmitConfirm(false)}>
                   CANCEL
                 </button>
-                <button 
-                  className="btn-standard" 
+                <button
+                  className="btn-standard"
                   onClick={() => {
                     setShowSubmitConfirm(false);
                     submitTimesheet();
