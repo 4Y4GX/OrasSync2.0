@@ -191,9 +191,9 @@ model D_tbltime_log {
   dept_id_at_log                                          Int?
   clock_id                                                Int?
   shift_date                                              DateTime?                                @db.DateTime(0)
-  approval_status                                         D_tbltime_log_approval_status?           @default(PENDING)
-  approved_by_supervisor_id                               D_tbltime_log_approved_by_supervisor_id? @default(PENDING)
-  approved_by_manager_id                                  D_tbltime_log_approved_by_manager_id?    @default(PENDING)
+  approval_status                                         D_tbltime_log_approval_status?           @default(NOT_SUBMITTED)
+  approved_by_supervisor_id                               D_tbltime_log_approved_by_supervisor_id? @default(NOT_SUBMITTED)
+  approved_by_manager_id                                  D_tbltime_log_approved_by_manager_id?    @default(NOT_SUBMITTED)
   supervisor_approved_at                                  DateTime?                                @db.Timestamp(0)
   manager_approved_at                                     DateTime?                                @db.Timestamp(0)
   rejection_reason                                        String?                                  @db.VarChar(255)
@@ -393,16 +393,19 @@ enum D_tbltime_log_approval_status {
   MANAGER_APPROVED
   SUPERVISOR_APPROVED
   REJECTED
+  NOT_SUBMITTED       @map("NOT SUBMITTED")
 }
 
 enum D_tbltime_log_approved_by_supervisor_id {
   PENDING
   APPROVED
   REJECTED
+  NOT_SUBMITTED @map("NOT SUBMITTED")
 }
 
 enum D_tbltime_log_approved_by_manager_id {
   PENDING
   APPROVED
   REJECTED
+  NOT_SUBMITTED @map("NOT SUBMITTED")
 }

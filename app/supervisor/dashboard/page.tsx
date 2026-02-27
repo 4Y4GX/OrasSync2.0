@@ -5,6 +5,8 @@ import '../../styles/dashboard.css';
 import '../../styles/supervisor.css';
 import SupervisorScheduleManagement from '@/app/components/SupervisorScheduleManagement';
 import TeamStatusMonitor from '@/app/components/TeamStatusMonitor';
+import { Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { passwordChecks, removeEmojis, STRONG_PASS_REGEX } from "@/lib/zeroTrustValidation";
 
 function formatHoursToHHMM(hours: number | string) {
   if (!hours) return "00:00";
@@ -19,7 +21,8 @@ export default function SupervisorDashboard() {
   const [activeSection, setActiveSection] = useState('team');
   const [lightMode, setLightMode] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+
   // UPDATED: Added new stat fields for Monthly data and Compliance array
   const [stats, setStats] = useState({
     totalMembers: 0,
@@ -125,7 +128,8 @@ export default function SupervisorDashboard() {
   const [userProfile, setUserProfile] = useState({
     name: 'Loading...',
     role: ' Supervisor',
-    initials: '...'
+    initials: '...',
+    email: ''
   });
 
   const [message, setMessage] = useState('');
@@ -147,6 +151,174 @@ export default function SupervisorDashboard() {
       document.body.classList.toggle("light-mode", isLight);
     } catch { }
   }, []);
+
+  // --- Change Password State & Helpers ---
+  const [showCpModal, setShowCpModal] = useState(false);
+  const [cpStep, setCpStep] = useState<1 | 2 | 3 | 4>(1);
+  const [cpLoading, setCpLoading] = useState(false);
+  const [cpError, setCpError] = useState("");
+
+  const [cpOtp, setCpOtp] = useState<string[]>(Array(6).fill(""));
+  const [cpOtpSent, setCpOtpSent] = useState(false);
+  const [cpCountdown, setCpCountdown] = useState(0);
+  const cpOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const [cpQuestion, setCpQuestion] = useState("");
+  const [cpQuestionId, setCpQuestionId] = useState<number | null>(null);
+  const [cpAnswer, setCpAnswer] = useState("");
+
+  const [cpNewPassword, setCpNewPassword] = useState("");
+  const [cpConfirmPassword, setCpConfirmPassword] = useState("");
+  const [cpShowPass1, setCpShowPass1] = useState(false);
+  const [cpShowPass2, setCpShowPass2] = useState(false);
+  const [cpTouchedPw, setCpTouchedPw] = useState(false);
+  const [cpTouchedConfirm, setCpTouchedConfirm] = useState(false);
+  const [cpCapsOn1, setCpCapsOn1] = useState(false);
+  const [cpCapsOn2, setCpCapsOn2] = useState(false);
+
+  useEffect(() => {
+    if (cpCountdown > 0) {
+      const timer = setTimeout(() => setCpCountdown(cpCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cpCountdown]);
+
+  const resetCpState = () => {
+    setCpStep(1);
+    setCpError("");
+    setCpLoading(false);
+    setCpOtp(Array(6).fill(""));
+    setCpOtpSent(false);
+    setCpAnswer("");
+    setCpNewPassword("");
+    setCpConfirmPassword("");
+    setCpTouchedPw(false);
+    setCpTouchedConfirm(false);
+  };
+
+  const handleSendOtp = async () => {
+    if (!userProfile.email) return;
+    setCpError("");
+    setCpLoading(true);
+    try {
+      const res = await fetch("/api/auth/otp/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: userProfile.email })
+      });
+      if (res.ok || res.status === 200) {
+        setCpOtpSent(true);
+        setCpCountdown(90);
+        setTimeout(() => cpOtpRefs.current[0]?.focus(), 100);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setCpError(err.message || "Failed to send OTP");
+      }
+    } catch {
+      setCpError("Failed to send OTP");
+    } finally {
+      setCpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = cpOtp.join("");
+    if (code.length < 6) return;
+    setCpError("");
+    setCpLoading(true);
+    try {
+      const res = await fetch("/api/auth/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userProfile.email, otp: code, flow: "recovery" })
+      });
+      if (res.ok) {
+        setCpError("");
+        const qRes = await fetch("/api/supervisor/settings/security-question");
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          setCpQuestion(qData.question_text);
+          setCpQuestionId(qData.question_id);
+          setCpStep(2);
+        } else {
+          setCpError("Failed to fetch security question");
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setCpError(err.message || "OTP Verification Failed");
+      }
+    } catch {
+      setCpError("OTP Verification Failed");
+    } finally {
+      setCpLoading(false);
+    }
+  };
+
+  const handleVerifyQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCpError("");
+    setCpLoading(true);
+    try {
+      const res = await fetch("/api/supervisor/settings/security-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questionId: cpQuestionId, answer: removeEmojis(cpAnswer) })
+      });
+      if (res.ok) {
+        setCpStep(3);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setCpError(err.message || "Incorrect Answer");
+        if (err.lockedOut) {
+          alert("Account locked due to too many failed attempts.");
+          handleLogout();
+        }
+      }
+    } catch {
+      setCpError("Verification Failed");
+    } finally {
+      setCpLoading(false);
+    }
+  };
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCpTouchedPw(true);
+    setCpTouchedConfirm(true);
+    if (cpNewPassword !== cpConfirmPassword || !STRONG_PASS_REGEX.test(removeEmojis(cpNewPassword))) return;
+    setCpError("");
+    setCpLoading(true);
+    try {
+      const res = await fetch("/api/supervisor/settings/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_password: removeEmojis(cpNewPassword) })
+      });
+      if (res.ok) {
+        setCpStep(4);
+        setTimeout(() => {
+          handleLogout();
+        }, 2000);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setCpError(err.message || "Failed to update password");
+      }
+    } catch {
+      setCpError("Failed to update password");
+    } finally {
+      setCpLoading(false);
+    }
+  };
+
+  const clampPasswordInput = (raw: string) => removeEmojis(raw).slice(0, 20);
+  const syncCaps = (e: React.KeyboardEvent<HTMLInputElement>, which: 1 | 2) => {
+    const on = e.getModifierState?.("CapsLock") ?? false;
+    if (which === 1) setCpCapsOn1(on); else setCpCapsOn2(on);
+  };
+
+  const cpChecks = passwordChecks(cpNewPassword);
+
 
   useEffect(() => {
     document.body.style.backgroundColor = lightMode ? '#eef2f6' : '#121212';
@@ -218,9 +390,6 @@ export default function SupervisorDashboard() {
             <li className={`nav-item ${activeSection === 'analytics' ? 'active' : ''}`} onClick={() => setActiveSection('analytics')}>
               Team Analytics
             </li>
-            <li className={`nav-item ${activeSection === 'settings' ? 'active' : ''}`} onClick={() => setActiveSection('settings')}>
-              Settings
-            </li>
           </ul>
 
           <div className="widget-box">
@@ -231,8 +400,8 @@ export default function SupervisorDashboard() {
             </div>
           </div>
 
-          <div 
-            className="profile-card" 
+          <div
+            className="profile-card"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             ref={profileMenuRef}
           >
@@ -245,6 +414,9 @@ export default function SupervisorDashboard() {
 
             {showProfileMenu && (
               <div className="profile-dropdown">
+                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); setShowSettingsModal(true); setShowProfileMenu(false); }}>
+                  <span>⚙️</span> Settings
+                </button>
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
                   <span>🚪</span> Logout
                 </button>
@@ -255,10 +427,10 @@ export default function SupervisorDashboard() {
 
         <main className="workspace-panel">
           <div className="top-bar" style={{ position: 'absolute', top: 20, right: 30, padding: 0, zIndex: 10, display: 'flex', gap: '10px' }}>
-            <button 
-              className="theme-btn" 
-              onClick={handleRefreshNow} 
-              title="Refresh Data" 
+            <button
+              className="theme-btn"
+              onClick={handleRefreshNow}
+              title="Refresh Data"
               style={{ width: 32, height: 32, fontSize: '1rem' }}
             >
               🔄
@@ -369,7 +541,7 @@ export default function SupervisorDashboard() {
             {activeSection === 'analytics' && (
               <div className="section-view active fade-in">
                 <div className="section-animate">
-                  
+
                   {/* Top Analytics Panels */}
                   <div className="analytics-top-row">
                     <div className="analytics-card">
@@ -377,7 +549,7 @@ export default function SupervisorDashboard() {
                       <div className="analytics-content">
                         <div className="analytics-label">THIS WEEK</div>
                         <div className="analytics-value accent-cyan">
-                          {stats.teamPerformance?.weeklyTotal || '0.0'} <span style={{fontSize:'1rem', color:'var(--text-muted)'}}>hrs</span>
+                          {stats.teamPerformance?.weeklyTotal || '0.0'} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>hrs</span>
                         </div>
                         <div className="analytics-sub">Target: {stats.teamPerformance?.targetWeeklyHours || '0'} hrs</div>
                       </div>
@@ -387,7 +559,7 @@ export default function SupervisorDashboard() {
                       <div className="analytics-content">
                         <div className="analytics-label">THIS MONTH</div>
                         <div className="analytics-value">
-                          {stats.teamPerformance?.monthlyTotal || '0.0'} <span style={{fontSize:'1rem', color:'var(--text-muted)'}}>hrs</span>
+                          {stats.teamPerformance?.monthlyTotal || '0.0'} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>hrs</span>
                         </div>
                         <div className="analytics-sub">Total Monthly Hours</div>
                       </div>
@@ -419,7 +591,7 @@ export default function SupervisorDashboard() {
                         <div key={`${day.day}-${i}`} className="bar-group">
                           <div
                             className="bar bar-actual supervisor-bar"
-                            style={{ 
+                            style={{
                               height: `${Math.max(day.percentage, 5)}%`,
                               minHeight: day.percentage > 0 ? '10px' : '0px'
                             }}
@@ -441,11 +613,11 @@ export default function SupervisorDashboard() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
-                    
+
                     {/* Team Member Compliance Table */}
                     <div className="glass-card">
                       <div className="section-title">Team Member Compliance</div>
-                      <div className="compliance-info" style={{ 
+                      <div className="compliance-info" style={{
                         padding: '1rem', marginBottom: '1rem', background: 'rgba(167, 139, 250, 0.1)',
                         border: '1px solid rgba(167, 139, 250, 0.3)', borderRadius: '8px', color: 'var(--text-main)', fontSize: '0.9rem'
                       }}>
@@ -480,7 +652,7 @@ export default function SupervisorDashboard() {
                                   <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>40.0 hrs</td>
                                   <td>
                                     <div className="compliance-bar">
-                                      <div 
+                                      <div
                                         className={`compliance-fill ${emp.isOverWeekly ? 'over' : 'ok'}`}
                                         style={{ width: `${Math.min((parseFloat(emp.weeklyHours) / 40) * 100, 100)}%` }}
                                       />
@@ -504,22 +676,22 @@ export default function SupervisorDashboard() {
                     <div className="glass-card" style={{ background: 'rgba(167, 139, 250, 0.05)', borderColor: 'rgba(167, 139, 250, 0.2)' }}>
                       <div className="section-title" style={{ padding: 0, border: 'none', marginBottom: '15px', color: 'var(--accent-primary)' }}>Generate Reports</div>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>Export historical hours and activity data for your team.</p>
-                      
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <select id="reportTarget" className="input-rounded" style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid var(--border-subtle)' }}>
-                            <option value="all" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>All Direct Reports</option>
-                            {stats.complianceData && stats.complianceData.map((emp: any, i: number) => ( 
-                              <option key={`report-${i}`} value={emp.user_id || emp.name} style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>{emp.name}</option> 
-                            ))}
-                        </select>
-                        
-                        <select id="reportFormat" className="input-rounded" style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid var(--border-subtle)' }}>
-                            <option value="csv" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>CSV Format</option>
-                            <option value="json" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>JSON Format</option>
+                          <option value="all" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>All Direct Reports</option>
+                          {stats.complianceData && stats.complianceData.map((emp: any, i: number) => (
+                            <option key={`report-${i}`} value={emp.user_id || emp.name} style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>{emp.name}</option>
+                          ))}
                         </select>
 
-                        <button 
-                          className="btn-improved btn-primary" 
+                        <select id="reportFormat" className="input-rounded" style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid var(--border-subtle)' }}>
+                          <option value="csv" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>CSV Format</option>
+                          <option value="json" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>JSON Format</option>
+                        </select>
+
+                        <button
+                          className="btn-improved btn-primary"
                           style={{ width: '100%', padding: '12px', marginTop: '10px', justifyContent: 'center' }}
                           onClick={async () => {
                             const target = (document.getElementById('reportTarget') as HTMLSelectElement).value;
@@ -536,7 +708,7 @@ export default function SupervisorDashboard() {
                                   end_date: new Date().toISOString().split('T')[0]
                                 })
                               });
-                              
+
                               if (res.ok) {
                                 const data = await res.json();
                                 if (format === 'csv') {
@@ -555,7 +727,7 @@ export default function SupervisorDashboard() {
                               } else {
                                 alert("Failed to generate report.");
                               }
-                            } catch(e) {
+                            } catch (e) {
                               alert("Error connecting to report server.");
                             }
                           }}
@@ -569,148 +741,301 @@ export default function SupervisorDashboard() {
                 </div>
               </div>
             )}
+            {/* Removed inline settings section */}
+          </div>
+        </main>
+      </div>
 
-            {activeSection === 'settings' && (
-              <div className="section-view active fade-in">
-                <div className="section-animate">
-                  {/* Profile Settings Card */}
-                  <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
-                    <div className="section-title">Profile Settings</div>
-                    
-                    <div className="settings-section">
-                      <div className="settings-header">
-                        <div>
-                          <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Change Password</h4>
-                          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Update your account password</p>
-                        </div>
-                        <button 
-                          className="btn-settings-action"
-                          onClick={() => window.location.href = '/auth/change-password'}
-                        >
-                          🔑 Change Password
-                        </button>
-                      </div>
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="modal-overlay-improved" onClick={() => setShowSettingsModal(false)}>
+          <div className="modal-card-improved" style={{ maxWidth: '600px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-improved">
+              <div className="modal-icon-wrapper" style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--accent-primary)' }}>⚙️</div>
+              <div className="modal-title-improved">Dashboard Settings</div>
+              <div className="modal-subtitle">Manage your profile and application appearance</div>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                style={{ position: 'absolute', right: '20px', top: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body-improved" style={{ maxHeight: '70vh', overflowY: 'auto', padding: '20px' }}>
+
+              {/* Profile Settings Card */}
+              <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
+                <div className="section-title">Profile Settings</div>
+
+                <div className="settings-section">
+                  <div className="settings-header">
+                    <div>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Change Password</h4>
+                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Update your account password</p>
+                    </div>
+                    <button
+                      className="btn-settings-action"
+                      onClick={() => {
+                        setShowSettingsModal(false);
+                        resetCpState();
+                        setShowCpModal(true);
+                      }}
+                    >
+                      🔑 Change Password
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Appearance Settings Card */}
+              <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
+                <div className="section-title">Appearance</div>
+
+                <div className="settings-row">
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Theme Mode</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                      Switch between light and dark theme
                     </div>
                   </div>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      checked={!lightMode}
+                      onChange={toggleTheme}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
 
-                  {/* Appearance Settings Card */}
-                  <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
-                    <div className="section-title">Appearance</div>
-                    
-                    <div className="settings-row">
-                      <div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Theme Mode</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          Switch between light and dark theme
-                        </div>
-                      </div>
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          checked={!lightMode}
-                          onChange={toggleTheme}
-                        />
-                        <span className="slider"></span>
-                      </label>
+                <div className="settings-row">
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Lock Theme</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                      Prevent theme from changing accidentally
                     </div>
+                  </div>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      onChange={(e) => {
+                        try {
+                          localStorage.setItem("orasync-theme-locked", e.target.checked ? "true" : "false");
+                          if (e.target.checked) {
+                            setMessage('Theme locked. Unlock to change theme.');
+                            setTimeout(() => setMessage(''), 3000);
+                          }
+                        } catch { }
+                      }}
+                    />
+                    <span className="slider"></span>
+                  </label>
+                </div>
+                {message && (
+                  <div style={{ marginTop: '1rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                    {message}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-                    <div className="settings-row">
-                      <div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Lock Theme</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          Prevent theme from changing accidentally
-                        </div>
-                      </div>
-                      <label className="toggle-switch">
-                        <input
-                          type="checkbox"
-                          onChange={(e) => {
-                            try {
-                              localStorage.setItem("orasync-theme-locked", e.target.checked ? "true" : "false");
-                              if (e.target.checked) {
-                                setMessage('Theme locked. Unlock to change theme.');
-                                setTimeout(() => setMessage(''), 3000);
+      {/* Change Password Modal */}
+      {showCpModal && (
+        <div className="modal-overlay-improved" onClick={() => !cpLoading && setShowCpModal(false)}>
+          <div className="modal-card-improved" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-improved" style={{ paddingBottom: '15px' }}>
+              <div className="modal-icon-wrapper" style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--accent-primary)' }}>
+                {cpStep === 4 ? <CheckCircle size={24} /> : '🔒'}
+              </div>
+              <div className="modal-title-improved">
+                {cpStep === 1 ? "Secure Verification" : cpStep === 2 ? "Security Question" : cpStep === 3 ? "New Password" : "Password Updated"}
+              </div>
+              <div className="modal-subtitle">
+                {cpStep === 1 ? "Verify your identity via email OTP." : cpStep === 2 ? "Answer your security question." : cpStep === 3 ? "Set your new secure password." : "Redirecting to login..."}
+              </div>
+            </div>
+
+            <div className="modal-body-improved" style={{ paddingTop: '10px' }}>
+              {cpStep < 4 && (
+                <div className="cp-step-indicator">
+                  <div className={`cp-step ${cpStep >= 1 ? 'active' : ''} ${cpStep > 1 ? 'passed' : ''}`} />
+                  <div className={`cp-step ${cpStep >= 2 ? 'active' : ''} ${cpStep > 2 ? 'passed' : ''}`} />
+                  <div className={`cp-step ${cpStep >= 3 ? 'active' : ''}`} />
+                </div>
+              )}
+
+              {cpError && <div style={{ color: '#ff5b5b', fontSize: '0.85rem', fontWeight: 700, textAlign: 'center', marginBottom: '15px', textTransform: 'uppercase' }}>{cpError}</div>}
+
+              {/* Step 1: OTP */}
+              {cpStep === 1 && (
+                <div>
+                  {!cpOtpSent ? (
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+                        We will send a 6-digit verification code to your registered email address.
+                        <br /><br />
+                        <strong style={{ color: 'var(--accent-primary)' }}>{userProfile.email ? userProfile.email : "Loading email..."}</strong>
+                      </p>
+                      <button className="btn-improved btn-primary" onClick={handleSendOtp} disabled={cpLoading || !userProfile.email} style={{ width: '100%', justifyContent: 'center' }}>
+                        {cpLoading ? "Sending..." : "Send Verification Code"}
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleVerifyOtp}>
+                      <div className="label-improved" style={{ textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>ENTER 6-DIGIT CODE</div>
+                      <div className="cp-otp-grid">
+                        {[0, 1, 2, 3, 4, 5].map((idx) => (
+                          <input
+                            key={idx}
+                            ref={(el) => { cpOtpRefs.current[idx] = el; }}
+                            type="text"
+                            maxLength={1}
+                            className="cp-otp-box"
+                            value={cpOtp[idx]}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, "");
+                              const newOtp = [...cpOtp];
+                              newOtp[idx] = val;
+                              setCpOtp(newOtp);
+                              if (val && idx < 5) cpOtpRefs.current[idx + 1]?.focus();
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Backspace" && !cpOtp[idx] && idx > 0) {
+                                cpOtpRefs.current[idx - 1]?.focus();
                               }
-                            } catch { }
-                          }}
-                        />
-                        <span className="slider"></span>
-                      </label>
+                            }}
+                            onPaste={(e) => {
+                              e.preventDefault();
+                              const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                              if (text) {
+                                const newOtp = [...cpOtp];
+                                text.split("").forEach((char, i) => { newOtp[i] = char; });
+                                setCpOtp(newOtp);
+                                cpOtpRefs.current[Math.min(text.length, 5)]?.focus();
+                              }
+                            }}
+                            required
+                          />
+                        ))}
+                      </div>
+                      <div className="cp-resend-wrapper">
+                        <div>Code expires in 90s</div>
+                        <div className={`cp-resend-btn ${cpCountdown === 0 ? 'active' : ''}`} onClick={() => cpCountdown === 0 && handleSendOtp()} style={{ opacity: cpCountdown === 0 ? 1 : 0.5 }}>
+                          {cpCountdown > 0 ? `Resend in ${cpCountdown}s` : 'Resend Code'}
+                        </div>
+                      </div>
+                      <button type="submit" className="btn-improved btn-primary" disabled={cpLoading || cpOtp.join("").length < 6} style={{ width: '100%', justifyContent: 'center' }}>
+                        {cpLoading ? "Verifying..." : "Verify Code"}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* Step 2: Question */}
+              {cpStep === 2 && (
+                <form onSubmit={handleVerifyQuestion}>
+                  <div className="form-group-improved">
+                    <label className="label-improved" style={{ color: 'var(--accent-orange)' }}>
+                      {(cpQuestion || "SECURITY CHECK").toUpperCase()}
+                    </label>
+                    <input
+                      type="text"
+                      className="input-improved"
+                      placeholder="Your Answer"
+                      value={cpAnswer}
+                      onChange={(e) => setCpAnswer(removeEmojis(e.target.value))}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                  <button type="submit" className="btn-improved btn-primary" disabled={cpLoading || !cpAnswer.trim()} style={{ width: '100%', justifyContent: 'center', marginTop: '15px' }}>
+                    {cpLoading ? "Verifying..." : "Verify Answer"}
+                  </button>
+                </form>
+              )}
+
+              {/* Step 3: Fast Password */}
+              {cpStep === 3 && (
+                <form onSubmit={handleChangePasswordSubmit}>
+                  <div className="form-group-improved">
+                    <label className="label-improved">NEW PASSWORD</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={cpShowPass1 ? "text" : "password"}
+                        className="input-improved"
+                        style={{ paddingRight: '40px' }}
+                        placeholder="15-20 characters"
+                        value={cpNewPassword}
+                        onChange={(e) => { setCpTouchedPw(true); setCpNewPassword(clampPasswordInput(e.target.value)); }}
+                        onBlur={() => setCpTouchedPw(true)}
+                        onKeyDown={(e) => syncCaps(e, 1)}
+                        onKeyUp={(e) => syncCaps(e, 1)}
+                        maxLength={20}
+                        required
+                        onPaste={(e) => e.preventDefault()}
+                        onCopy={(e) => e.preventDefault()}
+                      />
+                      <button type="button" className="cp-eye-btn" onClick={() => setCpShowPass1(!cpShowPass1)}>
+                        {cpShowPass1 ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
-                    {message && (
-                      <div style={{ marginTop: '1rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                        {message}
+                    {cpCapsOn1 && <div style={{ fontSize: '0.75rem', color: 'var(--accent-orange)', marginTop: '4px', fontWeight: 700 }}>CAPS LOCK IS ON</div>}
+
+                    {(cpTouchedPw || cpTouchedConfirm) && cpNewPassword.length > 0 && (
+                      <div className="cp-password-feedback">
+                        <div className={`cp-feedback-item ${cpChecks.lengthOk ? 'ok' : 'missing'}`}>• 15–20 chars</div>
+                        <div className={`cp-feedback-item ${cpChecks.upperOk ? 'ok' : 'missing'}`}>• Uppercase</div>
+                        <div className={`cp-feedback-item ${cpChecks.lowerOk ? 'ok' : 'missing'}`}>• Lowercase</div>
+                        <div className={`cp-feedback-item ${cpChecks.numberOk ? 'ok' : 'missing'}`}>• Number</div>
+                        <div className={`cp-feedback-item ${cpChecks.symbolOk ? 'ok' : 'missing'}`}>• Symbol (! @ ? _ -)</div>
+                        <div className={`cp-feedback-item ${cpChecks.onlyAllowed ? 'ok' : 'error'}`}>• Permitted chars</div>
                       </div>
                     )}
                   </div>
 
-                  {/* Notification Settings Card */}
-                  <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
-                    <div className="section-title">Notifications</div>
-                    
-                    <div className="settings-row">
-                      <div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Email Notifications</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          Receive email alerts for important events
-                        </div>
-                      </div>
-                      <label className="toggle-switch">
-                        <input type="checkbox" defaultChecked />
-                        <span className="slider"></span>
-                      </label>
+                  <div className="form-group-improved" style={{ marginTop: '15px' }}>
+                    <label className="label-improved">CONFIRM PASSWORD</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={cpShowPass2 ? "text" : "password"}
+                        className="input-improved"
+                        style={{ paddingRight: '40px' }}
+                        placeholder="Retype password"
+                        value={cpConfirmPassword}
+                        onChange={(e) => { setCpTouchedConfirm(true); setCpConfirmPassword(clampPasswordInput(e.target.value)); }}
+                        onBlur={() => setCpTouchedConfirm(true)}
+                        onKeyDown={(e) => syncCaps(e, 2)}
+                        onKeyUp={(e) => syncCaps(e, 2)}
+                        maxLength={20}
+                        required
+                        onPaste={(e) => e.preventDefault()}
+                        onCopy={(e) => e.preventDefault()}
+                      />
+                      <button type="button" className="cp-eye-btn" onClick={() => setCpShowPass2(!cpShowPass2)}>
+                        {cpShowPass2 ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
                     </div>
+                    {cpCapsOn2 && <div style={{ fontSize: '0.75rem', color: 'var(--accent-orange)', marginTop: '4px', fontWeight: 700 }}>CAPS LOCK IS ON</div>}
 
-                    <div className="settings-row">
-                      <div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Timesheet Reminders</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          Get notified about pending timesheet approvals
-                        </div>
-                      </div>
-                      <label className="toggle-switch">
-                        <input type="checkbox" defaultChecked />
-                        <span className="slider"></span>
-                      </label>
-                    </div>
+                    {cpTouchedConfirm && cpConfirmPassword.length > 0 && cpNewPassword !== cpConfirmPassword && (
+                      <div style={{ fontSize: '0.8rem', color: '#ff5b5b', marginTop: '6px', fontWeight: 600 }}>PASSWORDS DO NOT MATCH</div>
+                    )}
                   </div>
 
-                  {/* Workflow Settings Card */}
-                  <div className="glass-card">
-                    <div className="section-title">Workflow Automation</div>
-                    
-                    <div className="settings-row">
-                      <div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Auto-Approve Under 8 Hours</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          Automatically approve timesheets with less than 8 hours
-                        </div>
-                      </div>
-                      <label className="toggle-switch">
-                        <input type="checkbox" />
-                        <span className="slider"></span>
-                      </label>
-                    </div>
-
-                    <div className="settings-row">
-                      <div>
-                        <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Require Notes for Overtime</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          Team members must add notes when logging overtime
-                        </div>
-                      </div>
-                      <label className="toggle-switch">
-                        <input type="checkbox" defaultChecked />
-                        <span className="slider"></span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+                  <button type="submit" className="btn-improved btn-primary" disabled={cpLoading || !cpChecks.strongOk || cpNewPassword !== cpConfirmPassword} style={{ width: '100%', justifyContent: 'center', marginTop: '20px' }}>
+                    {cpLoading ? "Updating..." : "Update Password"}
+                  </button>
+                </form>
+              )}
+            </div>
           </div>
-        </main>
-      </div>
+        </div>
+      )}
 
       {/* Rejection Reason Modal */}
       {showRejectionModal && (
