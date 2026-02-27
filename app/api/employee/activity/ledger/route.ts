@@ -1,10 +1,10 @@
-// app/api/employee/activity/ledger/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { combineShiftDateWithTime } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0; // Kills Next.js caching
 
 export async function GET() {
   try {
@@ -29,7 +29,7 @@ export async function GET() {
       });
     }
 
-    // Get ALL clock logs for the same shift_date (includes previous sessions if clocked out early and back in)
+    // Get ALL clock logs for the same shift_date
     const allClockLogs = await prisma.d_tblclock_log.findMany({
       where: {
         user_id: user.user_id,
@@ -49,32 +49,34 @@ export async function GET() {
       include: {
         D_tblactivity: true,
       },
-      orderBy: {
-        start_time: "desc", // Newest first
-      },
     });
 
-    // Get the first clock-in time for reference (used to detect overnight shifts)
     const firstClockIn = allClockLogs[0]?.clock_in_time ?? new Date();
 
-    // Format the ledger data with proper full datetime for sorting
+    // Format the ledger data
     const ledger: any[] = activityLogs.map((log) => {
-      const fullStartTime = combineShiftDateWithTime(log.start_time, activeShift.shift_date!, firstClockIn);
-      const fullEndTime = log.end_time ? combineShiftDateWithTime(log.end_time, activeShift.shift_date!, firstClockIn) : null;
+      // Safely type-check to prevent TypeScript build errors
+      const st = log.start_time && activeShift.shift_date
+        ? combineShiftDateWithTime(log.start_time, activeShift.shift_date, firstClockIn)
+        : new Date();
+        
+      const et = log.end_time && activeShift.shift_date
+        ? combineShiftDateWithTime(log.end_time, activeShift.shift_date, firstClockIn)
+        : null;
       
       return {
         tlog_id: log.tlog_id,
         activity_code: log.D_tblactivity?.activity_code || "???",
         activity_name: log.D_tblactivity?.activity_name || "Unknown Activity",
         is_billable: log.D_tblactivity?.is_billable || false,
-        start_time: fullStartTime,
-        end_time: fullEndTime || "…", // Show "…" if still active
+        start_time: st,
+        end_time: et || "…",
         total_hours: log.total_hours,
         is_active: log.end_time === null,
       };
     });
 
-    // Add clock session entries (clock in with end time being clock out)
+    // Add clock session entries
     allClockLogs.forEach((clockLog, index) => {
       const isCurrentSession = clockLog.clock_out_time === null;
       ledger.push({
@@ -82,23 +84,34 @@ export async function GET() {
         activity_code: "CLK",
         activity_name: allClockLogs.length > 1 ? `Session #${index + 1}` : "Clock In",
         is_billable: false,
-        start_time: clockLog.clock_in_time,
-        end_time: clockLog.clock_out_time || (isCurrentSession ? "…" : "—"), // Show clock out time or "…" if still active
+        start_time: clockLog.clock_in_time || new Date(),
+        end_time: clockLog.clock_out_time || (isCurrentSession ? "…" : "—"),
         total_hours: null,
-        is_active: isCurrentSession,
+        // Only tag as active if there are no running tasks
+        is_active: isCurrentSession && !ledger.some(l => l.is_active && l.activity_code !== "CLK"),
       });
     });
 
-    // Sort all entries by start_time descending (newest first)
+    // 🚨 THE FIX: BULLETPROOF SORTING
     ledger.sort((a, b) => {
-      const timeA = new Date(a.start_time).getTime();
-      const timeB = new Date(b.start_time).getTime();
-      return timeB - timeA;
+      // 1. Force the currently active task to be pinned to the absolute top
+      if (a.is_active && !b.is_active) return -1;
+      if (!a.is_active && b.is_active) return 1;
+      
+      // 2. Sort everything else purely by database Primary Key (tlog_id) descending.
+      // Database ID always increments upwards, meaning the newest item is mathematically guaranteed to be on top.
+      return b.tlog_id - a.tlog_id;
     });
 
     return NextResponse.json({
       ledger,
       clock_in_time: firstClockIn,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
     });
   } catch (error) {
     console.error("Get activity ledger error:", error);

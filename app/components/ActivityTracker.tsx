@@ -15,8 +15,7 @@ type CurrentActivity = {
   activity_name: string | null;
   activity_code: string | null;
   is_billable: boolean | null;
-  start_time: string;
-  log_date: Date;
+  start_time_str?: string; 
 };
 
 type ActivityTrackerProps = {
@@ -33,7 +32,6 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
   const [message, setMessage] = useState("");
   const [activityStartTime, setActivityStartTime] = useState<number | null>(null);
 
-  // ✅ Send the start time up to DashboardPage whenever it changes
   useEffect(() => {
     if (onActivityTimeChange) {
       onActivityTimeChange(activityStartTime);
@@ -63,8 +61,8 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
     }
 
     try {
-      // 🚨 CACHE BUSTER
-      const res = await fetch(`/api/employee/activity/current?t=${Date.now()}`, { 
+      const ts = Date.now(); 
+      const res = await fetch(`/api/employee/activity/current?t=${ts}`, { 
         cache: "no-store",
         headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
       });
@@ -75,12 +73,22 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
           setCurrentActivity(data.currentActivity);
           setSelectedActivityId(data.currentActivity.activity_id.toString());
 
-          const startDate = new Date(data.currentActivity.log_date);
-          const startTimeStr = data.currentActivity.start_time;
-          const [hours, minutes, seconds] = startTimeStr.split(':');
-          startDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), parseInt(seconds || '0', 10));
-          
-          setActivityStartTime(startDate.getTime());
+          // 🚨 THE REAL-WORLD SMART DEDUCTION FIX
+          if (data.currentActivity.start_time_str) {
+            const [hours, minutes, seconds] = data.currentActivity.start_time_str.split(':').map(Number);
+            
+            const now = new Date();
+            const candidate = new Date(now);
+            candidate.setHours(hours, minutes, seconds, 0);
+
+            // If candidate is massively in the future (e.g. DB says 11 PM, but it's 1 AM right now)
+            // That means the task started yesterday. (The > 2 hours buffer prevents clock-drift glitches).
+            if (candidate.getTime() - now.getTime() > 2 * 60 * 60 * 1000) {
+              candidate.setDate(candidate.getDate() - 1);
+            }
+
+            setActivityStartTime(candidate.getTime());
+          }
         } else {
           setCurrentActivity(null);
           setActivityStartTime(null);
@@ -106,18 +114,17 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activity_id: selectedActivityId }),
       });
-      const data = await res.json();
 
       if (res.ok) {
         setMessage("Activity started successfully");
-        setActivityStartTime(Date.now()); // Optimistic update
-        await loadCurrentActivity(); // Sync with DB
+        setActivityStartTime(Date.now()); 
+        await loadCurrentActivity(); 
         onActivityChange?.();
       } else {
+        const data = await res.json();
         setMessage(data.message || "Failed to start activity");
       }
     } catch (error) {
-      console.error(error);
       setMessage("Failed to start activity");
     } finally {
       setLoading(false);
@@ -139,44 +146,18 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ activity_id: selectedActivityId }),
       });
-      const data = await res.json();
 
       if (res.ok) {
         setMessage("Activity switched successfully");
-        setActivityStartTime(Date.now()); // Optimistic update: instantly sets timer to 0
-        await loadCurrentActivity(); // Sync with DB
-        onActivityChange?.();
+        setActivityStartTime(Date.now()); 
+        await loadCurrentActivity(); 
+        onActivityChange?.(); 
       } else {
+        const data = await res.json();
         setMessage(data.message || "Failed to switch activity");
       }
     } catch (error) {
-      console.error(error);
       setMessage("Failed to switch activity");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEndActivity = async () => {
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const res = await fetch("/api/employee/activity/end", {
-        method: "POST",
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setMessage("Activity ended successfully");
-        await loadCurrentActivity();
-        onActivityChange?.();
-      } else {
-        setMessage(data.message || "Failed to end activity");
-      }
-    } catch (error) {
-      setMessage("Failed to end activity");
-      console.error(error);
     } finally {
       setLoading(false);
     }

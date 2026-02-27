@@ -2,15 +2,23 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
 
-// Use local methods for date extraction (dates stored in local timezone)
+// 🚨 KILL NEXT.JS CACHING
+export const dynamic = "force-dynamic";
+export const revalidate = 0; 
+
+// ✅ FIX 1: Pure UTC extraction. 
+// Prisma returns MySQL DATE fields as "YYYY-MM-DDT00:00:00.000Z".
+// Using getUTCDate() guarantees the server's timezone won't accidentally shift it to "Yesterday".
 function toYMD(d: Date) {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
-// Format TIME field to HH:MM string (times stored as UTC with local values)
+// ✅ FIX 2: Pure UTC extraction for Time. 
+// The DB already holds the exact face-value local time (e.g., 07:01). 
+// We pull it straight out without adding any +8 hour offsets!
 function formatTime(t: Date | null): string | null {
   if (!t) return null;
   const hh = String(t.getUTCHours()).padStart(2, "0");
@@ -21,20 +29,20 @@ function formatTime(t: Date | null): string | null {
 function parseYMD(s: string | null) {
   if (!s) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  const d = new Date(`${s}T00:00:00`);
+  const d = new Date(`${s}T00:00:00.000Z`); // Parses strictly to Midnight UTC
   if (Number.isNaN(d.getTime())) return null;
   return d;
 }
 
 function startOfDay(d: Date) {
   const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
+  x.setUTCHours(0, 0, 0, 0);
   return x;
 }
 
 function endOfDay(d: Date) {
   const x = new Date(d);
-  x.setHours(23, 59, 59, 999);
+  x.setUTCHours(23, 59, 59, 999);
   return x;
 }
 
@@ -81,11 +89,18 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const fromParam = url.searchParams.get("from");
     const toParam = url.searchParams.get("to");
-    const statusParam = url.searchParams.get("status"); // "pending", "rejected", or undefined
+    const statusParam = url.searchParams.get("status"); 
 
-    const today = new Date();
-    const defaultFrom = new Date(today);
-    defaultFrom.setDate(today.getDate() - 6);
+    // ✅ FIX 3: Get the strict current date in Manila, avoiding Vercel server timezone gaps
+    const manilaDateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date()); 
+    
+    const today = parseYMD(manilaDateStr) || new Date();
+    const defaultFrom = new Date(today.getTime() - 6 * 86400000);
 
     const fromDate = parseYMD(fromParam) ?? defaultFrom;
     const toDate = parseYMD(toParam) ?? today;
@@ -113,7 +128,6 @@ export async function GET(req: Request) {
     });
 
     // 2) Early reasons in range
-    // If multiple reasons per day exist, keep the newest (orderBy desc + only set if not present).
     const earlyReasons = await prisma.d_tblearly_reasonlog.findMany({
       where: {
         user_id: String(userId),
@@ -138,7 +152,6 @@ export async function GET(req: Request) {
       where: {
         user_id: String(userId),
         log_date: { gte: from, lte: to },
-        // TODO: Add 'NOT_SUBMITTED' status after DB update
         ...(statusParam === "pending"
           ? { approval_status: "PENDING" }
           : statusParam === "rejected"
@@ -159,7 +172,7 @@ export async function GET(req: Request) {
       },
     });
 
-    // 4) Fetch user's weekly schedule and shift templates for shift info
+    // 4) Fetch user's weekly schedule and shift templates
     const weeklySchedule = await prisma.d_tblweekly_schedule.findFirst({
       where: {
         user_id: String(userId),
@@ -173,14 +186,12 @@ export async function GET(req: Request) {
       shiftMap[s.shift_id] = { shift_id: s.shift_id, shift_name: s.shift_name };
     });
 
-    // Helper to get shift info for a given date (YYYY-MM-DD format)
     function getShiftForDate(dateStr: string): { shift_id: number | null; shift_name: string | null } {
       if (!weeklySchedule) return { shift_id: null, shift_name: null };
       
-      // Parse YYYY-MM-DD using local timezone (consistent with how dates are stored)
       const [yearStr, monthStr, dayStr] = dateStr.split('-');
-      const date = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
-      const weekday = date.getDay();
+      const date = new Date(Date.UTC(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr)));
+      const weekday = date.getUTCDay();
       
       let shiftId: number | null = null;
       switch (weekday) {
@@ -199,7 +210,6 @@ export async function GET(req: Request) {
       return { shift_id: shiftId, shift_name: null };
     }
 
-    // Pre-group activities by day (so we don't filter inside a loop)
     const activitiesByDay = new Map<string, TimesheetDay["activities"]>();
     for (const t of timeLogs) {
       if (!t.log_date) continue;
@@ -218,16 +228,19 @@ export async function GET(req: Request) {
       });
     }
 
-    // ✅ REAL structure: group everything by dayKey
     const dayMap = new Map<string, TimesheetDay>();
 
     for (const c of clockLogs) {
-      const dayDate =
-        c.shift_date
-          ? new Date(c.shift_date)
-          : c.clock_in_time
-          ? new Date(c.clock_in_time)
-          : new Date();
+      // ✅ FIX 4: Safely deduce the day key based on shift date or clock in time
+      let dayDate: Date;
+      if (c.shift_date) {
+        dayDate = new Date(c.shift_date);
+      } else if (c.clock_in_time) {
+        // Shift actual timestamp by +8 hours to align it with PHT before extracting the UTC Date
+        dayDate = new Date(c.clock_in_time.getTime() + 8 * 3600 * 1000);
+      } else {
+        dayDate = new Date();
+      }
 
       const dayKey = toYMD(dayDate);
       const shiftInfo = getShiftForDate(dayKey);
@@ -252,7 +265,6 @@ export async function GET(req: Request) {
       });
     }
 
-    // Include days that have activities but no clock logs (optional but good)
     for (const [dayKey, acts] of activitiesByDay.entries()) {
       if (!dayMap.has(dayKey)) {
         const shiftInfo = getShiftForDate(dayKey);
@@ -273,6 +285,12 @@ export async function GET(req: Request) {
     return NextResponse.json({
       range: { from: toYMD(from), to: toYMD(to) },
       days,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      }
     });
   } catch (err: any) {
     console.error("TIMESHEET_API_ERROR:", err);

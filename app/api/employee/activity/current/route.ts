@@ -3,7 +3,7 @@ import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0; // Extra cache busting
+export const revalidate = 0;
 
 export async function GET() {
   try {
@@ -38,14 +38,13 @@ export async function GET() {
       return NextResponse.json({ hasActiveActivity: false, currentActivity: null });
     }
 
-    // 🚨 FIX: Extract strictly formatted HH:MM:SS from Prisma Date object
-    let startTimeStr = "00:00:00";
+    // ✅ FIX: Extract the pure, raw time string. Do NOT combine it with shift_date!
+    let timeStr = "00:00:00";
     if (activeActivity.start_time) {
       const d = new Date(activeActivity.start_time);
-      startTimeStr = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}`;
+      timeStr = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}`;
     }
 
-    // Return with aggressive cache-killing headers
     return NextResponse.json({
       hasActiveActivity: true,
       currentActivity: {
@@ -54,14 +53,12 @@ export async function GET() {
         activity_name: activeActivity.D_tblactivity?.activity_name,
         activity_code: activeActivity.D_tblactivity?.activity_code,
         is_billable: activeActivity.D_tblactivity?.is_billable,
-        start_time: startTimeStr, 
-        log_date: activeActivity.log_date,
+        start_time_str: timeStr, // Sent safely as a string
       },
     }, {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Pragma': 'no-cache',
-        'Expires': '0',
       }
     });
   } catch (error) {

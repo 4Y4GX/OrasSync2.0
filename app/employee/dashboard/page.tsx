@@ -153,13 +153,10 @@ export default function DashboardPage() {
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
-  // for timers
   const [clockInTime, setClockInTime] = useState<number | null>(null);
   const [accumulatedMs, setAccumulatedMs] = useState<number>(0);
-  // ✅ NEW: State for current active activity start time
   const [activeActivityStart, setActiveActivityStart] = useState<number | null>(null);
 
-  // theme
   const [lightMode, setLightMode] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
 
@@ -171,23 +168,19 @@ export default function DashboardPage() {
 
   const [activeSection, setActiveSection] = useState<"dashboard" | "calendar" | "timesheet" | "analytics">("dashboard");
 
-  /* --- ANALYTICS STATE --- */
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsWeekOffset, setAnalyticsWeekOffset] = useState(0);
 
-  /* --- TIMESHEET STATE --- */
   const [timesheetDays, setTimesheetDays] = useState<any[]>([]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [selectedTimelineDate, setSelectedTimelineDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
 
-  /* --- CALENDAR STATE --- */
   const [calView, setCalView] = useState<"week" | "month">("week");
   const [calDate, setCalDate] = useState(() => new Date());
   const [calendar, setCalendar] = useState<Record<string, any>>({});
 
-  /* --- FUTURE ACTIVITY STATE --- */
   const [futureSchedules, setFutureSchedules] = useState<Record<string, any[]>>({});
   const [activityList, setActivityList] = useState<any[]>([]);
   const [showFutureModal, setShowFutureModal] = useState(false);
@@ -202,30 +195,23 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchCalendar = async () => {
       if (!userProfile?.user_id) return;
-
       try {
         const year = calDate.getFullYear();
         const month = calDate.getMonth();
         const res = await fetch(`/api/calendar?userId=${userProfile.user_id}&year=${year}&month=${month}`);
 
-        if (!res.ok) {
-          console.error("Calendar API returned error:", res.status);
-          return;
-        }
+        if (!res.ok) return;
 
         const data = await res.json();
         const map: Record<string, any> = {};
         if (Array.isArray(data)) {
-          data.forEach((item: any) => {
-            map[item.date] = item;
-          });
+          data.forEach((item: any) => { map[item.date] = item; });
         }
         setCalendar(map);
       } catch (err) {
         console.error("Failed to fetch calendar", err);
       }
     };
-
     fetchCalendar();
   }, [userProfile?.user_id, calDate]);
 
@@ -510,7 +496,8 @@ export default function DashboardPage() {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const res = await fetch("/api/employee/timesheet");
+      const ts = new Date().getTime();
+      const res = await fetch(`/api/employee/timesheet?t=${ts}`, { cache: "no-store" });
       const data = await res.json();
       if (res.ok && data.days) {
         setTimesheetDays(data.days);
@@ -519,6 +506,34 @@ export default function DashboardPage() {
       console.error("Failed to fetch timesheet", e);
     }
   }, []);
+
+  const fetchLedger = useCallback(async () => {
+    if (!isClockedIn) return;
+    try {
+      const ts = new Date().getTime();
+      const res = await fetch(`/api/employee/activity/ledger?t=${ts}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setLedgerData(data.ledger || []);
+    } catch (error) {
+      console.error("Failed to fetch ledger:", error);
+    }
+  }, [isClockedIn]);
+
+  const handleActivityChange = useCallback(() => {
+    fetchLogs();
+    fetchLedger();
+  }, [fetchLogs, fetchLedger]);
+
+  useEffect(() => {
+    if (!isClockedIn) {
+      setLedgerData([]);
+      return;
+    }
+    fetchLedger();
+    const interval = setInterval(fetchLedger, 5000);
+    return () => clearInterval(interval);
+  }, [isClockedIn, fetchLedger]);
 
   const submitTimesheet = useCallback(async () => {
     const allTlogIds: number[] = [];
@@ -608,29 +623,6 @@ export default function DashboardPage() {
     })();
   }, [loading, router]);
 
-  useEffect(() => {
-    if (!isClockedIn) {
-      setLedgerData([]);
-      return;
-    }
-
-    const fetchLedger = async () => {
-      try {
-        const res = await fetch("/api/employee/activity/ledger", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        setLedgerData(data.ledger || []);
-      } catch (error) {
-        console.error("Failed to fetch ledger:", error);
-      }
-    };
-
-    fetchLedger();
-
-    const interval = setInterval(fetchLedger, 5000);
-    return () => clearInterval(interval);
-  }, [isClockedIn]);
-
   const scheduleText = useMemo(() => {
     if (!scheduleToday.hasSchedule || !scheduleToday.shift) return "NO SCHEDULE TODAY";
     return formatScheduleRange(scheduleToday.shift.start_time, scheduleToday.shift.end_time);
@@ -654,7 +646,6 @@ export default function DashboardPage() {
     return "00:00:00";
   }, [isClockedIn, clockInTime, accumulatedMs, now]);
 
-  // ✅ NEW: Calculate the duration for the currently active task
   const currentActivityDuration = useMemo(() => {
     if (isClockedIn && activeActivityStart) {
       return formatDuration(now.getTime() - activeActivityStart);
@@ -675,21 +666,12 @@ export default function DashboardPage() {
     return "09:00:00";
   }, [scheduleToday]);
 
+  // 🚨 THE FIX: Remove the overnight block that bypassed the check
   const isEarlyClockOut = useMemo(() => {
-  if (!scheduleToday.hasSchedule || !scheduleToday.shift?.end_time) return false;
-
-  if (clockInTime) {
-    const clockInDate = new Date(clockInTime).toDateString();
-    const todayDate = now.toDateString();
-    
-    if (clockInDate !== todayDate) {
-      return false;
-    }
-  }
-
-  const end = new Date(scheduleToday.shift.end_time).getTime();
-  return Date.now() < end;
-}, [scheduleToday, now, clockInTime]);
+    if (!scheduleToday.hasSchedule || !scheduleToday.shift?.end_time) return false;
+    const end = new Date(scheduleToday.shift.end_time).getTime();
+    return Date.now() < end;
+  }, [scheduleToday, now]);
 
   const doClockIn = useCallback(async () => {
     if (actionBusy) return;
@@ -739,7 +721,7 @@ export default function DashboardPage() {
 
         setIsClockedIn(false);
         setClockInTime(null);
-        setActiveActivityStart(null); // Reset task timer
+        setActiveActivityStart(null); 
 
         setReason("");
         setReasonErr("");
@@ -1074,7 +1056,6 @@ export default function DashboardPage() {
                           <div className="hud-bg-icon">🔥</div>
                           <div className="hud-label">ACTIVITY DURATION</div>
                           <div className="hud-val warn">
-                            {/* 🚨 UPDATED TO DISPLAY INDIVIDUAL TASK DURATION */}
                             {currentActivityDuration}
                           </div>
                           <div className="status-badge warn" style={{ marginTop: 5, alignSelf: "flex-start", fontSize: "0.7rem" }}>
@@ -1120,10 +1101,9 @@ export default function DashboardPage() {
                               Switch tasks below. Time is logged automatically.
                             </p>
 
-                            {/* 🚨 NEW PROP ADDED TO TRACK TIME IN PARENT */}
                             <ActivityTracker 
                               isClockedIn={isClockedIn} 
-                              onActivityChange={fetchLogs} 
+                              onActivityChange={handleActivityChange}
                               onActivityTimeChange={setActiveActivityStart}
                             />
 
