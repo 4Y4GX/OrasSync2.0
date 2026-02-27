@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     }
 
     // Check if user is analyst
-    if (user.role_id !== 5) {
+    if (user.role_id !== 2) {
       return NextResponse.json({ message: "Forbidden: Analyst access only" }, { status: 403 });
     }
 
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     let startDate: Date;
-    
+
     if (period === "week") {
       startDate = new Date(today);
       const dayOfWeek = today.getDay();
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     const userSentimentMap = new Map<string, any>();
     sentimentLogs.forEach(log => {
       if (!log.user_id) return;
-      
+
       if (!userSentimentMap.has(log.user_id)) {
         userSentimentMap.set(log.user_id, {
           user_id: log.user_id,
@@ -89,18 +89,18 @@ export async function GET(request: Request) {
           latest_date: null,
         });
       }
-      
+
       const userData = userSentimentMap.get(log.user_id);
       userData.sentiments.push({
         status: log.sentiment_status,
         date: log.created_at,
         reason: log.reason_comment,
       });
-      
+
       if (log.sentiment_status === "GREAT") userData.great_count++;
       if (log.sentiment_status === "OKAY") userData.okay_count++;
       if (log.sentiment_status === "NOT_GOOD") userData.not_good_count++;
-      
+
       // Track latest sentiment
       if (!userData.latest_date || (log.created_at && log.created_at > userData.latest_date)) {
         userData.latest_sentiment = log.sentiment_status;
@@ -126,7 +126,7 @@ export async function GET(request: Request) {
     const deptSentimentMap = new Map<string, any>();
     sentimentLogs.forEach(log => {
       const deptName = log.D_tbluser?.D_tbldepartment?.dept_name || "Unknown";
-      
+
       if (!deptSentimentMap.has(deptName)) {
         deptSentimentMap.set(deptName, {
           department: deptName,
@@ -136,10 +136,10 @@ export async function GET(request: Request) {
           total: 0,
         });
       }
-      
+
       const deptData = deptSentimentMap.get(deptName);
       deptData.total++;
-      
+
       if (log.sentiment_status === "GREAT") deptData.great++;
       if (log.sentiment_status === "OKAY") deptData.okay++;
       if (log.sentiment_status === "NOT_GOOD") deptData.not_good++;
@@ -162,20 +162,20 @@ export async function GET(request: Request) {
       date.setHours(0, 0, 0, 0);
       const nextDate = new Date(date);
       nextDate.setDate(date.getDate() + 1);
-      
+
       const dayLogs = sentimentLogs.filter(log => {
         if (!log.created_at) return false;
         const logDate = new Date(log.created_at);
         return logDate >= date && logDate < nextDate;
       });
-      
+
       const dayCounts = {
         date: date.toISOString().split('T')[0],
         great: dayLogs.filter(log => log.sentiment_status === "GREAT").length,
         okay: dayLogs.filter(log => log.sentiment_status === "OKAY").length,
         not_good: dayLogs.filter(log => log.sentiment_status === "NOT_GOOD").length,
       };
-      
+
       dailyTrend.push(dayCounts);
     }
 
@@ -185,7 +185,7 @@ export async function GET(request: Request) {
         total: totalSentiments,
         counts: sentimentCounts,
         percentages: sentimentPercentages,
-        avg_morale_score: totalSentiments > 0 
+        avg_morale_score: totalSentiments > 0
           ? Math.round((sentimentCounts.GREAT * 100 + sentimentCounts.OKAY * 50) / totalSentiments)
           : 0,
       },

@@ -4,6 +4,7 @@ import { jwtVerify } from "jose";
 
 const ROLE_EMPLOYEE = 1;
 const ROLE_ADMIN = 3;
+const ROLE_ANALYST = 2;
 
 async function verifySession(token: string) {
   const secretString = process.env.JWT_SECRET;
@@ -18,8 +19,9 @@ export async function middleware(req: NextRequest) {
 
   const isEmployeeArea = pathname.startsWith("/employee");
   const isAdminArea = pathname.startsWith("/admin");
+  const isAnalystArea = pathname.startsWith("/analyst");
 
-  if (!isEmployeeArea && !isAdminArea) return NextResponse.next();
+  if (!isEmployeeArea && !isAdminArea && !isAnalystArea) return NextResponse.next();
 
   const token = req.cookies.get("timea_session")?.value;
   if (!token) {
@@ -33,15 +35,28 @@ export async function middleware(req: NextRequest) {
     const payload = await verifySession(token);
     const roleId = Number(payload?.role_id ?? 0);
 
+    // Reject unknown or missing role IDs immediately
+    if (roleId !== ROLE_EMPLOYEE && roleId !== ROLE_ADMIN && roleId !== ROLE_ANALYST) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+
     if (isAdminArea && roleId !== ROLE_ADMIN) {
       const url = req.nextUrl.clone();
-      url.pathname = "/employee/dashboard";
+      url.pathname = roleId === ROLE_ANALYST ? "/analyst/dashboard" : "/employee/dashboard";
       return NextResponse.redirect(url);
     }
 
     if (isEmployeeArea && roleId !== ROLE_EMPLOYEE) {
       const url = req.nextUrl.clone();
-      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/login";
+      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/analyst/dashboard";
+      return NextResponse.redirect(url);
+    }
+
+    if (isAnalystArea && roleId !== ROLE_ANALYST) {
+      const url = req.nextUrl.clone();
+      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/employee/dashboard";
       return NextResponse.redirect(url);
     }
 
@@ -54,5 +69,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/employee/:path*", "/admin/:path*"],
+  matcher: ["/employee/:path*", "/admin/:path*", "/analyst/:path*"],
 };

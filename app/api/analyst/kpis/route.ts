@@ -12,8 +12,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user is analyst (role_id 5)
-    if (user.role_id !== 5) {
+    // Check if user is analyst
+    if (user.role_id !== 2) {
       return NextResponse.json({ message: "Forbidden: Analyst access only" }, { status: 403 });
     }
 
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     let startDate: Date;
-    
+
     if (period === "week") {
       startDate = new Date(today);
       const dayOfWeek = today.getDay();
@@ -87,33 +87,39 @@ export async function GET(request: Request) {
       .filter(log => log.D_tblactivity?.is_billable)
       .reduce((sum, log) => sum + (log.total_hours?.toNumber() || 0), 0);
     const nonBillableHours = totalHours - billableHours;
-    
+
     const billableRatio = totalHours > 0 ? (billableHours / totalHours) * 100 : 0;
-    
+
     // Unique users who worked
     const uniqueUsers = new Set(clockLogs.map(log => log.user_id));
     const activeStaff = uniqueUsers.size;
-    
+
     // Expected work days (based on clock logs)
     const expectedDays = clockLogs.length;
     const actualDays = clockLogs.filter(log => log.clock_out_time).length;
     const attendanceRate = expectedDays > 0 ? (actualDays / expectedDays) * 100 : 0;
 
-    // Weekly activity (last 7 days)
+    // Weekly activity (Monday to Saturday of the current week)
     const weeklyActivity: number[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
+    const currentDay = today.getDay(); // 0=Sun, 1=Mon, ...
+    const mondayOffset = currentDay === 0 ? 6 : currentDay - 1;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 7; i++) { // Mon(0) to Sun(6)
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
       date.setHours(0, 0, 0, 0);
       const nextDate = new Date(date);
       nextDate.setDate(date.getDate() + 1);
-      
+
       const dayLogs = timeLogs.filter(log => {
         if (!log.log_date) return false;
         const logDate = new Date(log.log_date);
         return logDate >= date && logDate < nextDate;
       });
-      
+
       const dayTotal = dayLogs.reduce((sum, log) => sum + (log.total_hours?.toNumber() || 0), 0);
       const percentage = dayTotal > 0 ? Math.min((dayTotal / 8) * 100, 100) : 0;
       weeklyActivity.push(Math.round(percentage));
@@ -131,9 +137,9 @@ export async function GET(request: Request) {
         const deptBillable = deptLogs
           .filter(log => log.D_tblactivity?.is_billable)
           .reduce((sum, log) => sum + (log.total_hours?.toNumber() || 0), 0);
-        
+
         const deptUsers = new Set(deptLogs.map(log => log.user_id));
-        
+
         return {
           dept_id: dept.dept_id,
           dept_name: dept.dept_name || "Unknown",
