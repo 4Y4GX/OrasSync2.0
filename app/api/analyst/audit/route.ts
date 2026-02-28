@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     }
 
     // Check if user is analyst
-    if (user.role_id !== 5) {
+    if (user.role_id !== 2) {
       return NextResponse.json({ message: "Forbidden: Analyst access only" }, { status: 403 });
     }
 

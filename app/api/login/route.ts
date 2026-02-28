@@ -104,7 +104,9 @@ export async function POST(req: Request) {
     const roleId = Number(userProfile.role_id ?? 0);
 
     // default redirect
-    let redirect = roleId === 3 ? "/admin/dashboard" : "/employee/dashboard";
+    let redirect = "/employee/dashboard";
+    if (roleId === 3) redirect = "/admin/dashboard";
+    else if (roleId === 2) redirect = "/analyst/dashboard";
 
     // ✅ Daily sentiment gate for employees
     if (roleId === 1) {

@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     }
 
     // Check if user is analyst
-    if (user.role_id !== 5) {
+    if (user.role_id !== 2) {
       return NextResponse.json({ message: "Forbidden: Analyst access only" }, { status: 403 });
     }
 
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     let startDate: Date;
-    
+
     if (period === "week") {
       startDate = new Date(today);
       const dayOfWeek = today.getDay();
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     const userOTMap = new Map<string, any>();
     otRequests.forEach(req => {
       if (!req.user_id) return;
-      
+
       if (!userOTMap.has(req.user_id)) {
         userOTMap.set(req.user_id, {
           user_id: req.user_id,
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
           ot_requests: [],
         });
       }
-      
+
       const userData = userOTMap.get(req.user_id);
       userData.ot_count++;
       userData.ot_requests.push({
@@ -108,7 +108,7 @@ export async function GET(request: Request) {
     const userEarlyMap = new Map<string, any>();
     earlyClockouts.forEach(log => {
       if (!log.user_id) return;
-      
+
       if (!userEarlyMap.has(log.user_id)) {
         userEarlyMap.set(log.user_id, {
           user_id: log.user_id,
@@ -119,7 +119,7 @@ export async function GET(request: Request) {
           early_clockouts: [],
         });
       }
-      
+
       const userData = userEarlyMap.get(log.user_id);
       userData.early_count++;
       userData.early_clockouts.push({

@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     }
 
     // Check if user is analyst
-    if (user.role_id !== 5) {
+    if (user.role_id !== 2) {
       return NextResponse.json({ message: "Forbidden: Analyst access only" }, { status: 403 });
     }
 
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     let startDate: Date;
-    
+
     if (period === "week") {
       startDate = new Date(today);
       const dayOfWeek = today.getDay();
@@ -74,8 +74,8 @@ export async function GET(request: Request) {
           shift_date: log.shift_date?.toISOString().split('T')[0] || "",
           clock_in: log.clock_in_time?.toISOString() || "N/A",
           clock_out: log.clock_out_time?.toISOString() || "Not Clocked Out",
-          is_early_leave: log.is_early_leave ? "Yes" : "No",
-          is_sentiment_done: log.is_sentiment_done ? "Yes" : "No",
+          early_leave: log.is_early_leave ? "Yes" : "No",
+          sentiment_done: log.is_sentiment_done ? "Yes" : "No",
         }));
         break;
 
@@ -277,7 +277,7 @@ export async function GET(request: Request) {
       const csvRows = [headers.join(",")];
       reportData.forEach(row => {
         const values = headers.map(header => {
-          const key = header.toLowerCase().replace(/ /g, "_").replace(/%/g, "");
+          const key = header.toLowerCase().replace(/ /g, '_').replace(/%/g, '').replace(/-/g, '_').replace(/\//g, '_per_').replace(/_+$/, '');
           let value = row[key];
           if (value === null || value === undefined) value = "";
           if (typeof value === "string" && value.includes(",")) {

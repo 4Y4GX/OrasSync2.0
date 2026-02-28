@@ -4,123 +4,140 @@ import React, { useState, useEffect, useRef } from 'react';
 import styles from './Analyst.module.css';
 
 // Type definitions
+interface UserProfile {
+    user_id: string;
+    name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    dept_name: string | null;
+    pos_name: string | null;
+}
 interface KPIData {
-  totalLogs: number;
-  totalHours: number;
-  billableHours: number;
-  billableRatio: number;
-  attendanceRate: number;
-  activeStaff: number;
+    totalLogs: number;
+    totalHours: number;
+    billableHours: number;
+    billableRatio: number;
+    attendanceRate: number;
+    activeStaff: number;
 }
 
 interface DepartmentData {
-  dept_id: number;
-  dept_name: string;
-  total_hours: number;
-  billable_hours: number;
-  billable_ratio: number;
-  active_staff: number;
+    dept_id: number;
+    dept_name: string;
+    total_hours: number;
+    billable_hours: number;
+    billable_ratio: number;
+    active_staff: number;
 }
 
 interface ReportData {
-  reportType: string;
-  period: string;
-  headers: string[];
-  data: any[];
-  count: number;
+    reportType: string;
+    period: string;
+    headers: string[];
+    data: any[];
+    count: number;
 }
 
 interface AuditLog {
-  audit_id: number;
-  changed_by: string | null;
-  user_name: string;
-  user_email: string;
-  action_type: string | null;
-  table_affected: string | null;
-  old_value: string | null;
-  new_value: string | null;
-  created_at: Date | null;
+    audit_id: number;
+    changed_by: string | null;
+    user_name: string;
+    user_email: string;
+    action_type: string | null;
+    table_affected: string | null;
+    old_value: string | null;
+    new_value: string | null;
+    created_at: Date | null;
 }
 
 interface SentimentData {
-  period: string;
-  summary: {
-    total: number;
-    counts: {
-      GREAT: number;
-      OKAY: number;
-      NOT_GOOD: number;
+    period: string;
+    summary: {
+        total: number;
+        counts: {
+            GREAT: number;
+            OKAY: number;
+            NOT_GOOD: number;
+        };
+        percentages: {
+            GREAT: number;
+            OKAY: number;
+            NOT_GOOD: number;
+        };
+        avg_morale_score: number;
     };
-    percentages: {
-      GREAT: number;
-      OKAY: number;
-      NOT_GOOD: number;
-    };
-    avg_morale_score: number;
-  };
-  burnoutRisks: Array<{
-    user_id: string;
-    name: string;
-    department: string;
-    team: string;
-    not_good_count: number;
-    latest_sentiment: string;
-    risk_level: string;
-  }>;
+    burnoutRisks: Array<{
+        user_id: string;
+        name: string;
+        department: string;
+        team: string;
+        not_good_count: number;
+        latest_sentiment: string;
+        risk_level: string;
+    }>;
 }
 
 interface PerformerData {
-  topPerformers: Array<any>;
-  bottomPerformers: Array<any>;
-  performanceDistribution: {
-    excellent: number;
-    good: number;
-    average: number;
-    below_average: number;
-  };
+    topPerformers: Array<any>;
+    bottomPerformers: Array<any>;
+    performanceDistribution: {
+        excellent: number;
+        good: number;
+        average: number;
+        below_average: number;
+    };
 }
 
 interface OvertimeData {
-  summary: {
-    total_ot_requests: number;
-    total_early_clockouts: number;
-  };
-  flags: Array<{
-    user_id: string;
-    name: string;
-    department: string;
-    flag_type: string;
-    flag_reason: string;
-    severity: string;
-  }>;
+    summary: {
+        total_ot_requests: number;
+        total_early_clockouts: number;
+    };
+    flags: Array<{
+        user_id: string;
+        name: string;
+        department: string;
+        flag_type: string;
+        flag_reason: string;
+        severity: string;
+    }>;
 }
 
 function AnimatedValue({ value, suffix = '', duration = 800 }: { value: number, suffix?: string, duration?: number }) {
     const [displayValue, setDisplayValue] = useState(0);
+    const displayRef = useRef(0);
 
     useEffect(() => {
         let startTimestamp: number | null = null;
-        const startValue = displayValue;
+        const startValue = displayRef.current;
+        let rafId: number;
 
         const step = (timestamp: number) => {
             if (!startTimestamp) startTimestamp = timestamp;
             const progress = Math.min((timestamp - startTimestamp) / duration, 1);
             const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-            const current = Math.floor(easeOutQuart * (value - startValue) + startValue);
+            const current = easeOutQuart * (value - startValue) + startValue;
 
+            displayRef.current = current;
             setDisplayValue(current);
 
             if (progress < 1) {
-                window.requestAnimationFrame(step);
+                rafId = window.requestAnimationFrame(step);
             } else {
+                displayRef.current = value;
                 setDisplayValue(value);
             }
         };
 
-        window.requestAnimationFrame(step);
+        rafId = window.requestAnimationFrame(step);
+        return () => cancelAnimationFrame(rafId);
     }, [value, duration]);
 
-    return <>{displayValue.toLocaleString()}{suffix}</>;
+    const formattedValue = displayValue % 1 === 0
+        ? displayValue.toLocaleString()
+        : displayValue.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+    return <>{formattedValue}{suffix}</>;
 }
 
 export default function AnalystDashboard() {
@@ -131,7 +148,8 @@ export default function AnalystDashboard() {
     const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [exportModalOpen, setExportModalOpen] = useState(false);
-    
+    const hasMountedTheme = useRef(false);
+
     // Data states
     const [kpiData, setKpiData] = useState<KPIData | null>(null);
     const [weeklyActivity, setWeeklyActivity] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
@@ -141,14 +159,36 @@ export default function AnalystDashboard() {
     const [auditPage, setAuditPage] = useState(1);
     const [auditTotalPages, setAuditTotalPages] = useState(1);
     const [auditFilters, setAuditFilters] = useState<any>({});
+    const [actionFilter, setActionFilter] = useState('ALL');
+    const [tableFilter, setTableFilter] = useState('ALL');
     const [sentimentData, setSentimentData] = useState<SentimentData | null>(null);
     const [performerData, setPerformerData] = useState<PerformerData | null>(null);
     const [overtimeData, setOvertimeData] = useState<OvertimeData | null>(null);
-    const [loading, setLoading] = useState(false);
-    
+    const [loadingView, setLoadingView] = useState<string | null>(null);
+    const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
     // Report generation states
     const [reportType, setReportType] = useState('attendance');
-    const [reportFormat, setReportFormat] = useState('json');
+
+    // Change Password states
+    const [changePwStep, setChangePwStep] = useState<'idle' | 'otp' | 'question' | 'password' | 'success' | 'locked'>('idle');
+    const [otpValue, setOtpValue] = useState('');
+    const [otpError, setOtpError] = useState('');
+    const [otpAttempts, setOtpAttempts] = useState(0);
+    const [otpCountdown, setOtpCountdown] = useState(0);
+    const [otpDailyCount, setOtpDailyCount] = useState(0);
+    const [otpSending, setOtpSending] = useState(false);
+    const [otpVerifying, setOtpVerifying] = useState(false);
+    const [securityQuestion, setSecurityQuestion] = useState<{ question_id: number; question_text: string } | null>(null);
+    const [securityAnswer, setSecurityAnswer] = useState('');
+    const [sqError, setSqError] = useState('');
+    const [sqAttempts, setSqAttempts] = useState(0);
+    const [sqVerifying, setSqVerifying] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [pwError, setPwError] = useState('');
+    const [pwSubmitting, setPwSubmitting] = useState(false);
+    const otpCountdownRef = useRef<NodeJS.Timeout | null>(null);
 
     const profileRef = useRef<HTMLDivElement>(null);
 
@@ -161,6 +201,10 @@ export default function AnalystDashboard() {
     }, []);
 
     useEffect(() => {
+        if (!hasMountedTheme.current) {
+            hasMountedTheme.current = true;
+            return;
+        }
         localStorage.setItem('analyst_theme', lightMode ? 'light' : 'dark');
     }, [lightMode]);
 
@@ -182,12 +226,46 @@ export default function AnalystDashboard() {
         }
     }, [dept, period, activeView]);
 
+    // Fetch departments list (independent of view, so all tabs have the dropdown)
+    useEffect(() => {
+        const fetchDepartments = async () => {
+            try {
+                const response = await fetch('/api/analyst/kpis?period=week');
+                if (response.ok) {
+                    const data = await response.json();
+                    setDeptBreakdown(data.departmentBreakdown);
+                }
+            } catch (err) {
+                console.error('Failed to fetch departments:', err);
+            }
+        };
+        if (deptBreakdown.length === 0) {
+            fetchDepartments();
+        }
+    }, []);
+
+    // Fetch Profile
+    useEffect(() => {
+        const fetchProfile = async () => {
+            try {
+                const res = await fetch('/api/analyst/profile');
+                if (res.ok) {
+                    const data = await res.json();
+                    setUserProfile(data.userProfile);
+                }
+            } catch (err) {
+                console.error("Failed to fetch profile", err);
+            }
+        };
+        fetchProfile();
+    }, []);
+
     // Fetch audit logs
     useEffect(() => {
         if (activeView === 'audit') {
             fetchAuditLogs();
         }
-    }, [auditPage, activeView]);
+    }, [auditPage, activeView, actionFilter, tableFilter]);
 
     // Fetch sentiment data
     useEffect(() => {
@@ -211,11 +289,11 @@ export default function AnalystDashboard() {
     }, [dept, period, activeView]);
 
     const fetchKPIs = async () => {
-        setLoading(true);
+        setLoadingView('home');
         try {
             const params = new URLSearchParams({ period });
             if (dept !== 'ALL') params.append('dept_id', dept);
-            
+
             const response = await fetch(`/api/analyst/kpis?${params}`);
             if (response.ok) {
                 const data = await response.json();
@@ -226,18 +304,20 @@ export default function AnalystDashboard() {
         } catch (error) {
             console.error('Failed to fetch KPIs:', error);
         } finally {
-            setLoading(false);
+            setLoadingView(null);
         }
     };
 
     const fetchAuditLogs = async () => {
-        setLoading(true);
+        setLoadingView('audit');
         try {
-            const params = new URLSearchParams({ 
+            const params = new URLSearchParams({
                 page: auditPage.toString(),
                 limit: '50',
             });
-            
+            if (actionFilter !== 'ALL') params.append('action_type', actionFilter);
+            if (tableFilter !== 'ALL') params.append('table_affected', tableFilter);
+
             const response = await fetch(`/api/analyst/audit?${params}`);
             if (response.ok) {
                 const data = await response.json();
@@ -248,16 +328,16 @@ export default function AnalystDashboard() {
         } catch (error) {
             console.error('Failed to fetch audit logs:', error);
         } finally {
-            setLoading(false);
+            setLoadingView(null);
         }
     };
 
     const fetchSentimentData = async () => {
-        setLoading(true);
+        setLoadingView('sentiment');
         try {
             const params = new URLSearchParams({ period });
             if (dept !== 'ALL') params.append('dept_id', dept);
-            
+
             const response = await fetch(`/api/analyst/sentiment?${params}`);
             if (response.ok) {
                 const data = await response.json();
@@ -266,16 +346,16 @@ export default function AnalystDashboard() {
         } catch (error) {
             console.error('Failed to fetch sentiment data:', error);
         } finally {
-            setLoading(false);
+            setLoadingView(null);
         }
     };
 
     const fetchPerformerData = async () => {
-        setLoading(true);
+        setLoadingView('performers');
         try {
             const params = new URLSearchParams({ period, top_n: '10' });
             if (dept !== 'ALL') params.append('dept_id', dept);
-            
+
             const response = await fetch(`/api/analyst/performers?${params}`);
             if (response.ok) {
                 const data = await response.json();
@@ -284,16 +364,16 @@ export default function AnalystDashboard() {
         } catch (error) {
             console.error('Failed to fetch performer data:', error);
         } finally {
-            setLoading(false);
+            setLoadingView(null);
         }
     };
 
     const fetchOvertimeData = async () => {
-        setLoading(true);
+        setLoadingView('overtime');
         try {
             const params = new URLSearchParams({ period });
             if (dept !== 'ALL') params.append('dept_id', dept);
-            
+
             const response = await fetch(`/api/analyst/overtime?${params}`);
             if (response.ok) {
                 const data = await response.json();
@@ -302,20 +382,20 @@ export default function AnalystDashboard() {
         } catch (error) {
             console.error('Failed to fetch overtime data:', error);
         } finally {
-            setLoading(false);
+            setLoadingView(null);
         }
     };
 
     const generateReport = async () => {
-        setLoading(true);
+        setLoadingView('reports');
         try {
-            const params = new URLSearchParams({ 
+            const params = new URLSearchParams({
                 type: reportType,
                 period,
                 format: 'json',
             });
             if (dept !== 'ALL') params.append('dept_id', dept);
-            
+
             const response = await fetch(`/api/analyst/reports?${params}`);
             if (response.ok) {
                 const data = await response.json();
@@ -325,36 +405,261 @@ export default function AnalystDashboard() {
             console.error('Failed to generate report:', error);
             alert('Failed to generate report');
         } finally {
-            setLoading(false);
+            setLoadingView(null);
         }
     };
 
     const exportReport = async () => {
-        setLoading(true);
+        if (!reportData) return;
+        setLoadingView('export');
         try {
-            const params = new URLSearchParams({ 
-                type: reportType,
-                period,
+            const params = new URLSearchParams({
+                type: reportData.reportType,
+                period: reportData.period,
                 format: 'csv',
             });
             if (dept !== 'ALL') params.append('dept_id', dept);
-            
+
             const response = await fetch(`/api/analyst/reports?${params}`);
             if (response.ok) {
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${reportType}_report_${period}.csv`;
+                a.download = `${reportData.reportType}_report_${reportData.period}.csv`;
                 a.click();
+                window.URL.revokeObjectURL(url);
                 setExportModalOpen(false);
             }
         } catch (error) {
             console.error('Failed to export report:', error);
             alert('Failed to export report');
         } finally {
-            setLoading(false);
+            setLoadingView(null);
         }
+    };
+
+    // ============ CHANGE PASSWORD FUNCTIONS ============
+    const resetChangePw = () => {
+        setChangePwStep('idle');
+        setOtpValue('');
+        setOtpError('');
+        setOtpAttempts(0);
+        setOtpCountdown(0);
+        setOtpDailyCount(0);
+        setOtpSending(false);
+        setOtpVerifying(false);
+        setSecurityQuestion(null);
+        setSecurityAnswer('');
+        setSqError('');
+        setSqAttempts(0);
+        setSqVerifying(false);
+        setNewPassword('');
+        setConfirmPassword('');
+        setPwError('');
+        setPwSubmitting(false);
+        if (otpCountdownRef.current) {
+            clearInterval(otpCountdownRef.current);
+            otpCountdownRef.current = null;
+        }
+    };
+
+    const startOtpCountdown = () => {
+        setOtpCountdown(90);
+        if (otpCountdownRef.current) clearInterval(otpCountdownRef.current);
+        otpCountdownRef.current = setInterval(() => {
+            setOtpCountdown(prev => {
+                if (prev <= 1) {
+                    if (otpCountdownRef.current) clearInterval(otpCountdownRef.current);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+
+    const sendOtp = async () => {
+        setOtpSending(true);
+        setOtpError('');
+        setOtpValue('');
+        setOtpAttempts(0);
+        try {
+            const res = await fetch('/api/analyst/change-password/otp', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) {
+                if (data.message === 'OTP_LIMIT_REACHED') {
+                    setOtpError('Daily OTP limit reached (5/day). Try again tomorrow.');
+                } else {
+                    setOtpError(data.message || 'Failed to send OTP');
+                }
+                return;
+            }
+            setOtpDailyCount(data.dailyCount || 0);
+            setChangePwStep('otp');
+            startOtpCountdown();
+        } catch {
+            setOtpError('Network error. Try again.');
+        } finally {
+            setOtpSending(false);
+        }
+    };
+
+    const verifyOtp = async () => {
+        if (!otpValue.trim()) {
+            setOtpError('Enter the OTP code');
+            return;
+        }
+        setOtpVerifying(true);
+        setOtpError('');
+        try {
+            const res = await fetch('/api/analyst/change-password/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ otp: otpValue.trim() }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                if (data.message === 'OTP_EXPIRED') {
+                    setOtpError('OTP has expired. Please request a new one.');
+                } else if (data.message === 'OTP_INVALID') {
+                    setOtpAttempts(data.attempts || 0);
+                    const remaining = 3 - (data.attempts || 0);
+                    setOtpError(remaining > 0 ? `Incorrect OTP. ${remaining} attempt(s) remaining.` : 'Max attempts reached. Request a new OTP.');
+                } else if (data.message === 'OTP_MAX_ATTEMPTS') {
+                    setOtpError('Max attempts reached. Request a new OTP.');
+                } else {
+                    setOtpError(data.message || 'Failed to verify OTP');
+                }
+                return;
+            }
+            // Success — fetch security question
+            await fetchSecurityQuestion();
+        } catch {
+            setOtpError('Network error. Try again.');
+        } finally {
+            setOtpVerifying(false);
+        }
+    };
+
+    const fetchSecurityQuestion = async () => {
+        try {
+            const res = await fetch('/api/analyst/change-password/question');
+            const data = await res.json();
+            if (!res.ok) {
+                setSqError(data.message || 'Failed to load security question');
+                return;
+            }
+            setSecurityQuestion({ question_id: data.question_id, question_text: data.question_text });
+            setSqAttempts(data.attempts || 0);
+            setChangePwStep('question');
+        } catch {
+            setSqError('Network error. Try again.');
+        }
+    };
+
+    const verifySecurityAnswer = async () => {
+        if (!securityAnswer.trim()) {
+            setSqError('Please enter your answer');
+            return;
+        }
+        // Validate: no emojis, no very long text
+        const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+        if (emojiRegex.test(securityAnswer)) {
+            setSqError('Emojis are not allowed');
+            return;
+        }
+        if (securityAnswer.length > 50) {
+            setSqError('Answer is too long (max 50 characters)');
+            return;
+        }
+
+        setSqVerifying(true);
+        setSqError('');
+        try {
+            const res = await fetch('/api/analyst/change-password/question', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ questionId: securityQuestion?.question_id, answer: securityAnswer }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                if (data.message === 'ACCOUNT_LOCKED') {
+                    setChangePwStep('locked');
+                    return;
+                }
+                if (data.message === 'WRONG_ANSWER') {
+                    setSqAttempts(data.attempts || 0);
+                    const remaining = 3 - (data.attempts || 0);
+                    setSqError(remaining > 0 ? `Incorrect answer. ${remaining} attempt(s) remaining.` : 'Account locked.');
+                } else if (data.message === 'QUESTION_LOCKED') {
+                    setChangePwStep('locked');
+                } else {
+                    setSqError(data.message || 'Verification failed');
+                }
+                return;
+            }
+            // Success — advance to password step
+            setChangePwStep('password');
+        } catch {
+            setSqError('Network error. Try again.');
+        } finally {
+            setSqVerifying(false);
+        }
+    };
+
+    const validatePassword = (pw: string): string | null => {
+        if (pw.length < 8) return 'Password must be at least 8 characters';
+        if (pw.length > 30) return 'Password must be at most 30 characters';
+        if (!/[A-Z]/.test(pw)) return 'Must contain at least one uppercase letter';
+        if (!/[a-z]/.test(pw)) return 'Must contain at least one lowercase letter';
+        if (!/[0-9]/.test(pw)) return 'Must contain at least one number';
+        const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+        if (emojiRegex.test(pw)) return 'Emojis are not allowed';
+        return null;
+    };
+
+    const submitNewPassword = async () => {
+        setPwError('');
+        const validationError = validatePassword(newPassword);
+        if (validationError) {
+            setPwError(validationError);
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            setPwError('Passwords do not match');
+            return;
+        }
+        setPwSubmitting(true);
+        try {
+            const res = await fetch('/api/analyst/change-password/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newPassword }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setPwError(data.message || 'Failed to change password');
+                return;
+            }
+            setChangePwStep('success');
+        } catch {
+            setPwError('Network error. Try again.');
+        } finally {
+            setPwSubmitting(false);
+        }
+    };
+
+    const getPasswordStrength = (pw: string): { label: string; color: string; width: string } => {
+        let score = 0;
+        if (pw.length >= 8) score++;
+        if (pw.length >= 12) score++;
+        if (/[A-Z]/.test(pw)) score++;
+        if (/[a-z]/.test(pw)) score++;
+        if (/[0-9]/.test(pw)) score++;
+        if (/[^A-Za-z0-9]/.test(pw)) score++;
+        if (score <= 2) return { label: 'Weak', color: 'var(--status-danger)', width: '33%' };
+        if (score <= 4) return { label: 'Medium', color: 'var(--status-warning)', width: '66%' };
+        return { label: 'Strong', color: 'var(--status-success)', width: '100%' };
     };
 
     return (
@@ -435,7 +740,15 @@ export default function AnalystDashboard() {
                                 Configuration
                             </div>
                             <div className={styles['menu-divider']}></div>
-                            <div className={`${styles['menu-item']} ${styles.danger}`} onClick={() => alert('Logged out (Simulated)')}>
+                            <div className={`${styles['menu-item']} ${styles.danger}`} onClick={async () => {
+                                try {
+                                    await fetch("/api/auth/logout", { method: "POST" });
+                                } catch {
+                                    // ignore errors
+                                } finally {
+                                    window.location.href = "/login";
+                                }
+                            }}>
                                 <div className={styles['menu-icon']}>🚪</div>
                                 Log Out
                             </div>
@@ -443,11 +756,15 @@ export default function AnalystDashboard() {
 
                         <div className={`${styles['user-widget']} ${styles['profile-card']}`} onClick={() => setProfileMenuOpen(!profileMenuOpen)}>
                             <div className={styles['avatar-box']} style={{ background: 'linear-gradient(135deg, var(--accent-blue), #2a5298)', boxShadow: '0 5px 15px rgba(15, 52, 166, 0.4)' }}>
-                                AN
+                                {userProfile?.first_name ? userProfile.first_name[0] : 'A'}{userProfile?.last_name ? userProfile.last_name[0] : 'N'}
                             </div>
                             <div>
-                                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>Analyst</div>
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Data Analyst</div>
+                                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                                    {userProfile?.name || 'Analyst'}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                                    {userProfile?.pos_name || userProfile?.dept_name || 'Data Analyst'}
+                                </div>
                             </div>
                             <div style={{ marginLeft: 'auto', color: 'var(--text-muted)', opacity: 0.5 }}>
                                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -485,7 +802,7 @@ export default function AnalystDashboard() {
                             </div>
                         </header>
 
-                        {loading ? (
+                        {loadingView === 'home' ? (
                             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
                         ) : kpiData && (
                             <div className={styles['dashboard-grid']}>
@@ -529,24 +846,27 @@ export default function AnalystDashboard() {
                                         <span style={{ fontSize: '0.7rem', background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: 4, color: 'var(--text-main)' }}>LIVE</span>
                                     </div>
                                     <div className={styles['chart-container']}>
-                                        {weeklyActivity.map((val, i) => (
-                                            <div key={i} className={styles['bar-col']}>
-                                                <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, opacity: val > 0 ? 1 : 0, transition: '0.4s', color: 'var(--text-main)' }}>
-                                                    {val}%
+                                        {weeklyActivity.map((val, i) => {
+                                            const label = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][i];
+                                            return (
+                                                <div key={i} className={styles['bar-col']}>
+                                                    <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, opacity: val > 0 ? 1 : 0, transition: '0.4s', color: 'var(--text-main)' }}>
+                                                        {val}%
+                                                    </div>
+                                                    <div
+                                                        className={styles.bar}
+                                                        style={{
+                                                            height: `${val}%`,
+                                                            transition: 'height 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+                                                            width: '100%',
+                                                        }}
+                                                    />
+                                                    <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                                                        {label}
+                                                    </div>
                                                 </div>
-                                                <div
-                                                    className={styles.bar}
-                                                    style={{
-                                                        height: `${val}%`,
-                                                        transition: 'height 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-                                                        width: '100%',
-                                                    }}
-                                                />
-                                                <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
-                                                    {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][i]}
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -565,21 +885,21 @@ export default function AnalystDashboard() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {deptBreakdown.map((dept) => {
-                                                    const ratioColor = dept.billable_ratio >= 70 ? 'var(--status-success)' : 
-                                                                      dept.billable_ratio >= 50 ? 'var(--status-warning)' : 
-                                                                      'var(--status-danger)';
+                                                {deptBreakdown.map((deptItem) => {
+                                                    const ratioColor = deptItem.billable_ratio >= 70 ? 'var(--status-success)' :
+                                                        deptItem.billable_ratio >= 50 ? 'var(--status-warning)' :
+                                                            'var(--status-danger)';
                                                     return (
-                                                        <tr key={dept.dept_id}>
-                                                            <td style={{ fontWeight: 600 }}>{dept.dept_name}</td>
-                                                            <td>{dept.total_hours}h</td>
-                                                            <td>{dept.billable_hours}h</td>
+                                                        <tr key={deptItem.dept_id}>
+                                                            <td style={{ fontWeight: 600 }}>{deptItem.dept_name}</td>
+                                                            <td>{deptItem.total_hours}h</td>
+                                                            <td>{deptItem.billable_hours}h</td>
                                                             <td>
                                                                 <span style={{ color: ratioColor, fontWeight: 700 }}>
-                                                                    {dept.billable_ratio}%
+                                                                    {deptItem.billable_ratio}%
                                                                 </span>
                                                             </td>
-                                                            <td>{dept.active_staff}</td>
+                                                            <td>{deptItem.active_staff}</td>
                                                         </tr>
                                                     );
                                                 })}
@@ -601,13 +921,13 @@ export default function AnalystDashboard() {
                                 <div className={styles['page-subtitle']}>Generate and export organizational reports</div>
                             </div>
                             <div className={styles.controls}>
-                                <select className={styles['select-pro']} value={dept} onChange={(e) => setDept(e.target.value)}>
+                                <select className={styles['select-pro']} value={dept} onChange={(e) => { setDept(e.target.value); setReportData(null); }}>
                                     <option value="ALL">All Departments</option>
                                     {deptBreakdown.map(d => (
                                         <option key={d.dept_id} value={d.dept_id.toString()}>{d.dept_name}</option>
                                     ))}
                                 </select>
-                                <select className={styles['select-pro']} value={period} onChange={(e) => setPeriod(e.target.value)}>
+                                <select className={styles['select-pro']} value={period} onChange={(e) => { setPeriod(e.target.value); setReportData(null); }}>
                                     <option value="week">This Week</option>
                                     <option value="month">This Month</option>
                                     <option value="year">This Year</option>
@@ -631,7 +951,7 @@ export default function AnalystDashboard() {
                                         <div
                                             key={type.value}
                                             className={`${styles['config-card']} ${reportType === type.value ? styles.selected : ''}`}
-                                            onClick={() => setReportType(type.value)}
+                                            onClick={() => { setReportType(type.value); setReportData(null); }}
                                             style={{ cursor: 'pointer', padding: '20px' }}
                                         >
                                             <div style={{ fontSize: '2rem', marginBottom: '10px' }}>{type.icon}</div>
@@ -643,17 +963,17 @@ export default function AnalystDashboard() {
 
                             {/* Generate Report Button */}
                             <div className={styles['widget-box']} style={{ gridColumn: 'span 2', padding: '30px', textAlign: 'center' }}>
-                                <button 
-                                    className={`${styles['btn-pro']} ${styles['btn-primary']}`} 
+                                <button
+                                    className={`${styles['btn-pro']} ${styles['btn-primary']}`}
                                     onClick={generateReport}
-                                    disabled={loading}
+                                    disabled={loadingView === 'reports'}
                                     style={{ fontSize: '1.1rem', padding: '15px 40px' }}
                                 >
-                                    {loading ? 'Generating...' : 'Generate Report'}
+                                    {loadingView === 'reports' ? 'Generating...' : 'Generate Report'}
                                 </button>
                                 {reportData && (
-                                    <button 
-                                        className={styles['btn-pro']} 
+                                    <button
+                                        className={styles['btn-pro']}
                                         onClick={() => setExportModalOpen(true)}
                                         style={{ marginLeft: '15px', fontSize: '1.1rem', padding: '15px 40px' }}
                                     >
@@ -666,7 +986,7 @@ export default function AnalystDashboard() {
                             {reportData && (
                                 <div className={styles['widget-box']} style={{ gridColumn: 'span 2' }}>
                                     <div className={styles['widget-title']}>
-                                        {reportData.reportType.replace('_', ' ').toUpperCase()} Report - {reportData.period}
+                                        {reportData.reportType.replace(/_/g, ' ').toUpperCase()} Report - {reportData.period}
                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '10px' }}>
                                             ({reportData.count} records)
                                         </span>
@@ -684,7 +1004,7 @@ export default function AnalystDashboard() {
                                                 {reportData.data.slice(0, 50).map((row: any, idx: number) => (
                                                     <tr key={idx}>
                                                         {reportData.headers.map((header: string) => {
-                                                            const key = header.toLowerCase().replace(/ /g, '_').replace(/%/g, '');
+                                                            const key = header.toLowerCase().replace(/ /g, '_').replace(/%/g, '').replace(/-/g, '_').replace(/\//g, '_per_').replace(/_+$/, '');
                                                             return <td key={header}>{row[key] ?? 'N/A'}</td>;
                                                         })}
                                                     </tr>
@@ -727,7 +1047,7 @@ export default function AnalystDashboard() {
                             </div>
                         </header>
 
-                        {loading ? (
+                        {loadingView === 'sentiment' ? (
                             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
                         ) : sentimentData && (
                             <div className={styles['dashboard-grid']}>
@@ -794,16 +1114,16 @@ export default function AnalystDashboard() {
                                                             <td>{risk.team}</td>
                                                             <td style={{ fontWeight: 700, color: 'var(--status-danger)' }}>{risk.not_good_count}</td>
                                                             <td>
-                                                                <span className={styles['status-badge']} style={{ 
-                                                                    background: risk.latest_sentiment === 'GREAT' ? 'var(--status-success)' : 
-                                                                               risk.latest_sentiment === 'OKAY' ? 'var(--status-warning)' : 'var(--status-danger)',
+                                                                <span className={styles['status-badge']} style={{
+                                                                    background: risk.latest_sentiment === 'GREAT' ? 'var(--status-success)' :
+                                                                        risk.latest_sentiment === 'OKAY' ? 'var(--status-warning)' : 'var(--status-danger)',
                                                                     color: 'white',
                                                                 }}>
                                                                     {risk.latest_sentiment}
                                                                 </span>
                                                             </td>
                                                             <td>
-                                                                <span className={styles['status-badge']} style={{ 
+                                                                <span className={styles['status-badge']} style={{
                                                                     background: risk.risk_level === 'HIGH' ? 'var(--status-danger)' : 'var(--status-warning)',
                                                                     color: 'white',
                                                                 }}>
@@ -846,7 +1166,7 @@ export default function AnalystDashboard() {
                             </div>
                         </header>
 
-                        {loading ? (
+                        {loadingView === 'performers' ? (
                             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
                         ) : performerData && (
                             <div className={styles['dashboard-grid']} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
@@ -901,10 +1221,10 @@ export default function AnalystDashboard() {
                                                         <td style={{ fontWeight: 600 }}>{performer.name}</td>
                                                         <td>{performer.department}</td>
                                                         <td>
-                                                            <span style={{ 
-                                                                fontWeight: 700, 
-                                                                color: performer.productivity_score >= 90 ? 'var(--status-success)' : 
-                                                                       performer.productivity_score >= 70 ? 'var(--color-go)' : 'var(--status-warning)'
+                                                            <span style={{
+                                                                fontWeight: 700,
+                                                                color: performer.productivity_score >= 90 ? 'var(--status-success)' :
+                                                                    performer.productivity_score >= 70 ? 'var(--color-go)' : 'var(--status-warning)'
                                                             }}>
                                                                 {performer.productivity_score}
                                                             </span>
@@ -938,8 +1258,8 @@ export default function AnalystDashboard() {
                                                         <td style={{ fontWeight: 600 }}>{performer.name}</td>
                                                         <td>{performer.department}</td>
                                                         <td>
-                                                            <span style={{ 
-                                                                fontWeight: 700, 
+                                                            <span style={{
+                                                                fontWeight: 700,
                                                                 color: performer.productivity_score < 50 ? 'var(--status-danger)' : 'var(--status-warning)'
                                                             }}>
                                                                 {performer.productivity_score}
@@ -982,7 +1302,7 @@ export default function AnalystDashboard() {
                             </div>
                         </header>
 
-                        {loading ? (
+                        {loadingView === 'overtime' ? (
                             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
                         ) : overtimeData && (
                             <div className={styles['dashboard-grid']}>
@@ -1035,16 +1355,16 @@ export default function AnalystDashboard() {
                                                             <td style={{ fontWeight: 600 }}>{flag.name}</td>
                                                             <td>{flag.department}</td>
                                                             <td>
-                                                                <span className={styles['status-badge']} style={{ 
+                                                                <span className={styles['status-badge']} style={{
                                                                     background: flag.flag_type === 'HIGH_OT' ? 'var(--accent-blue)' : 'var(--status-warning)',
                                                                     color: 'white',
                                                                 }}>
-                                                                    {flag.flag_type.replace('_', ' ')}
+                                                                    {flag.flag_type.replace(/_/g, ' ')}
                                                                 </span>
                                                             </td>
                                                             <td>{flag.flag_reason}</td>
                                                             <td>
-                                                                <span className={styles['status-badge']} style={{ 
+                                                                <span className={styles['status-badge']} style={{
                                                                     background: flag.severity === 'HIGH' ? 'var(--status-danger)' : 'var(--status-warning)',
                                                                     color: 'white',
                                                                 }}>
@@ -1072,11 +1392,27 @@ export default function AnalystDashboard() {
                                 <div className={styles['page-subtitle']}>System-wide change tracking</div>
                             </div>
                             <div className={styles.controls}>
+                                {auditFilters.actionTypes && auditFilters.actionTypes.length > 0 && (
+                                    <select className={styles['select-pro']} value={actionFilter} onChange={(e) => { setActionFilter(e.target.value); setAuditPage(1); }}>
+                                        <option value="ALL">All Actions</option>
+                                        {auditFilters.actionTypes.map((a: string) => (
+                                            <option key={a} value={a}>{a}</option>
+                                        ))}
+                                    </select>
+                                )}
+                                {auditFilters.tablesAffected && auditFilters.tablesAffected.length > 0 && (
+                                    <select className={styles['select-pro']} value={tableFilter} onChange={(e) => { setTableFilter(e.target.value); setAuditPage(1); }}>
+                                        <option value="ALL">All Tables</option>
+                                        {auditFilters.tablesAffected.map((t: string) => (
+                                            <option key={t} value={t}>{t}</option>
+                                        ))}
+                                    </select>
+                                )}
                                 <button className={styles['btn-pro']} onClick={fetchAuditLogs}>Refresh</button>
                             </div>
                         </header>
 
-                        {loading ? (
+                        {loadingView === 'audit' ? (
                             <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
                         ) : (
                             <div className={styles['widget-box']}>
@@ -1102,10 +1438,10 @@ export default function AnalystDashboard() {
                                                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{log.user_email}</div>
                                                     </td>
                                                     <td>
-                                                        <span className={styles['status-badge']} style={{ 
-                                                            background: log.action_type === 'CREATE' ? 'var(--status-success)' : 
-                                                                       log.action_type === 'UPDATE' ? 'var(--accent-blue)' : 
-                                                                       log.action_type === 'DELETE' ? 'var(--status-danger)' : 'var(--bg-input)',
+                                                        <span className={styles['status-badge']} style={{
+                                                            background: log.action_type === 'CREATE' ? 'var(--status-success)' :
+                                                                log.action_type === 'UPDATE' ? 'var(--accent-blue)' :
+                                                                    log.action_type === 'DELETE' ? 'var(--status-danger)' : 'var(--bg-input)',
                                                             color: 'white',
                                                         }}>
                                                             {log.action_type}
@@ -1130,8 +1466,8 @@ export default function AnalystDashboard() {
                                 {/* Pagination */}
                                 {auditTotalPages > 1 && (
                                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
-                                        <button 
-                                            className={styles['btn-pro']} 
+                                        <button
+                                            className={styles['btn-pro']}
                                             onClick={() => setAuditPage(Math.max(1, auditPage - 1))}
                                             disabled={auditPage === 1}
                                         >
@@ -1140,8 +1476,8 @@ export default function AnalystDashboard() {
                                         <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
                                             Page {auditPage} of {auditTotalPages}
                                         </span>
-                                        <button 
-                                            className={styles['btn-pro']} 
+                                        <button
+                                            className={styles['btn-pro']}
                                             onClick={() => setAuditPage(Math.min(auditTotalPages, auditPage + 1))}
                                             disabled={auditPage === auditTotalPages}
                                         >
@@ -1153,7 +1489,7 @@ export default function AnalystDashboard() {
                         )}
                     </main>
                 )}
-                
+
             </div>
 
             {/* EXPORT MODAL */}
@@ -1165,7 +1501,7 @@ export default function AnalystDashboard() {
                         </div>
                         <div className={styles['modal-body']}>
                             <p style={{ color: 'var(--text-main)', marginBottom: '15px' }}>
-                                Export {reportType.replace('_', ' ')} report for {period}?
+                                Export {reportData?.reportType?.replace(/_/g, ' ')} report for {reportData?.period}?
                             </p>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                                 This will download a CSV file with all {reportData?.count} records.
@@ -1175,8 +1511,8 @@ export default function AnalystDashboard() {
                             <button className={`${styles['btn-action']} ${styles.secondary}`} onClick={() => setExportModalOpen(false)}>
                                 Cancel
                             </button>
-                            <button className={`${styles['btn-action']} ${styles.primary}`} onClick={exportReport} disabled={loading}>
-                                {loading ? 'Exporting...' : 'Download CSV'}
+                            <button className={`${styles['btn-action']} ${styles.primary}`} onClick={exportReport} disabled={loadingView === 'export'}>
+                                {loadingView === 'export' ? 'Exporting...' : 'Download CSV'}
                             </button>
                         </div>
                     </div>
@@ -1185,7 +1521,7 @@ export default function AnalystDashboard() {
 
             {/* SETTINGS MODAL */}
             {settingsOpen && (
-                <div className={styles['modal-overlay']} style={{ display: 'flex' }} onClick={() => setSettingsOpen(false)}>
+                <div className={styles['modal-overlay']} style={{ display: 'flex' }} onClick={() => { setSettingsOpen(false); resetChangePw(); }}>
                     <div className={styles['modal-card']} onClick={e => e.stopPropagation()}>
                         <div className={`${styles['modal-header']} ${styles['header-normal']}`}>
                             <span className={styles['modal-title']} style={{ color: 'var(--accent-cyan)' }}>Configuration</span>
@@ -1201,9 +1537,296 @@ export default function AnalystDashboard() {
                                     <span className={styles.slider}></span>
                                 </label>
                             </div>
+                            <div className={styles['settings-row']} style={{ marginTop: '10px' }}>
+                                <div>
+                                    <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Change Password</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Update your account password</div>
+                                </div>
+                                <button
+                                    className={`${styles['btn-pro']}`}
+                                    onClick={sendOtp}
+                                    disabled={otpSending || changePwStep !== 'idle'}
+                                    style={{ fontSize: '0.8rem', padding: '8px 16px' }}
+                                >
+                                    {otpSending ? 'Sending...' : changePwStep !== 'idle' ? 'In Progress...' : 'Change Password'}
+                                </button>
+                            </div>
+                            {otpError && changePwStep === 'idle' && (
+                                <div style={{ color: 'var(--status-danger)', fontSize: '0.8rem', marginTop: '8px', padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: '6px' }}>
+                                    {otpError}
+                                </div>
+                            )}
                         </div>
                         <div className={styles['modal-footer']}>
-                            <button className={`${styles['btn-action']} ${styles.primary}`} onClick={() => setSettingsOpen(false)}>Save Changes</button>
+                            <button className={`${styles['btn-action']} ${styles.primary}`} onClick={() => { setSettingsOpen(false); resetChangePw(); }}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* CHANGE PASSWORD MODAL */}
+            {changePwStep !== 'idle' && (
+                <div className={styles['modal-overlay']} style={{ display: 'flex', zIndex: 200 }} onClick={() => { resetChangePw(); setSettingsOpen(false); }}>
+                    <div className={styles['modal-card']} style={{ maxWidth: '480px' }} onClick={e => e.stopPropagation()}>
+
+                        {/* STEP INDICATOR */}
+                        <div className={`${styles['modal-header']} ${styles['header-normal']}`} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '12px' }}>
+                            <span className={styles['modal-title']} style={{ color: 'var(--accent-cyan)' }}>
+                                {changePwStep === 'otp' && 'Step 1: Verify OTP'}
+                                {changePwStep === 'question' && 'Step 2: Security Question'}
+                                {changePwStep === 'password' && 'Step 3: New Password'}
+                                {changePwStep === 'success' && 'Password Changed'}
+                                {changePwStep === 'locked' && 'Account Locked'}
+                            </span>
+                            {changePwStep !== 'success' && changePwStep !== 'locked' && (
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {['otp', 'question', 'password'].map((step, idx) => (
+                                        <div key={step} style={{
+                                            width: '60px', height: '4px', borderRadius: '2px',
+                                            background: (['otp', 'question', 'password'].indexOf(changePwStep) >= idx)
+                                                ? 'var(--accent-primary)' : 'var(--border-subtle)',
+                                            transition: 'background 0.3s'
+                                        }} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className={styles['modal-body']}>
+
+                            {/* OTP STEP */}
+                            {changePwStep === 'otp' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                        An OTP has been sent to your email. It expires in 90 seconds.
+                                    </p>
+
+                                    {/* OTP Countdown */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <span style={{ color: otpCountdown > 0 ? 'var(--status-success)' : 'var(--status-danger)', fontFamily: 'var(--font-mono)', fontSize: '1.2rem', fontWeight: 700 }}>
+                                            {otpCountdown > 0 ? `${Math.floor(otpCountdown / 60)}:${(otpCountdown % 60).toString().padStart(2, '0')}` : 'Expired'}
+                                        </span>
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            OTP requests today: {otpDailyCount}/5
+                                        </span>
+                                    </div>
+
+                                    {/* OTP Input */}
+                                    <input
+                                        type="text"
+                                        maxLength={6}
+                                        value={otpValue}
+                                        onChange={e => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                                        placeholder="Enter 6-digit OTP"
+                                        style={{
+                                            background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                                            color: 'var(--text-main)', padding: '14px 16px', borderRadius: '8px',
+                                            fontSize: '1.5rem', fontFamily: 'var(--font-mono)', letterSpacing: '8px',
+                                            textAlign: 'center', outline: 'none', width: '100%',
+                                        }}
+                                        onKeyDown={e => e.key === 'Enter' && verifyOtp()}
+                                        autoFocus
+                                    />
+
+                                    {otpError && (
+                                        <div style={{ color: 'var(--status-danger)', fontSize: '0.85rem', padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: '6px' }}>
+                                            {otpError}
+                                        </div>
+                                    )}
+
+                                    {/* Resend Button */}
+                                    <button
+                                        className={styles['btn-pro']}
+                                        onClick={sendOtp}
+                                        disabled={otpCountdown > 0 || otpSending || otpDailyCount >= 5}
+                                        style={{ fontSize: '0.8rem', opacity: otpCountdown > 0 ? 0.5 : 1 }}
+                                    >
+                                        {otpSending ? 'Sending...' : otpCountdown > 0 ? `Resend in ${otpCountdown}s` : 'Resend OTP'}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* SECURITY QUESTION STEP */}
+                            {changePwStep === 'question' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                        Answer your security question to continue. You have {3 - sqAttempts} attempt(s) remaining.
+                                    </p>
+
+                                    {securityQuestion && (
+                                        <div style={{
+                                            background: 'var(--bg-input)', padding: '16px', borderRadius: '8px',
+                                            border: '1px solid var(--border-subtle)', color: 'var(--text-main)',
+                                            fontWeight: 600, fontSize: '1rem'
+                                        }}>
+                                            {securityQuestion.question_text}
+                                        </div>
+                                    )}
+
+                                    <input
+                                        type="text"
+                                        value={securityAnswer}
+                                        onChange={e => setSecurityAnswer(e.target.value)}
+                                        placeholder="Your answer"
+                                        maxLength={50}
+                                        style={{
+                                            background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                                            color: 'var(--text-main)', padding: '12px 16px', borderRadius: '8px',
+                                            fontSize: '1rem', outline: 'none', width: '100%',
+                                        }}
+                                        onKeyDown={e => e.key === 'Enter' && verifySecurityAnswer()}
+                                        autoFocus
+                                    />
+
+                                    {sqError && (
+                                        <div style={{ color: 'var(--status-danger)', fontSize: '0.85rem', padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: '6px' }}>
+                                            {sqError}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* PASSWORD STEP */}
+                            {changePwStep === 'password' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                        Enter your new password. Must be 8-30 characters with uppercase, lowercase, and numbers.
+                                    </p>
+
+                                    <div>
+                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>New Password</label>
+                                        <input
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={e => setNewPassword(e.target.value)}
+                                            placeholder="New password"
+                                            maxLength={30}
+                                            style={{
+                                                background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                                                color: 'var(--text-main)', padding: '12px 16px', borderRadius: '8px',
+                                                fontSize: '1rem', outline: 'none', width: '100%',
+                                            }}
+                                            autoFocus
+                                        />
+                                        {newPassword && (
+                                            <div style={{ marginTop: '8px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '4px' }}>
+                                                    <span style={{ color: 'var(--text-muted)' }}>Strength</span>
+                                                    <span style={{ color: getPasswordStrength(newPassword).color, fontWeight: 600 }}>{getPasswordStrength(newPassword).label}</span>
+                                                </div>
+                                                <div style={{ height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
+                                                    <div style={{ height: '100%', width: getPasswordStrength(newPassword).width, background: getPasswordStrength(newPassword).color, transition: 'all 0.3s', borderRadius: '2px' }} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Confirm Password</label>
+                                        <input
+                                            type="password"
+                                            value={confirmPassword}
+                                            onChange={e => setConfirmPassword(e.target.value)}
+                                            placeholder="Confirm new password"
+                                            maxLength={30}
+                                            style={{
+                                                background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                                                color: 'var(--text-main)', padding: '12px 16px', borderRadius: '8px',
+                                                fontSize: '1rem', outline: 'none', width: '100%',
+                                            }}
+                                            onKeyDown={e => e.key === 'Enter' && submitNewPassword()}
+                                        />
+                                        {confirmPassword && newPassword !== confirmPassword && (
+                                            <div style={{ color: 'var(--status-danger)', fontSize: '0.75rem', marginTop: '4px' }}>Passwords do not match</div>
+                                        )}
+                                    </div>
+
+                                    {pwError && (
+                                        <div style={{ color: 'var(--status-danger)', fontSize: '0.85rem', padding: '8px 12px', background: 'rgba(248,113,113,0.1)', borderRadius: '6px' }}>
+                                            {pwError}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* SUCCESS STATE */}
+                            {changePwStep === 'success' && (
+                                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                                    <div style={{ fontSize: '3rem', marginBottom: '16px' }}>✅</div>
+                                    <div style={{ color: 'var(--status-success)', fontSize: '1.2rem', fontWeight: 700, marginBottom: '8px' }}>
+                                        Password Changed Successfully
+                                    </div>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                        Your password has been updated. Use your new password the next time you log in.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* LOCKED STATE */}
+                            {changePwStep === 'locked' && (
+                                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                                    <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🔒</div>
+                                    <div style={{ color: 'var(--status-danger)', fontSize: '1.2rem', fontWeight: 700, marginBottom: '8px' }}>
+                                        Account Locked
+                                    </div>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                                        Too many incorrect security question attempts. Your account has been disabled for security reasons. Please contact an administrator to re-enable it.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* MODAL FOOTER */}
+                        <div className={styles['modal-footer']} style={{ justifyContent: 'space-between' }}>
+                            <button
+                                className={`${styles['btn-action']} ${styles.secondary}`}
+                                onClick={() => { resetChangePw(); setSettingsOpen(false); }}
+                            >
+                                {changePwStep === 'success' || changePwStep === 'locked' ? 'Close' : 'Cancel'}
+                            </button>
+
+                            {changePwStep === 'otp' && (
+                                <button
+                                    className={`${styles['btn-action']} ${styles.primary}`}
+                                    onClick={verifyOtp}
+                                    disabled={otpVerifying || !otpValue.trim()}
+                                >
+                                    {otpVerifying ? 'Verifying...' : 'Verify OTP'}
+                                </button>
+                            )}
+
+                            {changePwStep === 'question' && (
+                                <button
+                                    className={`${styles['btn-action']} ${styles.primary}`}
+                                    onClick={verifySecurityAnswer}
+                                    disabled={sqVerifying || !securityAnswer.trim()}
+                                >
+                                    {sqVerifying ? 'Verifying...' : 'Verify Answer'}
+                                </button>
+                            )}
+
+                            {changePwStep === 'password' && (
+                                <button
+                                    className={`${styles['btn-action']} ${styles.primary}`}
+                                    onClick={submitNewPassword}
+                                    disabled={pwSubmitting || !newPassword || !confirmPassword}
+                                >
+                                    {pwSubmitting ? 'Changing...' : 'Change Password'}
+                                </button>
+                            )}
+
+                            {changePwStep === 'locked' && (
+                                <button
+                                    className={`${styles['btn-action']} ${styles.primary}`}
+                                    onClick={async () => {
+                                        await fetch('/api/auth/logout', { method: 'POST' });
+                                        window.location.href = '/login';
+                                    }}
+                                    style={{ background: 'var(--status-danger)' }}
+                                >
+                                    Logout
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

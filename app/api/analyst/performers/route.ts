@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     }
 
     // Check if user is analyst
-    if (user.role_id !== 5) {
+    if (user.role_id !== 2) {
       return NextResponse.json({ message: "Forbidden: Analyst access only" }, { status: 403 });
     }
 
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     let startDate: Date;
-    
+
     if (period === "week") {
       startDate = new Date(today);
       const dayOfWeek = today.getDay();
@@ -60,10 +60,10 @@ export async function GET(request: Request) {
 
     // Calculate productivity metrics per user
     const userMetricsMap = new Map<string, any>();
-    
+
     timeLogs.forEach(log => {
       if (!log.user_id) return;
-      
+
       if (!userMetricsMap.has(log.user_id)) {
         userMetricsMap.set(log.user_id, {
           user_id: log.user_id,
@@ -78,22 +78,22 @@ export async function GET(request: Request) {
           pending_hours: 0,
         });
       }
-      
+
       const userData = userMetricsMap.get(log.user_id);
       const hours = log.total_hours?.toNumber() || 0;
-      
+
       userData.total_hours += hours;
-      
+
       if (log.D_tblactivity?.is_billable) {
         userData.billable_hours += hours;
       } else {
         userData.non_billable_hours += hours;
       }
-      
+
       if (log.log_date) {
         userData.days_worked.add(log.log_date.toISOString().split('T')[0]);
       }
-      
+
       if (log.approval_status === "MANAGER_APPROVED" || log.approval_status === "SUPERVISOR_APPROVED") {
         userData.approved_hours += hours;
       } else if (log.approval_status === "PENDING") {
@@ -107,21 +107,21 @@ export async function GET(request: Request) {
       const avgHoursPerDay = daysWorked > 0 ? user.total_hours / daysWorked : 0;
       const billableRatio = user.total_hours > 0 ? (user.billable_hours / user.total_hours) * 100 : 0;
       const approvalRate = user.total_hours > 0 ? (user.approved_hours / user.total_hours) * 100 : 0;
-      
+
       // Productivity score calculation
       // Factors: total hours (40%), billable ratio (30%), approval rate (20%), consistency (10%)
       const hoursScore = Math.min((avgHoursPerDay / 8) * 100, 100);
       const billableScore = billableRatio;
       const approvalScore = approvalRate;
       const consistencyScore = daysWorked >= 5 ? 100 : (daysWorked / 5) * 100;
-      
+
       const productivityScore = Math.round(
         (hoursScore * 0.4) +
         (billableScore * 0.3) +
         (approvalScore * 0.2) +
         (consistencyScore * 0.1)
       );
-      
+
       return {
         ...user,
         days_worked: daysWorked,
