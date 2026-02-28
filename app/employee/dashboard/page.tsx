@@ -136,6 +136,7 @@ export default function DashboardPage() {
 
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [activeSessionNotice, setActiveSessionNotice] = useState(false);
 
   // 🚨 MULTI-STEP SETTINGS MODAL STATES
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -1223,7 +1224,11 @@ export default function DashboardPage() {
                   className="menu-item danger"
                   onClick={() => {
                     setProfileMenuOpen(false);
-                    void doLogout();
+                    if (isClockedIn) {
+                      setActiveSessionNotice(true);
+                    } else {
+                      void doLogout();
+                    }
                   }}
                 >
                   <span className="menu-icon">⎋</span> Log Out
@@ -2365,6 +2370,23 @@ export default function DashboardPage() {
                 >
                   CONFIRM SUBMIT
                 </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        activeSessionNotice && (
+          <div className="modal-overlay">
+            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+              <div className="modal-body" style={{ padding: '30px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-urgent)' }}>⚠️</div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Active Session Detected</h3>
+                <p style={{ color: 'var(--text-muted)' }}>You are currently clocked in. Please clock out before logging out to ensure your time is recorded correctly.</p>
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'center', borderTop: 'none', paddingBottom: '30px', marginTop: '10px' }}>
+                <button className="btn-standard" style={{ padding: '10px 30px', fontSize: '1rem', flex: 'none' }} onClick={() => setActiveSessionNotice(false)}>Understood</button>
               </div>
             </div>
           </div>

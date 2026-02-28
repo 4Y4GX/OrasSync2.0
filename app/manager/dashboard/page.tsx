@@ -52,6 +52,7 @@ export default function ManagerDashboard() {
   });
 
   const [logoutModal, setLogoutModal] = useState(false);
+  const [activeSessionNotice, setActiveSessionNotice] = useState(false);
   const [saveShiftConfirmModal, setSaveShiftConfirmModal] = useState(false);
 
   // Settings & Auth States
@@ -562,7 +563,11 @@ export default function ManagerDashboard() {
                   className="menu-item danger"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    setLogoutModal(true);
+                    if (hasClockedIn) {
+                      setActiveSessionNotice(true);
+                    } else {
+                      setLogoutModal(true);
+                    }
                   }}
                 >
                   <span className="menu-icon">⎋</span> Log Out
@@ -1471,6 +1476,22 @@ export default function ManagerDashboard() {
             <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
               <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setLogoutModal(false)}>Cancel</button>
               <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeLogout}>Yes, Log Out</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 7. ACTIVE SESSION NOTICE MODAL */}
+      {activeSessionNotice && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+            <div className="modal-body" style={{ padding: '30px 20px' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-urgent)' }}>⚠️</div>
+              <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Active Session Detected</h3>
+              <p style={{ color: 'var(--text-muted)' }}>You are currently clocked in. Please clock out before logging out to ensure your time is recorded correctly.</p>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'center', borderTop: 'none', paddingBottom: '30px' }}>
+              <button className="btn-action btn-standard" style={{ padding: '10px 30px', fontSize: '1rem' }} onClick={() => setActiveSessionNotice(false)}>Understood</button>
             </div>
           </div>
         </div>
