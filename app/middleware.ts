@@ -20,11 +20,12 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
   const isEmployeeArea = pathname.startsWith("/employee");
+  const isAnalystArea = pathname.startsWith("/analyst");
   const isSupervisorArea = pathname.startsWith("/supervisor");
   const isManagerArea = pathname.startsWith("/manager");
   const isAdminArea = pathname.startsWith("/admin");
 
-  if (!isEmployeeArea && !isSupervisorArea && !isManagerArea && !isAdminArea) return NextResponse.next();
+  if (!isEmployeeArea && !isAnalystArea && !isSupervisorArea && !isManagerArea && !isAdminArea) return NextResponse.next();
 
   const token = req.cookies.get("timea_session")?.value;
   if (!token) {
@@ -38,32 +39,46 @@ export async function middleware(req: NextRequest) {
     const payload = await verifySession(token);
     const roleId = Number(payload?.role_id ?? 0);
 
+    // Helper to get the correct dashboard for a given role
+    const getDashboardForRole = (role: number) => {
+      switch (role) {
+        case ROLE_EMPLOYEE: return "/employee/dashboard";
+        case ROLE_ANALYST: return "/analyst/dashboard";
+        case ROLE_ADMIN: return "/admin/dashboard";
+        case ROLE_SUPERVISOR: return "/supervisor/dashboard";
+        case ROLE_MANAGER: return "/manager/dashboard";
+        default: return "/login";
+      }
+    };
+
     if (isAdminArea && roleId !== ROLE_ADMIN) {
       const url = req.nextUrl.clone();
-      url.pathname = "/employee/dashboard";
+      url.pathname = getDashboardForRole(roleId);
+      return NextResponse.redirect(url);
+    }
+
+    if (isAnalystArea && roleId !== ROLE_ANALYST) {
+      const url = req.nextUrl.clone();
+      url.pathname = getDashboardForRole(roleId);
       return NextResponse.redirect(url);
     }
 
     // Allow Supervisors (4) and Managers (5) to access Employee areas (like sentiment)
     if (isEmployeeArea && roleId !== ROLE_EMPLOYEE && roleId !== ROLE_SUPERVISOR && roleId !== ROLE_MANAGER) {
       const url = req.nextUrl.clone();
-      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/login";
+      url.pathname = getDashboardForRole(roleId);
       return NextResponse.redirect(url);
     }
 
     if (isSupervisorArea && roleId !== ROLE_SUPERVISOR) {
       const url = req.nextUrl.clone();
-      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/login"; // Fallback
-      if (roleId === ROLE_EMPLOYEE) url.pathname = "/employee/dashboard";
-      if (roleId === ROLE_MANAGER) url.pathname = "/manager/dashboard";
+      url.pathname = getDashboardForRole(roleId);
       return NextResponse.redirect(url);
     }
 
     if (isManagerArea && roleId !== ROLE_MANAGER) {
       const url = req.nextUrl.clone();
-      url.pathname = roleId === ROLE_ADMIN ? "/admin/dashboard" : "/login"; // Fallback
-      if (roleId === ROLE_EMPLOYEE) url.pathname = "/employee/dashboard";
-      if (roleId === ROLE_SUPERVISOR) url.pathname = "/supervisor/dashboard";
+      url.pathname = getDashboardForRole(roleId);
       return NextResponse.redirect(url);
     }
 
@@ -76,5 +91,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/employee/:path*", "/admin/:path*", "/supervisor/:path*", "/manager/:path*"],
+  matcher: ["/employee/:path*", "/analyst/:path*", "/admin/:path*", "/supervisor/:path*", "/manager/:path*"],
 };

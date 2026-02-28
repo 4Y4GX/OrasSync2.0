@@ -107,6 +107,7 @@ export async function POST(req: Request) {
 
     // default redirect based on role: 1=employee, 2=analyst, 3=admin, 4=supervisor, 5=manager
     let redirect = "/employee/dashboard";
+    if (roleId === 2) redirect = "/analyst/dashboard";
     if (roleId === 3) redirect = "/admin/dashboard";
     if (roleId === 4) redirect = "/supervisor/dashboard";
     if (roleId === 5) redirect = "/manager/dashboard";
