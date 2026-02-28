@@ -22,12 +22,16 @@ export async function GET() {
       return NextResponse.json({ message: "Department not found for this user" }, { status: 400 });
     }
 
-    // 3. Fetch all time logs for users in the manager's department
+    // 3. Fetch all time logs for users in the manager's department AND who are Employees
     const rawTimeLogs = await prisma.d_tbltime_log.findMany({
       where: {
         // This ensures we only get logs from users in the manager's department
         D_tbluser_D_tbltime_log_user_idToD_tbluser: {
-          dept_id: managerData.dept_id
+          dept_id: managerData.dept_id,
+          // NEW: Ensures we only fetch timesheets belonging to the Employee role
+          D_tblrole: {
+            role_name: "Employee" 
+          }
         }
       },
       include: {

@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     // Calculate date range
     const today = new Date();
     const startDate = new Date(today);
-    
+
     if (period === "week") {
       startDate.setDate(today.getDate() - 7);
     } else if (period === "month") {
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
         },
       },
       include: {
-        D_tbluser: {
+        D_tbluser_D_tbltime_log_user_idToD_tbluser: {
           select: {
             user_id: true,
             first_name: true,
@@ -81,11 +81,11 @@ export async function GET(request: Request) {
     // Per-member breakdown
     const memberStats: { [key: string]: any } = {};
     timeLogs.forEach(log => {
-      const userId = log.user_id;
+      const userId = log.user_id || 'unknown';
       if (!memberStats[userId]) {
         memberStats[userId] = {
           user_id: userId,
-          name: `${log.D_tbluser?.first_name} ${log.D_tbluser?.last_name}`,
+          name: `${log.D_tbluser_D_tbltime_log_user_idToD_tbluser?.first_name} ${log.D_tbluser_D_tbltime_log_user_idToD_tbluser?.last_name}`,
           totalHours: 0,
           billableHours: 0,
           nonBillableHours: 0,
@@ -105,8 +105,10 @@ export async function GET(request: Request) {
     // Daily team hours for chart
     const dailyTeamHours: { [key: string]: number } = {};
     timeLogs.forEach(log => {
-      const dateKey = log.log_date.toISOString().split('T')[0];
-      dailyTeamHours[dateKey] = (dailyTeamHours[dateKey] || 0) + (log.total_hours?.toNumber() || 0);
+      if (log.log_date) {
+        const dateKey = log.log_date.toISOString().split('T')[0];
+        dailyTeamHours[dateKey] = (dailyTeamHours[dateKey] || 0) + (log.total_hours?.toNumber() || 0);
+      }
     });
 
     // Top performers

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Users, UserCheck } from "lucide-react";
+import { Users, UserCheck, ShieldAlert } from "lucide-react";
 
 type User = {
     user_id: string;
@@ -38,24 +38,30 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     const [loading, setLoading] = useState(true);
 
     const [targetUserId, setTargetUserId] = useState<string | null>(null);
+    
+    // NEW: Track the currently logged-in admin's user ID
+    const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-    const [activeTab, setActiveTab] = useState<"ACTIVE" | "DEACTIVATED">("ACTIVE");
-    const [stats, setStats] = useState({ total: 0, active: 0 });
+    const [activeTab, setActiveTab] = useState<"ACTIVE" | "DISABLED" | "DEACTIVATED">("ACTIVE");
+    const [stats, setStats] = useState({ total: 0, active: 0, disabled: 0 });
 
     const [search, setSearch] = useState("");
     const [roleFilter, setRoleFilter] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
 
-    // NEW: Pagination States
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10); // Defaults to 10
+    const [itemsPerPage, setItemsPerPage] = useState(10); 
 
     const [showModal, setShowModal] = useState(false);
     const [drawerClosing, setDrawerClosing] = useState(false);
+    
+    // Confirmation Modals
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
     const [showReactivateConfirm, setShowReactivateConfirm] = useState(false);
+    const [showEnableConfirm, setShowEnableConfirm] = useState(false);
+    const [userToEnable, setUserToEnable] = useState<User | null>(null);
+
     const [showResultModal, setShowResultModal] = useState(false);
 
     const [modalMode, setModalMode] = useState<"create" | "edit">("edit");
@@ -90,8 +96,21 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     const loadUsers = async () => {
         setLoading(true);
         try {
+            // First, establish who is logged in if we don't know already
+            let meId = currentUserId;
+            if (!meId) {
+                const meRes = await fetch("/api/auth/me");
+                if (meRes.ok) {
+                    const meData = await meRes.json();
+                    if (meData && meData.user_id) {
+                        meId = meData.user_id;
+                        setCurrentUserId(meId);
+                    }
+                }
+            }
+
             const params = new URLSearchParams({
-                limit: "1000", // Increased limit so client-side pagination grabs everyone
+                limit: "1000", 
                 search: search,
                 role: roleFilter,
             });
@@ -99,6 +118,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             if (activeTab === "ACTIVE") {
                 params.append("status_exclude", "DEACTIVATED");
                 if (statusFilter) params.append("status", statusFilter);
+            } else if (activeTab === "DISABLED") {
+                params.append("status", "DISABLED");
             } else {
                 params.append("status", "DEACTIVATED");
             }
@@ -107,21 +128,42 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             const data = await res.json();
 
             if (res.ok) {
-                const fetchedUsers = data.users || [];
+                let fetchedUsers = data.users || [];
+                
+                // Exclude the currently logged-in user
+                if (meId) {
+                    fetchedUsers = fetchedUsers.filter((u: User) => u.user_id !== meId);
+                }
+
+                if (activeTab === "ACTIVE") {
+                    fetchedUsers = fetchedUsers.filter((u: User) => u.account_status !== "DISABLED" && u.account_status !== "DEACTIVATED");
+                }
+                
                 setUsers(fetchedUsers);
 
-                if (activeTab === "ACTIVE" && !search && !roleFilter && !statusFilter) {
-                    setStats({
-                        total: data.pagination.total,
-                        active: fetchedUsers.filter((u: User) => u.account_status === "ACTIVE").length
-                    });
+                if (!search && !roleFilter && !statusFilter) {
+                   const statRes = await fetch(`/api/admin/users/list?limit=5000`);
+                   const statData = await statRes.json();
+                   if (statRes.ok) {
+                       let allUsers = statData.users || [];
+                       
+                       // Also exclude current user from the HUD stats calculations
+                       if (meId) {
+                           allUsers = allUsers.filter((u: User) => u.user_id !== meId);
+                       }
+
+                       setStats({
+                           total: allUsers.length,
+                           active: allUsers.filter((u: User) => u.account_status === "ACTIVE" || !u.account_status).length,
+                           disabled: allUsers.filter((u: User) => u.account_status === "DISABLED").length
+                       });
+                   }
                 }
             }
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
     };
 
-    // Reset to page 1 whenever filters or tabs change
     useEffect(() => {
         setCurrentPage(1);
         loadUsers();
@@ -170,6 +212,41 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             original_resignation_date: user.original_resignation_date ? new Date(user.original_resignation_date).toISOString().split('T')[0] : "",
         });
         setShowModal(true);
+    };
+
+    const promptEnableUser = (user: User) => {
+        setUserToEnable(user);
+        setShowEnableConfirm(true);
+    };
+
+    const executeEnable = async () => {
+        if (!userToEnable) return;
+        setIsProcessing(true);
+        try {
+            const res = await fetch("/api/admin/users/update", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id: userToEnable.user_id, account_status: "ACTIVE" })
+            });
+            const data = await res.json();
+            setIsProcessing(false);
+            setShowEnableConfirm(false);
+            setUserToEnable(null);
+            
+            if (res.ok) {
+                loadUsers();
+                setResultMessage({ title: "Account Enabled", text: "The user account has been successfully unlocked and enabled.", type: "success" });
+                setShowResultModal(true);
+            } else {
+                setResultMessage({ title: "Action Failed", text: data.message || "Could not enable user.", type: "error" });
+                setShowResultModal(true);
+            }
+        } catch (err) {
+            setIsProcessing(false);
+            setShowEnableConfirm(false);
+            setResultMessage({ title: "System Error", text: "Failed to connect to the server.", type: "error" });
+            setShowResultModal(true);
+        }
     };
 
     const executeDelete = async () => {
@@ -328,7 +405,6 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             setShowResultModal(true);
         }
     };
-    // Replaced inline styles with CSS classes "select" and "modal-input" from dashboard.css
 
     const isDeactivated = modalMode === "edit" && formData.account_status === "DEACTIVATED";
 
@@ -342,7 +418,6 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
         transition: 'all 0.45s ease'
     } as React.CSSProperties;
 
-    // NEW: Calculate Pagination Values
     const totalPages = Math.max(1, Math.ceil(users.length / itemsPerPage));
     const indexOfLastUser = currentPage * itemsPerPage;
     const indexOfFirstUser = indexOfLastUser - itemsPerPage;
@@ -373,6 +448,18 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                     </div>
                     <div className="hud-val" style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--text-main, #fff)', lineHeight: 1, margin: 0 }}>
                         {stats.active}
+                    </div>
+                </div>
+
+                <div className="hud-card animate-slide-up" style={{ flex: 1, position: 'relative', overflow: 'hidden', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderLeft: '4px solid #f59e0b', animationDelay: '0.2s' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <div className="hud-label" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted, #888)', letterSpacing: '0.05em', textTransform: 'uppercase', margin: 0 }}>
+                            Disabled Users
+                        </div>
+                        <ShieldAlert size={20} color="#f59e0b" opacity={0.8} />
+                    </div>
+                    <div className="hud-val" style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--text-main, #fff)', lineHeight: 1, margin: 0 }}>
+                        {stats.disabled}
                     </div>
                 </div>
             </div>
@@ -414,8 +501,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                 }}
                             >
                                 <option value="">All Statuses</option>
-                                <option value="ACTIVE">Active</option>
-                                <option value="DISABLED">Disabled</option>
+                                <option value="ACTIVE">Active Only</option>
                             </select>
                         )}
 
@@ -484,6 +570,28 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                     </button>
 
                     <button
+                        onClick={() => { setActiveTab("DISABLED"); setStatusFilter(""); }}
+                        style={{
+                            flex: 1,
+                            padding: "1rem",
+                            backgroundColor: "transparent",
+                            borderTopWidth: 0,
+                            borderLeftWidth: 0,
+                            borderRightWidth: 0,
+                            borderBottom: activeTab === "DISABLED" ? "3px solid #f59e0b" : "3px solid transparent",
+                            color: activeTab === "DISABLED" ? "#f59e0b" : "#aaa",
+                            fontWeight: 800,
+                            fontSize: "1rem",
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                            textTransform: "uppercase",
+                            letterSpacing: "1px"
+                        }}
+                    >
+                        Disabled
+                    </button>
+
+                    <button
                         onClick={() => { setActiveTab("DEACTIVATED"); setStatusFilter(""); }}
                         style={{
                             flex: 1,
@@ -502,7 +610,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                             letterSpacing: "1px"
                         }}
                     >
-                        Deactivated Accounts
+                        Deactivated
                     </button>
                 </div>
 
@@ -535,7 +643,6 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                     </td>
                                 </tr>
                             )}
-                            {/* UPDATED: Map over currentUsers instead of all users */}
                             {!loading && currentUsers.length > 0 && currentUsers.map((user, index) => (
                                 <tr key={user.user_id} className="animate-slide-up" style={{ animationDelay: `${0.35 + (index * 0.05)}s` }}>
                                     <td style={{ fontWeight: 600 }}>{user.first_name} {user.last_name}</td>
@@ -545,30 +652,53 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                     <td>{user.D_tblteam?.team_name || "—"}</td>
                                     <td>{user.D_tblposition?.pos_name || "—"}</td>
                                     <td>
-                                        <span className={`status-badge-admin ${user.account_status === "ACTIVE" ? "active" : "disabled"}`}>
+                                        <span className={`status-badge-admin ${user.account_status === "ACTIVE" ? "active" : user.account_status === "DISABLED" ? "disabled" : "disabled"}`}>
                                             {user.account_status || "NULL"}
                                         </span>
                                     </td>
                                     <td>
-                                        <button
-                                            className="btn-mini"
-                                            onClick={() => handleOpenEdit(user)}
-                                            style={{
-                                                backgroundColor: '#3b82f6',
-                                                color: '#ffffff',
-                                                borderTopWidth: 0,
-                                                borderLeftWidth: 0,
-                                                borderRightWidth: 0,
-                                                borderBottomWidth: 0,
-                                                padding: '6px 16px',
-                                                borderRadius: '6px',
-                                                fontWeight: 'bold',
-                                                cursor: 'pointer',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                            }}
-                                        >
-                                            Edit
-                                        </button>
+                                        {activeTab === "DISABLED" ? (
+                                            <button
+                                                className="btn-mini"
+                                                onClick={() => promptEnableUser(user)}
+                                                disabled={isProcessing}
+                                                style={{
+                                                    backgroundColor: '#46e38a',
+                                                    color: '#ffffff',
+                                                    borderTopWidth: 0,
+                                                    borderLeftWidth: 0,
+                                                    borderRightWidth: 0,
+                                                    borderBottomWidth: 0,
+                                                    padding: '6px 16px',
+                                                    borderRadius: '6px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                                }}
+                                            >
+                                                Enable
+                                            </button>
+                                        ) : (
+                                            <button
+                                                className="btn-mini"
+                                                onClick={() => handleOpenEdit(user)}
+                                                style={{
+                                                    backgroundColor: '#3b82f6',
+                                                    color: '#ffffff',
+                                                    borderTopWidth: 0,
+                                                    borderLeftWidth: 0,
+                                                    borderRightWidth: 0,
+                                                    borderBottomWidth: 0,
+                                                    padding: '6px 16px',
+                                                    borderRadius: '6px',
+                                                    fontWeight: 'bold',
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                                }}
+                                            >
+                                                Edit
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -576,7 +706,6 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                     </table>
                 </div>
 
-                {/* NEW: PAGINATION CONTROLS */}
                 {!loading && users.length > 0 && (
                     <div style={{
                         display: 'flex',
@@ -675,7 +804,6 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                             <form id="admin-user-form" onSubmit={handlePreSubmit}>
                                 <div style={{ display: 'grid', gap: '24px' }}>
 
-                                    {/* Personal Information Section */}
                                     <div style={{ backgroundColor: 'var(--bg-input, rgba(255,255,255,0.02))', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle, rgba(255,255,255,0.05))' }}>
                                         <div style={{ color: 'var(--accent-admin, #3b82f6)', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>Personal Information</div>
 
@@ -743,7 +871,6 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                         )}
                                     </div>
 
-                                    {/* Organization Section */}
                                     <div style={{ backgroundColor: 'var(--bg-input, rgba(255,255,255,0.02))', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle, rgba(255,255,255,0.05))' }}>
                                         <div style={{ color: 'var(--accent-admin, #3b82f6)', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>Organization & Role</div>
 
@@ -774,19 +901,21 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                             </div>
                                             <div>
                                                 <label className="label-sm">Account Status</label>
-                                                <select
-                                                    className="select"
-                                                    style={isDeactivated ? { opacity: 0.5, cursor: "not-allowed" } : {}}
-                                                    value={formData.account_status}
-                                                    onChange={e => setFormData({ ...formData, account_status: e.target.value })}
-                                                    disabled={isDeactivated}
-                                                >
-                                                    <option value="ACTIVE">Active</option>
-                                                    <option value="DISABLED">Disabled</option>
-                                                    {formData.account_status === "DEACTIVATED" && (
-                                                        <option value="DEACTIVATED">Deactivated</option>
-                                                    )}
-                                                </select>
+                                                <div style={{
+                                                    padding: '8px 12px',
+                                                    color: formData.account_status === 'ACTIVE' ? 'var(--color-go, #46e38a)' : (formData.account_status === 'DEACTIVATED' ? '#ef4444' : '#f59e0b'),
+                                                    fontWeight: 800,
+                                                    letterSpacing: '1px',
+                                                    backgroundColor: 'var(--bg-input, rgba(0,0,0,0.1))',
+                                                    border: '1px solid var(--border-subtle, rgba(255,255,255,0.05))',
+                                                    borderRadius: '6px',
+                                                    height: '42px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    textTransform: 'uppercase'
+                                                }}>
+                                                    {formData.account_status}
+                                                </div>
                                             </div>
                                         </div>
 
@@ -808,7 +937,6 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                         </div>
                                     </div>
 
-                                    {/* Employment History Section */}
                                     <div style={{ backgroundColor: 'var(--bg-input, rgba(255,255,255,0.02))', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-subtle, rgba(255,255,255,0.05))' }}>
                                         <div style={{ color: 'var(--accent-admin, #3b82f6)', fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '1px' }}>Employment History</div>
 
@@ -820,8 +948,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                                     className="modal-input"
                                                     value={formData.original_hire_date}
                                                     onChange={e => setFormData({ ...formData, original_hire_date: e.target.value })}
-                                                    disabled={modalMode === "edit"}
-                                                    style={modalMode === "edit" ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                                                    disabled
+                                                    style={{ opacity: 0.5, cursor: "not-allowed" }}
                                                 />
                                             </div>
                                             <div>
@@ -831,15 +959,15 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                                     className="modal-input"
                                                     value={formData.original_resignation_date}
                                                     onChange={e => setFormData({ ...formData, original_resignation_date: e.target.value })}
-                                                    disabled={modalMode === "edit"}
-                                                    style={modalMode === "edit" ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                                                    disabled
+                                                    style={{ opacity: 0.5, cursor: "not-allowed" }}
                                                 />
                                             </div>
                                         </div>
 
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                                             <div>
-                                                <label className="label-sm">System Entry / Re-Hire</label>
+                                                <label className="label-sm">System Entry</label>
                                                 <input
                                                     type="date"
                                                     className="modal-input"
@@ -856,8 +984,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                                     className="modal-input"
                                                     value={formData.resignation_date}
                                                     onChange={e => setFormData({ ...formData, resignation_date: e.target.value })}
-                                                    disabled={modalMode === "edit"}
-                                                    style={modalMode === "edit" ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+                                                    disabled
+                                                    style={{ opacity: 0.5, cursor: "not-allowed" }}
                                                 />
                                             </div>
                                         </div>
@@ -939,7 +1067,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                 </div>
                 , document.body)}
 
-            {/* CONFIRMATION MODALS — portalled above drawer */}
+            {/* CONFIRMATION MODALS */}
             {
                 showConfirmModal && createPortal(
                     <div className="modal-overlay" style={{ zIndex: 100000, backgroundColor: lightMode ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.7)' }}>
@@ -1065,7 +1193,6 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                     , document.body)
             }
 
-            {/* REACTIVATE CONFIRMATION MODAL */}
             {
                 showReactivateConfirm && createPortal(
                     <div className="modal-overlay" style={{ zIndex: 100000, backgroundColor: lightMode ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.7)' }}>
@@ -1116,6 +1243,71 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                                     {isProcessing ? "Reactivating..." : "Yes, Reactivate"}
                                 </button>
                                 <button onClick={() => !isProcessing && setShowReactivateConfirm(false)} disabled={isProcessing} style={{
+                                    padding: '14px', borderRadius: '12px',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    backgroundColor: 'transparent', border: lightMode ? '1px solid #d0d2d9' : '1px solid rgba(255,255,255,0.12)',
+                                    color: lightMode ? '#555' : 'rgba(255,255,255,0.6)',
+                                    fontWeight: 700, fontSize: '0.82rem', letterSpacing: '0.06em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    opacity: isProcessing ? 0.5 : 1,
+                                }}>Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                    , document.body)
+            }
+
+            {/* ENABLE CONFIRMATION MODAL */}
+            {
+                showEnableConfirm && userToEnable && createPortal(
+                    <div className="modal-overlay" style={{ zIndex: 100000, backgroundColor: lightMode ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.7)' }}>
+                        <div style={{
+                            width: '400px',
+                            borderRadius: '20px',
+                            padding: '36px 32px 28px',
+                            textAlign: 'center',
+                            background: lightMode ? '#ffffff' : '#1a1e26',
+                            border: '1px solid rgba(70, 227, 138, 0.3)',
+                            boxShadow: lightMode ? '0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(70,227,138,0.1)' : '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(70,227,138,0.08)',
+                        }}>
+                            <div style={{
+                                width: '56px', height: '56px', borderRadius: '50%',
+                                background: lightMode ? 'rgba(70, 227, 138, 0.08)' : 'rgba(70, 227, 138, 0.12)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 20px', fontSize: '1.6rem',
+                            }}>🔓</div>
+                            <h3 style={{
+                                marginBottom: '10px', fontSize: '1.15rem', fontWeight: 900,
+                                letterSpacing: '0.04em',
+                                color: lightMode ? '#1a1a2e' : '#fff',
+                            }}>Enable Account?</h3>
+                            <p style={{
+                                marginBottom: '28px', fontSize: '0.9rem', lineHeight: 1.6,
+                                color: lightMode ? '#666' : 'rgba(255,255,255,0.55)',
+                            }}>
+                                Are you sure you want to enable <strong>{userToEnable.first_name} {userToEnable.last_name}</strong>'s account?
+                                This will reset their failed login attempts and restore their access.
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <button onClick={executeEnable} disabled={isProcessing} style={{
+                                    padding: '14px', borderRadius: '12px', border: 'none',
+                                    cursor: isProcessing ? 'not-allowed' : 'pointer',
+                                    backgroundColor: '#46e38a', color: '#fff',
+                                    fontWeight: 900, fontSize: '0.85rem', letterSpacing: '0.08em',
+                                    textTransform: 'uppercase', fontFamily: 'var(--font-heading)',
+                                    boxShadow: '0 4px 14px rgba(70, 227, 138, 0.3)',
+                                    opacity: isProcessing ? 0.7 : 1,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                }}>
+                                    {isProcessing && (
+                                        <svg style={{ animation: 'spin 1s linear infinite', height: '1.2rem', width: '1.2rem' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    )}
+                                    {isProcessing ? "Enabling..." : "Yes, Enable Account"}
+                                </button>
+                                <button onClick={() => !isProcessing && setShowEnableConfirm(false)} disabled={isProcessing} style={{
                                     padding: '14px', borderRadius: '12px',
                                     cursor: isProcessing ? 'not-allowed' : 'pointer',
                                     backgroundColor: 'transparent', border: lightMode ? '1px solid #d0d2d9' : '1px solid rgba(255,255,255,0.12)',
