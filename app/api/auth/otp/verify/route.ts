@@ -121,7 +121,7 @@ export async function POST(request: Request) {
           where: { otp_id: latestLog.otp_id },
           data: { attempts: nextAttempts },
         });
-      } catch {}
+      } catch { }
 
       if (nextAttempts >= maxAttemptsPerOtp && auth?.is_disabled) {
         const { start, end } = todayRange();
@@ -167,7 +167,7 @@ export async function POST(request: Request) {
         where: { user_id: userId },
         data: { question_attempts: 0 },
       });
-    } catch {}
+    } catch { }
 
     const res = NextResponse.json({ message: "OK" }, { status: 200 });
 

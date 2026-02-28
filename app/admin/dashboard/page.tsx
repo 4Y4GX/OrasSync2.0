@@ -48,6 +48,8 @@ export default function AdminDashboard() {
   const [pwError, setPwError] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [resending, setResending] = useState(false);
   const [secQuestion, setSecQuestion] = useState({ id: null, text: "" });
   const [secAnswer, setSecAnswer] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -57,6 +59,13 @@ export default function AdminDashboard() {
 
   const pwValidation = useMemo(() => passwordChecks(newPassword), [newPassword]);
   const passwordsMatch = newPassword === confirmNewPassword && confirmNewPassword.length > 0;
+
+  // OTP Countdown Timer
+  useEffect(() => {
+    if (otpCountdown <= 0) return;
+    const timer = setTimeout(() => setOtpCountdown(otpCountdown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [otpCountdown]);
 
   useEffect(() => {
     try {
@@ -154,10 +163,25 @@ export default function AdminDashboard() {
         // Using the explicitly entered/confirmed email
         body: JSON.stringify({ email: adminEmailInput.trim() })
       });
-      if (res.ok) { setPwStep(1); setOtp(["", "", "", "", "", ""]); }
+      if (res.ok) { setPwStep(1); setOtp(["", "", "", "", "", ""]); setOtpCountdown(90); }
       else { setPwError("Failed to send OTP. Check your email address."); }
     } catch (e) { setPwError("Connection error."); }
     finally { setPwLoading(false); }
+  };
+
+  const handleResendOtp = async () => {
+    if (otpCountdown > 0 || resending) return;
+    setResending(true);
+    setPwError("");
+    try {
+      const res = await fetch('/api/auth/otp/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: adminEmailInput.trim() })
+      });
+      if (res.ok) { setOtp(["", "", "", "", "", ""]); setOtpCountdown(90); }
+      else { setPwError("Failed to resend code."); }
+    } catch (e) { setPwError("Connection error."); }
+    finally { setResending(false); }
   };
 
   const handleVerifyOtp = async () => {
@@ -225,6 +249,8 @@ export default function AdminDashboard() {
       setSecAnswer("");
       setShowPw(false);
       setShowConfirmPw(false);
+      setOtpCountdown(0);
+      setResending(false);
     }, 300);
   };
 
@@ -417,6 +443,22 @@ export default function AdminDashboard() {
                         style={{ width: '45px', height: '55px', textAlign: 'center', fontSize: '1.5rem', background: lightMode ? '#fff' : 'rgba(255,255,255,0.02)', border: lightMode ? '1px solid #ccc' : '1px solid #444', color: lightMode ? '#000' : '#fff', borderRadius: '8px' }}
                       />
                     ))}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.82rem', margin: '0 0 5px 0' }}>
+                    {otpCountdown > 0 ? (
+                      <span style={{ color: lightMode ? '#999' : '#666' }}>RESEND IN {otpCountdown}s</span>
+                    ) : (
+                      <>
+                        <span style={{ color: lightMode ? '#999' : '#666' }}>CODE EXPIRED?</span>
+                        <span
+                          onClick={handleResendOtp}
+                          style={{ color: '#3b82f6', fontWeight: 700, cursor: resending ? 'not-allowed' : 'pointer', opacity: resending ? 0.6 : 1 }}
+                        >
+                          {resending ? "RESENDING..." : "RESEND CODE"}
+                        </span>
+                      </>
+                    )}
                   </div>
 
                   {pwError && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}

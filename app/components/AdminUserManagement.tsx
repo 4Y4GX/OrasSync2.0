@@ -55,6 +55,23 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     const [showModal, setShowModal] = useState(false);
     const [drawerClosing, setDrawerClosing] = useState(false);
 
+    // Auto Refresh State
+    const [isAutoRefresh, setIsAutoRefresh] = useState(false);
+    const [isInteracting, setIsInteracting] = useState(false);
+
+    // Load auto-refresh preference on mount
+    useEffect(() => {
+        const saved = sessionStorage.getItem('adminAutoRefreshUsers');
+        if (saved) {
+            setIsAutoRefresh(saved === 'true');
+        }
+    }, []);
+
+    const handleToggleAutoRefresh = (checked: boolean) => {
+        setIsAutoRefresh(checked);
+        sessionStorage.setItem('adminAutoRefreshUsers', checked.toString());
+    };
+
     // Confirmation Modals
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -176,6 +193,30 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
         loadUsers(controller.signal);
         return () => controller.abort();
     }, [search, roleFilter, statusFilter, activeTab]);
+
+    // Auto Refresh Logic
+    useEffect(() => {
+        let intervalId: NodeJS.Timeout;
+
+        // Timer only runs if auto-refresh is ON AND user is NOT interacting with the table UI
+        if (isAutoRefresh && !isInteracting && !showModal) {
+            intervalId = setInterval(() => {
+                console.log("[Admin Dashboard] User Management Table auto-refreshed.");
+                const controller = new AbortController();
+                loadUsers(controller.signal);
+            }, 30000); // 30 seconds
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [isAutoRefresh, isInteracting, showModal, search, roleFilter, statusFilter, activeTab, currentPage]); // Reset timer if user interacts with these
+
+    const handleManualRefresh = () => {
+        console.log("[Admin Dashboard] User Management Table manually refreshed.");
+        const controller = new AbortController();
+        loadUsers(controller.signal);
+    };
 
     const sanitizeInput = (value: string, type: 'text' | 'email' | 'userid') => {
         if (!value) return "";
@@ -473,13 +514,52 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             </div>
 
             <div className="glass-card animate-slide-up" style={{ marginBottom: "1.5rem", padding: "1rem", animationDelay: '0.2s' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: '1rem' }}>
-                    <div className="section-title" style={{ margin: 0, whiteSpace: 'nowrap' }}>User Management</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <div className="section-title" style={{ margin: 0, whiteSpace: 'nowrap' }}>User Management</div>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 12px', background: 'var(--bg-input, rgba(0,0,0,0.2))', borderRadius: '8px', border: '1px solid var(--border-subtle, #333)', cursor: 'pointer' }}>
+                            <input
+                                type="checkbox"
+                                checked={isAutoRefresh}
+                                onChange={(e) => handleToggleAutoRefresh(e.target.checked)}
+                                style={{ margin: 0, cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isAutoRefresh ? 'var(--color-go, #46e38a)' : 'var(--text-muted, #888)', whiteSpace: 'nowrap' }}>
+                                Auto-Refresh (30s)
+                            </span>
+                        </label>
+
+                        <button
+                            onClick={handleManualRefresh}
+                            className="btn-mini"
+                            style={{
+                                backgroundColor: 'transparent',
+                                color: 'var(--text-main, #fff)',
+                                border: '1px solid var(--border-subtle, #444)',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s ease'
+                            }}
+                            title="Refresh Table"
+                        >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l5.94 4.14" />
+                            </svg>
+                            Refresh
+                        </button>
+                    </div>
 
                     <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flex: 1, justifyContent: "flex-end" }}>
                         <select
                             value={roleFilter}
                             onChange={(e) => setRoleFilter(e.target.value)}
+                            onFocus={() => setIsInteracting(true)}
+                            onBlur={() => setIsInteracting(false)}
                             className="select"
                             style={{
                                 padding: '8px 12px',
@@ -500,6 +580,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
+                                onFocus={() => setIsInteracting(true)}
+                                onBlur={() => setIsInteracting(false)}
                                 className="select"
                                 style={{
                                     padding: '8px 12px',
@@ -518,6 +600,8 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                             placeholder="Search users..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            onFocus={() => setIsInteracting(true)}
+                            onBlur={() => setIsInteracting(false)}
                             className="modal-input"
                             style={{
                                 padding: '8px 12px',
@@ -574,7 +658,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                             letterSpacing: "1px"
                         }}
                     >
-                        Active Accounts
+                        Active
                     </button>
 
                     <button

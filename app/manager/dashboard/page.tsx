@@ -63,6 +63,8 @@ export default function ManagerDashboard() {
   const [pwError, setPwError] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const [resending, setResending] = useState(false);
 
   const [secQuestion, setSecQuestion] = useState({ id: null, text: "" });
   const [secAnswer, setSecAnswer] = useState("");
@@ -74,6 +76,13 @@ export default function ManagerDashboard() {
 
   const pwValidation = useMemo(() => passwordChecks(newPassword), [newPassword]);
   const passwordsMatch = newPassword === confirmNewPassword && confirmNewPassword.length > 0;
+
+  // OTP Countdown Timer
+  useEffect(() => {
+    if (otpCountdown <= 0) return;
+    const timer = setTimeout(() => setOtpCountdown(otpCountdown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [otpCountdown]);
 
   const [currentTime, setCurrentTime] = useState('');
   const [sessionStart, setSessionStart] = useState<number | null>(null);
@@ -89,6 +98,7 @@ export default function ManagerDashboard() {
   const [scheduleData, setScheduleData] = useState<any[]>([]);
   const [shiftTemplates, setShiftTemplates] = useState<any[]>([]);
   const [schedLoading, setSchedLoading] = useState(false);
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -162,7 +172,7 @@ export default function ManagerDashboard() {
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
-      setCurrentTime(now.toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setCurrentTime(now.toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -192,8 +202,7 @@ export default function ManagerDashboard() {
         const diff = Date.now() - sessionStart;
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        setSessionDuration(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        setSessionDuration(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`);
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -394,10 +403,25 @@ export default function ManagerDashboard() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: managerEmailInput.trim() })
       });
-      if (res.ok) { setPwStep(1); setOtp(["", "", "", "", "", ""]); }
+      if (res.ok) { setPwStep(1); setOtp(["", "", "", "", "", ""]); setOtpCountdown(90); }
       else { setPwError("Failed to send OTP. Check your email address."); }
     } catch (e) { setPwError("Connection error."); }
     finally { setPwLoading(false); }
+  };
+
+  const handleResendOtp = async () => {
+    if (otpCountdown > 0 || resending) return;
+    setResending(true);
+    setPwError("");
+    try {
+      const res = await fetch('/api/auth/otp/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: managerEmailInput.trim() })
+      });
+      if (res.ok) { setOtp(["", "", "", "", "", ""]); setOtpCountdown(90); }
+      else { setPwError("Failed to resend code."); }
+    } catch (e) { setPwError("Connection error."); }
+    finally { setResending(false); }
   };
 
   const handleVerifyOtp = async () => {
@@ -668,7 +692,7 @@ export default function ManagerDashboard() {
                               {filteredAndSortedRoster.map(emp => (
                                 <tr key={emp.user_id}>
                                   <td style={{ fontWeight: 700 }}>{emp.name}</td>
-                                  <td style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{emp.role_id === 4 && <span className="tag tag-sup">HEAD</span>} {emp.position || (emp.role_id === 4 ? 'Supervisor' : 'Employee')}</td>
+                                  <td><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>{emp.role_id === 4 && <span className="tag tag-sup">HEAD</span>} {emp.position || (emp.role_id === 4 ? 'Supervisor' : 'Employee')}</div></td>
                                   <td>{emp.status === 'in' ? <span className="tag tag-in">Clocked In</span> : <span className="tag tag-out">Clocked Out</span>}</td>
                                 </tr>
                               ))}
@@ -682,8 +706,7 @@ export default function ManagerDashboard() {
                     <div className="glass-card" style={{ margin: 0, flex: 1, display: 'flex', flexDirection: 'column' }}>
                       <div className="section-title">Manager Actions</div>
                       <p style={{ color: 'var(--text-muted)', marginBottom: '20px', fontSize: '0.9rem' }}>Department level controls and overrides.</p>
-                      <button className="btn-action btn-standard" onClick={() => setShowScheduleModal(true)} style={{ marginBottom: '15px' }}>+ Override Schedule</button>
-                      <button className="btn-action" onClick={() => setShowActivityModal(true)} style={{ marginBottom: '15px', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', borderRadius: '8px' }}>Activities</button>
+
                       <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-subtle)' }}>
                         <div className="hud-label" style={{ marginBottom: '5px' }}>MY STATUS</div>
                         <div className="status-badge go" style={{ display: 'flex', marginBottom: '10px', width: '100%', justifyContent: 'center', padding: '10px', background: 'var(--bg-input)', borderRadius: '8px' }}>CLOCKED IN</div>
@@ -819,7 +842,7 @@ export default function ManagerDashboard() {
                       <button className="btn-action" style={{ padding: '8px 12px', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--accent-blue)', fontWeight: 600 }} onClick={() => setCurrentDate(new Date())}>Today</button>
                       <button className="btn-action" style={{ padding: '8px 12px', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', color: 'var(--text-main)' }} onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() + 7) : newDate.setMonth(newDate.getMonth() + 1); setCurrentDate(newDate); }}>Next →</button>
                     </div>
-                    <button className="btn-action" style={{ padding: '8px 20px', background: 'var(--color-go)', color: '#000', fontWeight: 600, border: 'none' }} onClick={() => setShowScheduleModal(true)}>+ Assign Activity</button>
+
                   </div>
                 </div>
 
@@ -861,9 +884,127 @@ export default function ManagerDashboard() {
                         )
                       })}
                     </div>
-                  ) : (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)' }}>Monthly view coming soon...</div>
-                  )}
+                  ) : (() => {
+                    const year = currentDate.getFullYear();
+                    const month = currentDate.getMonth();
+                    const firstDay = new Date(year, month, 1);
+                    const lastDay = new Date(year, month + 1, 0);
+                    const startOffset = (firstDay.getDay() + 6) % 7;
+                    const totalDays = lastDay.getDate();
+                    const totalCells = Math.ceil((startOffset + totalDays) / 7) * 7;
+                    const today = new Date();
+                    const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+                    const cells: { date: Date; inMonth: boolean; dayKey: string; dateStr: string }[] = [];
+                    for (let i = 0; i < totalCells; i++) {
+                      const diff = i - startOffset;
+                      const d = new Date(year, month, diff + 1);
+                      cells.push({ date: d, inMonth: diff >= 0 && diff < totalDays, dayKey: dayNameMap[d.getDay()], dateStr: d.toISOString().split('T')[0] });
+                    }
+
+                    const weeks: typeof cells[] = [];
+                    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+                    const expandedDayData = expandedDay ? cells.find(c => c.dateStr === expandedDay) : null;
+                    const expandedShifts = expandedDayData ? scheduleData.filter(emp => emp.schedule && emp.schedule[expandedDayData.dayKey] !== null) : [];
+
+                    return (
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                              <div key={d} style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.8rem', color: 'var(--accent-gold)', letterSpacing: '1px', textTransform: 'uppercase', padding: '8px 0' }}>{d}</div>
+                            ))}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                            {weeks.map((week, wi) => (
+                              <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', flex: 1 }}>
+                                {week.map((cell, ci) => {
+                                  const isToday = cell.inMonth && cell.date.toDateString() === today.toDateString();
+                                  const empCount = scheduleData.filter(emp => emp.schedule && emp.schedule[cell.dayKey] !== null).length;
+                                  return (
+                                    <div
+                                      key={ci}
+                                      onClick={() => cell.inMonth && empCount > 0 && setExpandedDay(cell.dateStr)}
+                                      style={{
+                                        background: isToday ? 'rgba(251, 191, 36, 0.1)' : cell.inMonth ? 'var(--bg-input)' : 'rgba(0,0,0,0.15)',
+                                        border: isToday ? '2px solid var(--accent-gold)' : '1px solid var(--border-subtle)',
+                                        borderRadius: '8px', padding: '10px',
+                                        cursor: cell.inMonth && empCount > 0 ? 'pointer' : 'default',
+                                        opacity: cell.inMonth ? 1 : 0.35, transition: 'all 0.2s',
+                                        display: 'flex', flexDirection: 'column', minHeight: '80px',
+                                      }}
+                                      onMouseOver={(e) => { if (cell.inMonth && empCount > 0) { e.currentTarget.style.borderColor = 'var(--accent-gold)'; e.currentTarget.style.boxShadow = '0 0 12px rgba(251,191,36,0.15)'; } }}
+                                      onMouseOut={(e) => { e.currentTarget.style.borderColor = isToday ? 'var(--accent-gold)' : 'var(--border-subtle)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                    >
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                        <span style={{ fontWeight: 700, fontSize: '1rem', color: isToday ? 'var(--accent-gold)' : cell.inMonth ? 'var(--text-main)' : 'var(--text-muted)' }}>{cell.date.getDate()}</span>
+                                        {isToday && <span style={{ fontSize: '0.6rem', background: 'var(--accent-gold)', color: '#000', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, letterSpacing: '0.5px' }}>TODAY</span>}
+                                      </div>
+                                      {cell.inMonth && empCount > 0 && (
+                                        <div style={{ marginTop: 'auto', fontSize: '0.75rem', color: 'var(--accent-gold)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          <span>👥</span> {empCount} scheduled
+                                        </div>
+                                      )}
+                                      {cell.inMonth && empCount === 0 && !schedLoading && (
+                                        <div style={{ marginTop: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)' }}>No shifts</div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {expandedDay && expandedDayData && (
+                          <div className="modal-overlay" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setExpandedDay(null); }}>
+                            <div className="modal-card" style={{ maxWidth: '550px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+                              <div className="modal-header" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <span className="modal-title" style={{ color: 'var(--accent-gold)' }}>
+                                    {expandedDayData.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                                  </span>
+                                  <span style={{ background: 'var(--bg-input)', padding: '3px 10px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
+                                    {expandedShifts.length} employees
+                                  </span>
+                                </div>
+                                <span onClick={() => setExpandedDay(null)} style={{ cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-muted)' }}>✕</span>
+                              </div>
+                              <div className="modal-body" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', padding: '20px 30px' }}>
+                                {expandedShifts.length === 0 ? (
+                                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '30px 0' }}>No employees scheduled for this day.</div>
+                                ) : expandedShifts.map(emp => (
+                                  <div
+                                    key={emp.user_id}
+                                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '15px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+                                    onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-gold)'; e.currentTarget.style.background = 'rgba(251,191,36,0.06)'; }}
+                                    onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
+                                    onClick={() => {
+                                      const dayShortMap: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
+                                      setExpandedDay(null);
+                                      setEditShiftModal({ show: true, empId: emp.user_id, empName: emp.name, day: dayShortMap[expandedDayData.dayKey], currentShift: emp.schedule[expandedDayData.dayKey].shift_name, newShiftId: "" });
+                                    }}
+                                  >
+                                    <div>
+                                      <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)' }}>{emp.name}</div>
+                                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>{emp.schedule[expandedDayData.dayKey].shift_name}</div>
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--accent-gold)', fontWeight: 600, textAlign: 'right' }}>
+                                      {emp.schedule[expandedDayData.dayKey].time || ''}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="modal-footer" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                                <button className="btn-view" style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }} onClick={() => setExpandedDay(null)}>Close</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -1047,6 +1188,22 @@ export default function ManagerDashboard() {
                         style={{ width: '45px', height: '55px', textAlign: 'center', fontSize: '1.5rem', backgroundColor: '#1e1e1e', border: '1px solid #444', color: '#fff', borderRadius: '8px' }}
                       />
                     ))}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.82rem', margin: '0 0 5px 0' }}>
+                    {otpCountdown > 0 ? (
+                      <span style={{ color: 'var(--text-muted, #666)' }}>RESEND IN {otpCountdown}s</span>
+                    ) : (
+                      <>
+                        <span style={{ color: 'var(--text-muted, #666)' }}>CODE EXPIRED?</span>
+                        <span
+                          onClick={handleResendOtp}
+                          style={{ color: 'var(--accent-gold, #f59e0b)', fontWeight: 700, cursor: resending ? 'not-allowed' : 'pointer', opacity: resending ? 0.6 : 1 }}
+                        >
+                          {resending ? "RESENDING..." : "RESEND CODE"}
+                        </span>
+                      </>
+                    )}
                   </div>
 
                   {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}

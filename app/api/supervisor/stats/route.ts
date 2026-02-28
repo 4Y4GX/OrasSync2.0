@@ -7,7 +7,7 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const weekOffset = parseInt(searchParams.get('weekOffset') || '0', 10);
         const user = await getUserFromCookie();
-        
+
         if (!user || (user.role_id !== 4 && user.role_id !== 3 && user.role_id !== 2)) {
             return NextResponse.json({ message: "Unauthorized. Supervisor access required." }, { status: 403 });
         }
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
                 select: { user_id: true, first_name: true, last_name: true },
             });
         }
-        
+
         const teamIds = teamMembers.map((m: any) => m.user_id);
 
         const today = new Date();
@@ -58,9 +58,11 @@ export async function GET(req: Request) {
             totalHoursToday += userLogs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
         }
 
-        // WEEKLY LOGIC
+        // WEEKLY LOGIC (ISO: Monday = start of week)
         const startOfWeek = new Date(today);
-        startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + (weekOffset * 7));
+        const dayOfWeek = startOfWeek.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // shift to Monday
+        startOfWeek.setDate(startOfWeek.getDate() + mondayOffset + (weekOffset * 7));
         startOfWeek.setHours(0, 0, 0, 0);
         const weekEnd = new Date(startOfWeek);
         weekEnd.setDate(startOfWeek.getDate() + 7);
@@ -73,24 +75,24 @@ export async function GET(req: Request) {
         const targetWeeklyHours = totalMembers * 40; // Assuming 40 hours per member
         const productivity = targetWeeklyHours > 0 ? Math.min(100, (weeklyTotal / targetWeeklyHours) * 100).toFixed(0) : '0';
 
-        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         const graphData = Array(7).fill(0).map((_, i) => {
             const d = new Date(startOfWeek);
             d.setDate(d.getDate() + i);
-            
+
             const logs = weekLogs.filter(l => {
                 if (!l.log_date) return false;
                 const logDate = l.log_date instanceof Date ? l.log_date : new Date(l.log_date);
-                return logDate.getFullYear() === d.getFullYear() && 
-                       logDate.getMonth() === d.getMonth() && 
-                       logDate.getDate() === d.getDate();
+                return logDate.getFullYear() === d.getFullYear() &&
+                    logDate.getMonth() === d.getMonth() &&
+                    logDate.getDate() === d.getDate();
             });
-            
+
             const hours = logs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
             const percentage = totalMembers > 0 ? Math.min(100, (hours / (totalMembers * 8)) * 100) : 0;
-            
+
             return {
-                day: days[d.getDay()],
+                day: days[i],
                 hours: hours.toFixed(1),
                 percentage: percentage,
             };
@@ -111,7 +113,7 @@ export async function GET(req: Request) {
             const memberTodayLogs = timeLogs.filter(l => l.user_id === member.user_id);
             const weekHrs = memberWeekLogs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
             const todayHrs = memberTodayLogs.reduce((sum, l) => sum + Number(l.total_hours || 0), 0);
-            
+
             return {
                 name: `${member.first_name} ${member.last_name}`,
                 todayHours: todayHrs.toFixed(1),

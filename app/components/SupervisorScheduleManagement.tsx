@@ -348,7 +348,6 @@ export default function SupervisorScheduleManagement() {
               <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => setCurrentDate(new Date())}>Today</button>
               <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() + 7) : newDate.setMonth(newDate.getMonth() + 1); setCurrentDate(newDate); }}>Next →</button>
             </div>
-            <button className="btn-mini supervisor-btn" onClick={() => setShowActivityModal(true)}>+ Add Activity</button>
           </div>
         </div>
 
