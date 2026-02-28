@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { hashSecurityAnswer } from "@/lib/securityAnswer";
 
 // GET: Fetch questions for the frontend dropdowns
 export async function GET() {
@@ -39,11 +40,12 @@ export async function POST(request: Request) {
     });
 
     for (const item of securityAnswers) {
+      const hashedAnswer = await hashSecurityAnswer(item.answer);
       await prisma.d_tbluser_security_answers.create({
         data: {
           user_id: user_id,
           question_id: parseInt(item.question_id),
-          answer_hash: item.answer, // Ideally hashed in production
+          answer_hash: hashedAnswer,
         }
       });
     }

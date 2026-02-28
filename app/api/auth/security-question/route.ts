@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { recoveryCookieName, verifyRecoveryToken, upgradeRecoveryTokenStage } from "@/lib/recoverySession";
+import { verifySecurityAnswer, hashSecurityAnswer } from "@/lib/securityAnswer";
 
 async function createIncidentIfMissing(userId: string) {
   const dedupeKey = `RECOVERY_LOCK_${userId}`;
@@ -22,7 +23,7 @@ async function createIncidentIfMissing(userId: string) {
         created_at: new Date(),
       },
     });
-  } catch {}
+  } catch { }
 }
 
 // POST: Verify answer using recovery session
@@ -73,12 +74,21 @@ export async function POST(request: Request) {
 
     const correctAnswer = await prisma.d_tbluser_security_answers.findFirst({
       where: { user_id: userId, question_id: Number(questionId) },
-      select: { answer_hash: true },
+      select: { answer_hash: true, answer_id: true },
     });
 
-    const ok = !!correctAnswer && correctAnswer.answer_hash === answer;
+    if (!correctAnswer || !correctAnswer.answer_hash) {
+      const nextAttempts = currentAttempts + 1;
+      await prisma.d_tbluser_authentication.update({
+        where: { user_id: userId },
+        data: { question_attempts: nextAttempts },
+      });
+      return NextResponse.json({ message: "REQUEST FAILED" }, { status: 401 });
+    }
 
-    if (!ok) {
+    const { match, needsMigration } = await verifySecurityAnswer(answer, correctAnswer.answer_hash);
+
+    if (!match) {
       const nextAttempts = currentAttempts + 1;
 
       await prisma.d_tbluser_authentication.update({
@@ -91,6 +101,15 @@ export async function POST(request: Request) {
       }
 
       return NextResponse.json({ message: "REQUEST FAILED" }, { status: 401 });
+    }
+
+    // Migrate legacy plaintext answer to bcrypt hash
+    if (needsMigration) {
+      const hashed = await hashSecurityAnswer(answer);
+      await prisma.d_tbluser_security_answers.update({
+        where: { answer_id: correctAnswer.answer_id },
+        data: { answer_hash: hashed },
+      });
     }
 
     // ✅ Success: reset attempt counter (NOT stage)

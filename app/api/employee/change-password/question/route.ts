@@ -6,6 +6,7 @@ import {
     verifyRecoveryToken,
     upgradeRecoveryTokenStage,
 } from "@/lib/recoverySession";
+import { verifySecurityAnswer, hashSecurityAnswer } from "@/lib/securityAnswer";
 
 function getTokenFromRequest(request: Request) {
     const cookieHeader = request.headers.get("cookie") ?? "";
@@ -118,12 +119,22 @@ export async function POST(request: Request) {
         // Get correct answer
         const correctAnswer = await prisma.d_tbluser_security_answers.findFirst({
             where: { user_id: userId, question_id: Number(questionId) },
-            select: { answer_hash: true },
+            select: { answer_hash: true, answer_id: true },
         });
 
-        const trimmedAnswer = answer.trim().toLowerCase();
-        const storedAnswer = (correctAnswer?.answer_hash ?? "").trim().toLowerCase();
-        const isCorrect = !!correctAnswer && trimmedAnswer === storedAnswer;
+        if (!correctAnswer || !correctAnswer.answer_hash) {
+            const nextAttempts = currentAttempts + 1;
+            await prisma.d_tbluser_authentication.update({
+                where: { user_id: userId },
+                data: { question_attempts: nextAttempts },
+            });
+            return NextResponse.json(
+                { message: "INCORRECT_ANSWER", attempts: nextAttempts, maxAttempts: 3 },
+                { status: 401 }
+            );
+        }
+
+        const { match: isCorrect, needsMigration } = await verifySecurityAnswer(answer, correctAnswer.answer_hash);
 
         if (!isCorrect) {
             const nextAttempts = currentAttempts + 1;
@@ -197,6 +208,15 @@ export async function POST(request: Request) {
             where: { user_id: userId },
             data: { question_attempts: 0 },
         });
+
+        // Migrate legacy plaintext answer to bcrypt hash
+        if (needsMigration) {
+            const hashed = await hashSecurityAnswer(answer);
+            await prisma.d_tbluser_security_answers.update({
+                where: { answer_id: correctAnswer.answer_id },
+                data: { answer_hash: hashed },
+            });
+        }
 
         // Upgrade recovery token to QUESTION_VERIFIED
         const upgraded = upgradeRecoveryTokenStage(token, "QUESTION_VERIFIED");

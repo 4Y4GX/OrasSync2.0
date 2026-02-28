@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
+import { verifySecurityAnswer, hashSecurityAnswer } from "@/lib/securityAnswer";
 
 // GET: Fetch one random security question for the authenticated user
 export async function GET() {
@@ -77,10 +78,19 @@ export async function POST(request: Request) {
 
         const correctAnswer = await prisma.d_tbluser_security_answers.findFirst({
             where: { user_id: userId, question_id: Number(questionId) },
-            select: { answer_hash: true },
+            select: { answer_hash: true, answer_id: true },
         });
 
-        const isMatch = !!correctAnswer && correctAnswer.answer_hash === answer;
+        if (!correctAnswer || !correctAnswer.answer_hash) {
+            const nextAttempts = currentAttempts + 1;
+            await prisma.d_tbluser_authentication.update({
+                where: { user_id: userId },
+                data: { question_attempts: nextAttempts },
+            });
+            return NextResponse.json({ message: "Incorrect answer" }, { status: 401 });
+        }
+
+        const { match: isMatch, needsMigration } = await verifySecurityAnswer(answer, correctAnswer.answer_hash);
 
         if (!isMatch) {
             const nextAttempts = currentAttempts + 1;
@@ -130,6 +140,15 @@ export async function POST(request: Request) {
             where: { user_id: userId },
             data: { question_attempts: 0 },
         });
+
+        // Migrate legacy plaintext answer to bcrypt hash
+        if (needsMigration) {
+            const hashed = await hashSecurityAnswer(answer);
+            await prisma.d_tbluser_security_answers.update({
+                where: { answer_id: correctAnswer.answer_id },
+                data: { answer_hash: hashed },
+            });
+        }
 
         return NextResponse.json({ message: "Verified successfully", verified: true }, { status: 200 });
     } catch (error) {
