@@ -1,132 +1,131 @@
 import { NextResponse } from "next/server";
+import { getUserFromCookie } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
-// TEST VERSION - Mock team status data
-export async function GET(req: Request) {
+export const dynamic = "force-dynamic";
+
+export async function GET() {
     try {
-        console.log('[TEST_TEAM_STATUS] Returning mock team status data');
+        const user = await getUserFromCookie();
+        if (!user || (user.role_id !== 2 && user.role_id !== 3 && user.role_id !== 4)) {
+            return NextResponse.json({ message: "Unauthorized. Supervisor access required." }, { status: 403 });
+        }
 
-        const mockTeamStatus = [
-            {
-                user_id: "emp001",
-                name: "John Smith",
-                email: "john.smith@company.com",
-                department: "Engineering",
-                team: "Frontend",
-                position: "Senior Developer",
-                status: "Working",
-                hours_today: 6.5,
-                current_activity: "Development",
-                is_billable: true,
-                clock_in_time: new Date(Date.now() - 6.5 * 60 * 60 * 1000).toISOString(),
-                clock_out_time: null
-            },
-            {
-                user_id: "emp002",
-                name: "Sarah Johnson",
-                email: "sarah.j@company.com",
-                department: "Engineering",
-                team: "Backend",
-                position: "Developer",
-                status: "Working",
-                hours_today: 5.0,
-                current_activity: "Code Review",
-                is_billable: false,
-                clock_in_time: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-                clock_out_time: null
-            },
-            {
-                user_id: "emp003",
-                name: "Mike Davis",
-                email: "mike.d@company.com",
-                department: "Engineering",
-                team: "DevOps",
-                position: "DevOps Engineer",
-                status: "Working",
-                hours_today: 7.5,
-                current_activity: "Infrastructure Setup",
-                is_billable: true,
-                clock_in_time: new Date(Date.now() - 7.5 * 60 * 60 * 1000).toISOString(),
-                clock_out_time: null
-            },
-            {
-                user_id: "emp004",
-                name: "Emily Brown",
-                email: "emily.b@company.com",
-                department: "Quality Assurance",
-                team: "QA",
-                position: "QA Tester",
-                status: "Working",
-                hours_today: 4.0,
-                current_activity: "Testing",
-                is_billable: true,
-                clock_in_time: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-                clock_out_time: null
-            },
-            {
-                user_id: "emp005",
-                name: "David Wilson",
-                email: "david.w@company.com",
-                department: "Engineering",
-                team: "Frontend",
-                position: "Junior Developer",
-                status: "Working",
-                hours_today: 3.5,
-                current_activity: "Meetings",
-                is_billable: false,
-                clock_in_time: new Date(Date.now() - 3.5 * 60 * 60 * 1000).toISOString(),
-                clock_out_time: null
-            },
-            {
-                user_id: "emp006",
-                name: "Lisa Anderson",
-                email: "lisa.a@company.com",
-                department: "Design",
-                team: "UX",
-                position: "UI/UX Designer",
-                status: "Clocked Out",
-                hours_today: 8.0,
-                current_activity: "—",
-                is_billable: false,
-                clock_in_time: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
-                clock_out_time: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-            },
-            {
-                user_id: "emp007",
-                name: "Robert Taylor",
-                email: "robert.t@company.com",
-                department: "Engineering",
-                team: "Backend",
-                position: "Senior Developer",
-                status: "Clocked Out",
-                hours_today: 8.5,
-                current_activity: "—",
-                is_billable: false,
-                clock_in_time: new Date(Date.now() - 11 * 60 * 60 * 1000).toISOString(),
-                clock_out_time: new Date(Date.now() - 2.5 * 60 * 60 * 1000).toISOString()
-            },
-            {
-                user_id: "emp008",
-                name: "Jessica Martinez",
-                email: "jessica.m@company.com",
-                department: "Product",
-                team: "Product Management",
-                position: "Product Manager",
-                status: "Offline",
-                hours_today: 0,
-                current_activity: "—",
-                is_billable: false,
-                clock_in_time: null,
-                clock_out_time: null
+        // Get team members for supervisor
+        let teamMembers;
+        if (user.role_id === 4) {
+            // Supervisor: get ONLY their team members
+            console.log('[DEBUG_SUPERVISOR_USER]', user);
+            teamMembers = await prisma.d_tbluser.findMany({
+                where: {
+                    supervisor_id: user.user_id,
+                    account_status: "ACTIVE",
+                    role_id: 1, // Only employees
+                },
+                select: {
+                    user_id: true,
+                    first_name: true,
+                    last_name: true,
+                    email: true,
+                    D_tbldepartment: { select: { dept_name: true } },
+                    D_tblteam: { select: { team_name: true } },
+                    D_tblposition: { select: { pos_name: true } },
+                },
+                orderBy: { first_name: "asc" },
+            });
+            console.log('[DEBUG_SUPERVISOR_TEAM_MEMBERS]', teamMembers);
+        } else {
+            // Manager/Admin: get all employees
+            teamMembers = await prisma.d_tbluser.findMany({
+                where: {
+                    role_id: 1,
+                    account_status: "ACTIVE",
+                },
+                select: {
+                    user_id: true,
+                    first_name: true,
+                    last_name: true,
+                    email: true,
+                    D_tbldepartment: { select: { dept_name: true } },
+                    D_tblteam: { select: { team_name: true } },
+                    D_tblposition: { select: { pos_name: true } },
+                },
+                orderBy: { first_name: "asc" },
+            });
+        }
+
+        // For each member, get clock status, hours today, current activity
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+
+        const teamStatus = await Promise.all(teamMembers.map(async (member: any) => {
+            // Get latest clock log for today
+            const clockLog = await prisma.d_tblclock_log.findFirst({
+                where: {
+                    user_id: member.user_id,
+                    shift_date: { gte: today, lt: tomorrow },
+                },
+                orderBy: { clock_in_time: "desc" },
+            });
+
+            // Get all time logs for today
+            const timeLogs = await prisma.d_tbltime_log.findMany({
+                where: {
+                    user_id: member.user_id,
+                    log_date: { gte: today, lt: tomorrow },
+                },
+                include: { D_tblactivity: true },
+            });
+
+            // Calculate total hours today
+            const hours_today = timeLogs.reduce((sum, log) => sum + (log.total_hours?.toNumber() || 0), 0);
+
+            // Find current activity (active time log with null end_time)
+            const currentActivityLog = await prisma.d_tbltime_log.findFirst({
+                where: {
+                    user_id: member.user_id,
+                    log_date: { gte: today, lt: tomorrow },
+                    end_time: null,
+                },
+                include: { D_tblactivity: true },
+                orderBy: { tlog_id: "desc" },
+            });
+
+            let status = "Offline";
+            let clock_in_time = null;
+            let clock_out_time = null;
+            if (clockLog) {
+                if (clockLog.clock_out_time) {
+                    status = "Clocked Out";
+                    clock_in_time = clockLog.clock_in_time?.toISOString() || null;
+                    clock_out_time = clockLog.clock_out_time?.toISOString() || null;
+                } else {
+                    status = "Working";
+                    clock_in_time = clockLog.clock_in_time?.toISOString() || null;
+                }
             }
-        ];
 
-        return NextResponse.json({ teamStatus: mockTeamStatus });
+            return {
+                user_id: member.user_id,
+                name: `${member.first_name ?? ""} ${member.last_name ?? ""}`.trim(),
+                email: member.email,
+                department: member.D_tbldepartment?.dept_name ?? "",
+                team: member.D_tblteam?.team_name ?? "",
+                position: member.D_tblposition?.pos_name ?? "",
+                status,
+                hours_today,
+                current_activity: currentActivityLog?.D_tblactivity?.activity_name || "—",
+                is_billable: currentActivityLog?.D_tblactivity?.is_billable ?? false,
+                clock_in_time,
+                clock_out_time,
+            };
+        }));
 
-    } catch (error: any) {
-        console.error("TEST_TEAM_STATUS_ERROR:", error);
-        return NextResponse.json(
-            { message: "Failed to load test team status" },
-            { status: 500 }
-        );
+        return NextResponse.json({ teamStatus });
+    } catch (error) {
+        console.error("TEAM_STATUS_ERROR:", error);
+        return NextResponse.json({ message: "Failed to load team status" }, { status: 500 });
     }
 }

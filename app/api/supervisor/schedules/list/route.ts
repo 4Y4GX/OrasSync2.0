@@ -1,4 +1,3 @@
-// app/api/supervisor/schedules/list/route.ts
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
@@ -8,6 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const user = await getUserFromCookie();
+    // Use role_id 4 for Supervisor based on your previous messages
     if (!user || (user.role_id !== 2 && user.role_id !== 3 && user.role_id !== 4)) {
       return NextResponse.json({ message: "Unauthorized. Supervisor access required." }, { status: 403 });
     }
@@ -31,29 +31,28 @@ export async function GET(request: Request) {
               email: true,
             },
           },
-          D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
-          D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
+          D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
         },
       });
 
       return NextResponse.json({ schedule });
     }
 
-    // For supervisors, get their team's schedules
-    // For managers/admins, get all schedules
     let teamMembers;
 
-    if (user.role_id === 2) {
-      // Supervisor: get team members
+    if (user.role_id === 4 || user.role_id === 2) {
+      // Supervisor: get specifically their team members, excluding other supervisors
       teamMembers = await prisma.d_tbluser.findMany({
         where: {
           supervisor_id: user.user_id,
           account_status: "ACTIVE",
+          role_id: 1, // Only fetch regular employees
         },
         select: {
           user_id: true,
@@ -69,23 +68,23 @@ export async function GET(request: Request) {
           D_tblweekly_schedule: {
             where: { is_active: true },
             include: {
-              D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
             },
           },
         },
       });
     } else {
-      // Manager/Admin: get all members
+      // Manager/Admin: get all active members
       teamMembers = await prisma.d_tbluser.findMany({
         where: {
           account_status: "ACTIVE",
-          role_id: 1, // Only employees
+          role_id: 1, 
         },
         select: {
           user_id: true,
@@ -101,13 +100,13 @@ export async function GET(request: Request) {
           D_tblweekly_schedule: {
             where: { is_active: true },
             include: {
-              D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
-              D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template: true,
+              D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template: true,
             },
           },
         },

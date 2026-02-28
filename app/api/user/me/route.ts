@@ -34,6 +34,7 @@ export async function GET(req: Request) {
         return NextResponse.json({
             name: `${userData.first_name || ''} ${userData.last_name || ''}`.trim(),
             role: userData.D_tblrole?.role_name || "User",
+            email: userData.email || "",
             position: userData.D_tblposition?.pos_name || "Employee",
             initials: (userData.first_name?.[0] || "") + (userData.last_name?.[0] || "")
         });

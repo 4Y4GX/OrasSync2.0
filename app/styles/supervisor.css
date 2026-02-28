@@ -84,6 +84,7 @@
 .supervisor-theme .info-panel {
   flex: 0 0 300px;
   background: var(--bg-panel);
+  opacity: 1 !important;
   border-right: 1px solid var(--border-subtle);
   padding: 30px;
   display: flex;
@@ -907,4 +908,123 @@
 
 .supervisor-theme input:checked+.slider:before {
   transform: translateX(24px);
+}
+
+/* CP Modal Specific Styles */
+
+.cp-step-indicator {
+  display: flex;
+  margin-bottom: 20px;
+  gap: 15px;
+}
+
+.cp-step {
+  flex: 1;
+  height: 4px;
+  background: var(--border-subtle);
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.cp-step.active {
+  background: var(--accent-primary);
+  box-shadow: 0 0 8px rgba(167, 139, 250, 0.4);
+}
+
+.cp-step.passed {
+  background: var(--accent-primary);
+  opacity: 0.6;
+}
+
+.cp-otp-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin: 15px 0;
+}
+
+.cp-otp-box {
+  width: 100%;
+  aspect-ratio: 1/1.2;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-main);
+  transition: all 0.2s;
+}
+
+.cp-otp-box:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+  outline: none;
+}
+
+.cp-resend-wrapper {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  font-weight: 600;
+}
+
+.cp-resend-btn.active {
+  color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.cp-resend-btn.active:hover {
+  text-decoration: underline;
+}
+
+.cp-password-feedback {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+}
+
+.cp-feedback-item {
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cp-feedback-item.ok {
+  color: #52ff9b;
+}
+
+.cp-feedback-item.missing {
+  color: var(--text-grey);
+}
+
+.cp-feedback-item.error {
+  color: #ff5b5b;
+}
+
+.cp-eye-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cp-eye-btn:hover {
+  color: var(--text-main);
 }
