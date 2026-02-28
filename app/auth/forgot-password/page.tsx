@@ -17,8 +17,12 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [showSuccessSubtitle, setShowSuccessSubtitle] = useState(false);
+  const [sentSuccess, setSentSuccess] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [verified, setVerified] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -51,11 +55,10 @@ export default function ForgotPasswordPage() {
 
   const emailOk = useMemo(() => isPlausibleEmail(username), [username]);
 
-  // ✅ no leaks (generic validation line)
+  // ✅ Zero-trust field errors (no format hints)
   const identifierError = useMemo(() => {
-    if (username.length === 0) return "";
-    return emailOk ? "" : "CHECK YOUR INPUT";
-  }, [username, emailOk]);
+    return "";
+  }, []);
 
   const canSendOtp = emailOk && !loading;
 
@@ -80,11 +83,16 @@ export default function ForgotPasswordPage() {
       });
 
       if (res.ok) {
-        setStep(2);
         setCountdown(90);
-        setMessage("SECURE CODE SENT");
+        setShowSuccessSubtitle(true);
+        setTimeout(() => setShowSuccessSubtitle(false), 4000);
+        setSentSuccess(true);
         setOtp(["", "", "", "", "", ""]);
-        setTimeout(() => otpRefs.current[0]?.focus(), 0);
+        setTimeout(() => {
+          setSentSuccess(false);
+          setStep(2);
+          setTimeout(() => otpRefs.current[0]?.focus(), 100);
+        }, 1500);
       } else {
         setError("REQUEST FAILED");
       }
@@ -138,7 +146,36 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const handleResendOtp = async () => {
+    if (countdown > 0 || resending) return;
+    setError("");
+    setResending(true);
+    try {
+      const res = await fetch("/api/auth/otp/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizeIdentifier(username) }),
+      });
+      if (res.ok) {
+        setCountdown(90);
+        setOtp(["", "", "", "", "", ""]);
+        setResendSent(true);
+        setTimeout(() => {
+          setResendSent(false);
+          otpRefs.current[0]?.focus();
+        }, 1500);
+      } else {
+        setError("RESEND FAILED");
+      }
+    } catch {
+      setError("RESEND FAILED");
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleOtpChange = (index: number, rawValue: string) => {
+    if (error) setError("");
     const clean = removeEmojis(rawValue).replace(/\D/g, "");
 
     if (clean.length > 1) {
@@ -160,6 +197,7 @@ export default function ForgotPasswordPage() {
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (error) setError("");
     if (e.key === "Backspace") {
       e.preventDefault();
       const newOtp = [...otp];
@@ -175,6 +213,11 @@ export default function ForgotPasswordPage() {
         setOtp(newOtp);
         otpRefs.current[index - 1]?.focus();
       }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (otp.join("").length === 6) {
+        handleVerifyOtp();
+      }
     }
 
     if (e.key === "ArrowLeft" && index > 0) otpRefs.current[index - 1]?.focus();
@@ -183,6 +226,7 @@ export default function ForgotPasswordPage() {
 
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
+    if (error) setError("");
     const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     if (!text) return;
 
@@ -199,10 +243,17 @@ export default function ForgotPasswordPage() {
     <AuthShell
       headerTag="SECURE RECOVERY"
       title={step === 1 ? "RECOVERY" : "VERIFICATION"}
-      subtitle={step === 1 ? "REQUEST A VERIFICATION CODE." : "ENTER THE 6-DIGIT CODE."}
+      subtitle={
+        step === 1 ? (
+          "REQUEST A VERIFICATION CODE."
+        ) : (
+          "ENTER THE 6-DIGIT CODE SENT TO YOUR REGISTERED CONTACT."
+        )
+      }
+      error={step === 1 ? error : null}
+      message={step === 1 ? message : null}
+      errorOffset={step === 2 ? "-34px" : undefined}
     >
-      {error && <div className="text-red-500 text-sm font-bold mb-4 text-center uppercase">{error}</div>}
-      {message && !error && <div className="text-green-500 text-sm font-bold mb-4 text-center uppercase">{message}</div>}
 
       {step === 1 && (
         <div className={`${styles.formContainer} ${styles.visibleForm}`}>
@@ -224,14 +275,26 @@ export default function ForgotPasswordPage() {
                   if (error) setError("");
                 }}
                 required
+                autoFocus
               />
               {identifierError && (
                 <div style={{ marginTop: 8, color: "#ff5b5b", fontSize: "0.82rem" }}>{identifierError}</div>
               )}
             </div>
 
-            <button type="submit" className={styles.submitBtn} disabled={!canSendOtp}>
-              {loading ? "SENDING..." : "SEND VERIFICATION CODE"}
+            <button
+              type="submit"
+              className={styles.submitBtn}
+              disabled={!canSendOtp}
+              style={sentSuccess ? {
+                background: "#16a34a",
+                borderColor: "#15803d",
+                boxShadow: "0 0 18px rgba(34,197,94,0.4)",
+                color: "#fff",
+                transition: "all 0.3s ease"
+              } : {}}
+            >
+              {sentSuccess ? "✓ VERIFICATION SENT" : loading ? "SENDING..." : "SEND VERIFICATION CODE"}
             </button>
 
             <div
@@ -278,18 +341,32 @@ export default function ForgotPasswordPage() {
           <div className={styles.resendWrapper}>
             <span>{countdown > 0 ? `RESEND IN ${countdown}s` : "CODE EXPIRED?"}</span>
             <span
-              className={`${styles.resendBtn} ${countdown === 0 ? styles.active : ""}`}
-              onClick={() => countdown === 0 && handleSendOtp()}
+              className={`${styles.resendBtn} ${countdown === 0 && !resending && !resendSent ? styles.active : ""}`}
+              onClick={handleResendOtp}
+              style={resendSent ? { color: "#52ff9b", opacity: 1, pointerEvents: "none" } : resending ? { opacity: 0.6, pointerEvents: "none" } : {}}
             >
-              RESEND OTP
+              {resending ? "RESENDING OTP..." : resendSent ? "✓ CODE SENT" : "RESEND OTP"}
             </span>
           </div>
 
-          <button type="button" className={styles.submitBtn} onClick={handleVerifyOtp} disabled={loading || verified}>
-            {verified ? "VERIFIED" : loading ? "VERIFYING..." : "VERIFY CODE"}
+          <button
+            type="button"
+            className={`${styles.submitBtn} ${error && step === 2 ? styles.errorBtn : verified ? styles.successBtn : ""}`}
+            onClick={handleVerifyOtp}
+            disabled={loading || verified || (!!error && step === 2)}
+          >
+            {error && step === 2 ? error : verified ? "✓ SUCCESS!" : loading ? "VERIFYING..." : "VERIFY CODE"}
           </button>
 
-          <div className={styles.forgotPass} style={{ textAlign: "center", marginTop: "15px" }} onClick={() => setStep(1)}>
+          <div
+            className={styles.forgotPass}
+            style={{ textAlign: "center", marginTop: "15px" }}
+            onClick={() => {
+              setStep(1);
+              setMessage("");
+              setError("");
+            }}
+          >
             CHANGE USERNAME
           </div>
         </div>

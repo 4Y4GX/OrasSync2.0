@@ -9,20 +9,44 @@ type AuthShellProps = {
   title?: ReactNode;
   subtitle?: ReactNode;
   expandedMode?: boolean;
+  error?: string | null;
+  message?: string | null;
+  errorOffset?: string;
+  errorPosition?: "top" | "bottom";
   children: ReactNode;
 };
 
 const THEME_KEY = "orasync_theme"; // "light" | "dark"
+
+let globalHasMounted = false;
+let globalIsLightMode = false;
+let globalClock = "";
 
 export default function AuthShell({
   headerTag,
   title,
   subtitle,
   expandedMode = false,
+  error,
+  message,
+  errorOffset,
+  errorPosition = "top",
   children,
 }: AuthShellProps) {
-  const [clock, setClock] = useState("");
-  const [isLightMode, setIsLightMode] = useState(false);
+  const [clock, setClock] = useState(() => {
+    if (globalHasMounted && typeof window !== "undefined") {
+      return new Date().toLocaleTimeString();
+    }
+    return globalClock;
+  });
+  const [isLightMode, setIsLightMode] = useState(() => {
+    if (globalHasMounted && typeof window !== "undefined") {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved) return saved === "light";
+      return window.matchMedia?.("(prefers-color-scheme: light)")?.matches ?? false;
+    }
+    return globalIsLightMode;
+  });
   /* Anti-spam toggle state */
   const [isToggling, setIsToggling] = useState(false);
 
@@ -30,17 +54,27 @@ export default function AuthShell({
   const handleThemeToggle = () => {
     if (isToggling) return;
     setIsToggling(true);
-    setIsLightMode((prev) => !prev);
+    setIsLightMode((prev) => {
+      const next = !prev;
+      globalIsLightMode = next;
+      try {
+        localStorage.setItem(THEME_KEY, next ? "light" : "dark");
+      } catch { }
+      return next;
+    });
     // Cooldown matches the CSS transition (approx 600ms)
     setTimeout(() => setIsToggling(false), 600);
   };
 
-  const [mounted, setMounted] = useState(false);
+  const [mounted, setMounted] = useState(globalHasMounted);
 
   // Clock
   useEffect(() => {
-    const updateTime = () =>
-      setClock(`IT'S CURRENTLY ${new Date().toLocaleTimeString()}`);
+    const updateTime = () => {
+      const t = new Date().toLocaleTimeString();
+      setClock(t);
+      globalClock = t;
+    };
 
     updateTime();
     const timer = setInterval(updateTime, 1000);
@@ -49,48 +83,42 @@ export default function AuthShell({
 
   // Load theme once on mount
   useEffect(() => {
+    if (globalHasMounted) return;
     try {
       const saved = localStorage.getItem(THEME_KEY);
 
       if (saved === "light") {
         setIsLightMode(true);
+        globalIsLightMode = true;
       } else if (saved === "dark") {
         setIsLightMode(false);
+        globalIsLightMode = false;
       } else {
         // fallback to system preference
         const prefersLight =
           window.matchMedia?.("(prefers-color-scheme: light)")?.matches ?? false;
         setIsLightMode(prefersLight);
+        globalIsLightMode = prefersLight;
       }
     } catch {
       // ignore
     } finally {
+      globalHasMounted = true;
       setMounted(true);
     }
   }, []);
-
-  // Save theme whenever it changes (after mounted)
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      localStorage.setItem(THEME_KEY, isLightMode ? "light" : "dark");
-    } catch {
-      // ignore
-    }
-  }, [isLightMode, mounted]);
 
   // Optional: sync across tabs
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== THEME_KEY) return;
-      if (e.newValue === "light") setIsLightMode(true);
-      if (e.newValue === "dark") setIsLightMode(false);
+      const isLight = e.newValue === "light";
+      setIsLightMode(isLight);
+      globalIsLightMode = isLight;
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
-
-
 
   // Prevent hydration flash / wrong theme for a split second
   if (!mounted) return null;
@@ -120,10 +148,10 @@ export default function AuthShell({
 
         <div className={styles.contentWrapper}>
           <div className={styles.brandTitle}>ORASYNC</div>
-          <div className={styles.brandSubtitle}>AI-POWERED PRODUCTIVITY</div>
+
           <div className={styles.clockWrapper}>
             <div className={styles.liveClock}>
-              {clock}
+              IT'S CURRENTLY <span style={{ color: "white" }}>{clock}</span>
             </div>
           </div>
         </div>
@@ -161,8 +189,7 @@ export default function AuthShell({
         </button>
 
         <div
-          className={`${styles.loginCard} ${expandedMode ? styles.expandedMode : ""
-            }`}
+          className={`${styles.loginCard} ${expandedMode ? styles.expandedMode : ""} ${styles.morphEntrance}`}
         >
           <div className={styles.cornerTopLeft} />
           <div className={styles.cornerBottomRight} />
@@ -173,11 +200,59 @@ export default function AuthShell({
           </div>
 
           {title ? <div className={styles.cardTitle}>{title}</div> : null}
-          {subtitle ? (
-            <div className={styles.cardSubtitle}>{subtitle}</div>
-          ) : null}
+          {subtitle && <div className={styles.cardSubtitle}>{subtitle}</div>}
+
+          {errorPosition === "top" && (
+            <div style={{ position: "relative", width: "100%", height: 0, zIndex: 10 }}>
+              {(error || message) && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: errorOffset ? errorOffset : (subtitle ? "-20px" : "-8px"),
+                    textAlign: "center"
+                  }}
+                >
+                  <span
+                    key={error || message}
+                    className={`inline-block text-[0.85rem] font-bold uppercase ${error ? "text-red-500 " + styles.shakeText : "text-green-500"
+                      }`}
+                    style={{ lineHeight: 1 }}
+                  >
+                    {error || message}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {children}
+
+          {errorPosition === "bottom" && (
+            <div style={{ position: "relative", width: "100%", height: 0, zIndex: 10 }}>
+              {(error || message) && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    bottom: errorOffset ? errorOffset : "90px",
+                    textAlign: "center"
+                  }}
+                >
+                  <span
+                    key={error || message}
+                    className={`inline-block text-[0.85rem] font-bold uppercase ${error ? "text-red-500 " + styles.shakeText : "text-green-500"
+                      }`}
+                    style={{ lineHeight: 1 }}
+                  >
+                    {error || message}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

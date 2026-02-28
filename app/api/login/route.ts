@@ -101,6 +101,69 @@ export async function POST(req: Request) {
       });
     }
 
+    // -----------------------------------------------------
+    // OTP VERIFICATION STEP
+    // -----------------------------------------------------
+    const otp = (body?.otp ?? "").toString().trim();
+
+    if (!otp) {
+      // First pass: Credentials are valid, but no OTP provided. Generate one.
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+      console.log(`[AUTH] Login OTP for ${email}: ${otpCode}`);
+
+      await prisma.d_tblotp_log.create({
+        data: {
+          user_id: userProfile.user_id,
+          otp_code: otpCode,
+          created_at: new Date(),
+          is_verified: false,
+        },
+      });
+
+      return NextResponse.json({
+        message: "OTP Required",
+        requiresOtp: true,
+      });
+    }
+
+    // Second pass: OTP was provided, verify it.
+    const latestLog = await prisma.d_tblotp_log.findFirst({
+      where: { user_id: userProfile.user_id },
+      orderBy: { created_at: "desc" },
+    });
+
+    if (!latestLog || !latestLog.created_at || latestLog.is_verified) {
+      return NextResponse.json({ message: "Invalid or expired verification code." }, { status: 400 });
+    }
+
+    const expiryLimit = 90 * 1000;
+    const timeElapsed = Date.now() - new Date(latestLog.created_at).getTime();
+    if (timeElapsed > expiryLimit) {
+      return NextResponse.json({ message: "Verification code expired." }, { status: 400 });
+    }
+
+    const maxAttemptsPerOtp = 5;
+    const otpAttempts = latestLog.attempts ?? 0;
+    if (otpAttempts >= maxAttemptsPerOtp) {
+      return NextResponse.json({ message: "Too many attempts. Request a new code." }, { status: 400 });
+    }
+
+    if (latestLog.otp_code !== otp) {
+      const nextAttempts = otpAttempts + 1;
+      await prisma.d_tblotp_log.update({
+        where: { otp_id: latestLog.otp_id },
+        data: { attempts: nextAttempts },
+      });
+      return NextResponse.json({ message: "Invalid verification code." }, { status: 400 });
+    }
+
+    // OTP Valid - Mark as verified
+    await prisma.d_tblotp_log.update({
+      where: { otp_id: latestLog.otp_id },
+      data: { is_verified: true },
+    });
+    // -----------------------------------------------------
+
     const roleId = Number(userProfile.role_id ?? 0);
     console.log("LOGIN DEBUG: User:", userProfile.email, "Role:", roleId);
 

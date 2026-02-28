@@ -46,7 +46,7 @@ async function createIncidentIfMissing(userId: string, incidentType: "RECOVERY_L
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({} as any));
-    const raw = (body?.email ?? body?.identifier ?? "").toString().trim();
+    const raw = (body?.email ?? body?.identifier ?? "").toString().trim().toLowerCase();
 
     await sleep(120);
 
@@ -55,10 +55,7 @@ export async function POST(request: Request) {
       { status: 200 }
     );
 
-    if (!raw) {
-      console.log(`[AUTH-DEBUG] OTP Request Failed: No identifier provided`);
-      return generic;
-    }
+    if (!raw) return generic;
 
     const user = await prisma.d_tbluser.findFirst({
       where: { email: raw },
@@ -67,7 +64,6 @@ export async function POST(request: Request) {
 
     // zero trust: generic
     if (!user?.user_id) {
-      console.log(`[AUTH-DEBUG] OTP Request Failed: User not found for identifier "${raw}"`);
       await sleep(120);
       return generic;
     }
@@ -85,7 +81,6 @@ export async function POST(request: Request) {
 
     // If security is already locked AND user is disabled → recovery exhausted → create incident
     if (isDisabled && securityLocked) {
-      console.log(`[AUTH-DEBUG] OTP Request Failed: Account is disabled and security question locked for "${raw}"`);
       await createIncidentIfMissing(userId, "ACCOUNT_LOCKED_LOGIN_FAILURE");
       return generic;
     }
@@ -98,16 +93,13 @@ export async function POST(request: Request) {
 
     // If disabled + OTP limit exceeded → recovery exhausted → create incident
     if (isDisabled && todayCount >= 5) {
-      console.log(`[AUTH-DEBUG] OTP Request Failed: Account is disabled and daily OTP limit exceeded for "${raw}"`);
       await createIncidentIfMissing(userId, "RECOVERY_LOCKED_OTP_LIMIT_EXCEEDED");
       return generic;
     }
 
     // Normal OTP generation
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log("\n=======================================================");
-    console.log(`🔒 [AUTH] YOUR OTP CODE FOR ${raw} IS:  --> [ ${otpCode} ] <--`);
-    console.log("=======================================================\n");
+    console.log(`[AUTH] Recovery OTP for ${raw}: ${otpCode}`);
 
     await prisma.d_tblotp_log.create({
       data: {
@@ -118,7 +110,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ message: "IF THE ACCOUNT IS ELIGIBLE, A VERIFICATION CODE WILL BE SENT.", _dev_otp: otpCode }, { status: 200 });
+    return generic;
   } catch (error) {
     console.error("OTP Generate Error:", error);
     return NextResponse.json(
