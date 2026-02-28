@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { recoveryCookieName, verifyRecoveryToken } from "@/lib/recoverySession";
+import { hashPassword } from "@/lib/password";
 
 export async function POST(request: Request) {
   try {
@@ -40,10 +41,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "REQUEST FAILED" }, { status: 400 });
     }
 
+    const hashedPassword = await hashPassword(newPassword);
     await prisma.d_tbluser_authentication.update({
       where: { user_id: userId },
       data: {
-        password_hash: newPassword,
+        password_hash: hashedPassword,
         failed_attempts: 0,
         is_disabled: false,
         last_failed_attempt: null,

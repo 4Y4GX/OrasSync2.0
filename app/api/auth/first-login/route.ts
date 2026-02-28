@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { hashPassword } from "@/lib/password";
 
 // GET: Fetch questions for the frontend dropdowns
 export async function GET() {
@@ -15,7 +16,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { user_id, newPassword, securityAnswers } = body; 
+    const { user_id, newPassword, securityAnswers } = body;
 
     // Validate Input
     if (!user_id || !newPassword || !securityAnswers || securityAnswers.length !== 3) {
@@ -23,10 +24,11 @@ export async function POST(request: Request) {
     }
 
     // 1. Update Password & Disable First Login
+    const hashedPassword = await hashPassword(newPassword);
     await prisma.d_tbluser_authentication.update({
       where: { user_id: user_id },
       data: {
-        password_hash: newPassword, // Ideally hashed in production
+        password_hash: hashedPassword,
         is_first_login: false,
       },
     });

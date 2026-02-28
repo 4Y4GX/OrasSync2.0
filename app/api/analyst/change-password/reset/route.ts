@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { recoveryCookieName, verifyRecoveryToken } from "@/lib/recoverySession";
+import { hashPassword } from "@/lib/password";
 
 export const dynamic = "force-dynamic";
 
@@ -85,11 +86,12 @@ export async function POST(request: Request) {
 
         const userId = user.user_id;
 
-        // Update password (plaintext as per user request)
+        // Hash and update password
+        const hashedPassword = await hashPassword(password);
         await prisma.d_tbluser_authentication.update({
             where: { user_id: userId },
             data: {
-                password_hash: password,
+                password_hash: hashedPassword,
                 question_attempts: 0,
             },
         });

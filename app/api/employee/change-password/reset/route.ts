@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
 import { recoveryCookieName, verifyRecoveryToken } from "@/lib/recoverySession";
+import { hashPassword } from "@/lib/password";
 
 const EMOJI_RE = /[\p{Extended_Pictographic}\uFE0F\u200D]/gu;
 
@@ -56,10 +57,11 @@ export async function POST(request: Request) {
 
         const userId = user.user_id;
 
+        const hashedPassword = await hashPassword(newPassword);
         await prisma.d_tbluser_authentication.update({
             where: { user_id: userId },
             data: {
-                password_hash: newPassword,
+                password_hash: hashedPassword,
                 question_attempts: 0,
             },
         });

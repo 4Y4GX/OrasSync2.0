@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { STRONG_PASS_REGEX, passwordChecks } from "@/lib/zeroTrustValidation";
+import { hashPassword } from "@/lib/password";
 
 export const dynamic = "force-dynamic";
 
@@ -69,10 +70,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Update password_hash in auth table (No hashing per user instructions)
+    // Hash and update password
+    const hashedPassword = await hashPassword(pwChecks.pw);
     await prisma.d_tbluser_authentication.update({
       where: { user_id: userId },
-      data: { password_hash: pwChecks.pw },
+      data: { password_hash: hashedPassword },
     });
 
     // Consume the OTP so it can't be used again

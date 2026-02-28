@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signSession, sessionCookieOptions } from "@/lib/auth";
+import { verifyPassword, hashPassword, isBcryptHash } from "@/lib/password";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -54,9 +55,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    // ✅ plain text compare
+    // ✅ bcrypt compare (with gradual migration for legacy plain-text passwords)
     const stored = (authRecord.password_hash ?? "").toString();
-    const ok = stored === password;
+    let ok: boolean;
+    if (isBcryptHash(stored)) {
+      ok = await verifyPassword(password, stored);
+    } else {
+      // Legacy plain-text: compare directly, then upgrade to bcrypt
+      ok = stored === password;
+      if (ok) {
+        const hashed = await hashPassword(password);
+        await prisma.d_tbluser_authentication.update({
+          where: { user_id: userProfile.user_id },
+          data: { password_hash: hashed },
+        });
+      }
+    }
 
     if (!ok) {
       const attempts = (authRecord.failed_attempts ?? 0) + 1;

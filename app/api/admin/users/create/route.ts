@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { hashPassword } from "@/lib/password";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +13,8 @@ function isValidEmail(email: string): boolean {
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
-    
-    const ADMIN_ROLE_ID = 3; 
+
+    const ADMIN_ROLE_ID = 3;
 
     if (!user || user.role_id !== ADMIN_ROLE_ID) {
       return NextResponse.json({ message: "Unauthorized. Admin access required." }, { status: 403 });
@@ -66,6 +67,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Email already exists" }, { status: 400 });
     }
 
+    // Hash the password before the transaction
+    const hashedPassword = await hashPassword(password);
+
     // Create user in transaction
     const result = await prisma.$transaction(async (tx) => {
       const newUser = await tx.d_tbluser.create({
@@ -85,11 +89,10 @@ export async function POST(request: Request) {
         },
       });
 
-      // Storing RAW password text to fix login issues
       await tx.d_tbluser_authentication.create({
         data: {
           user_id,
-          password_hash: password, 
+          password_hash: hashedPassword,
           is_first_login: true,
           failed_attempts: 0,
           is_disabled: false,

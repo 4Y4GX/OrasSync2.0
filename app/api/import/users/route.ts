@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { getUserFromCookie } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { hashPassword } from "@/lib/password";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
     const user = await getUserFromCookie();
-    
+
     // Check for role_id 3 (Admin)
     const ADMIN_ROLE_ID = 3;
     if (!user || user.role_id !== ADMIN_ROLE_ID) {
@@ -62,6 +63,9 @@ export async function POST(request: Request) {
           continue;
         }
 
+        // Hash the password before the transaction
+        const hashedPassword = await hashPassword(password);
+
         // Create user in transaction
         await prisma.$transaction(async (tx) => {
           await tx.d_tbluser.create({
@@ -84,11 +88,11 @@ export async function POST(request: Request) {
           await tx.d_tbluser_authentication.create({
             data: {
               user_id,
-              password_hash: password, // <-- Raw password string applied here
+              password_hash: hashedPassword,
               is_first_login: true,
               failed_attempts: 0,
               is_disabled: false,
-              question_attempts: 0, 
+              question_attempts: 0,
             },
           });
 
