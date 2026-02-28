@@ -806,7 +806,7 @@ export default function ManagerDashboard() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <span style={{ fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>Department Schedule</span>
                     <span className="status-badge" style={{ background: 'var(--bg-input)', padding: '5px 15px', color: 'var(--accent-blue)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}>
-                      {calendarView === 'weekly' ? `Week of ${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : `Month of ${currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
+                      {calendarView === 'weekly' ? (() => { const d = new Date(currentDate); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); const mf = (dt: Date) => dt.toLocaleDateString('en-US', { month: 'short' }); return mon.getMonth() === sun.getMonth() ? `${mf(mon)} ${mon.getDate()}-${sun.getDate()}` : `${mf(mon)} ${mon.getDate()}-${mf(sun)} ${sun.getDate()}`; })() : `Month of ${currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
@@ -877,7 +877,7 @@ export default function ManagerDashboard() {
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <button className="btn-view" style={{ padding: '8px 16px' }} onClick={() => { const d = new Date(analyticsDate); d.setDate(d.getDate() - 7); setAnalyticsDate(d); }}>← Prev Week</button>
                     <div style={{ color: 'var(--accent-gold)', fontWeight: 600, margin: '0 10px', fontFamily: 'var(--font-mono)' }}>
-                      Week of {analyticsDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {(() => { const d = new Date(analyticsDate); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); const mf = (dt: Date) => dt.toLocaleDateString('en-US', { month: 'short' }); return mon.getMonth() === sun.getMonth() ? `${mf(mon)} ${mon.getDate()}-${sun.getDate()}` : `${mf(mon)} ${mon.getDate()}-${mf(sun)} ${sun.getDate()}`; })()}
                     </div>
                     <button className="btn-view" style={{ padding: '8px 16px' }} onClick={() => { const d = new Date(analyticsDate); d.setDate(d.getDate() + 7); setAnalyticsDate(d); }}>Next Week →</button>
                     <button className="btn-action btn-standard" style={{ padding: '8px 16px', marginLeft: '10px' }} onClick={() => setAnalyticsDate(new Date())}>Current Week</button>

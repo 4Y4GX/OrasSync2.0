@@ -38,7 +38,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     const [loading, setLoading] = useState(true);
 
     const [targetUserId, setTargetUserId] = useState<string | null>(null);
-    
+
     // NEW: Track the currently logged-in admin's user ID
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -50,11 +50,11 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
     const [statusFilter, setStatusFilter] = useState("");
 
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10); 
+    const [itemsPerPage, setItemsPerPage] = useState(10);
 
     const [showModal, setShowModal] = useState(false);
     const [drawerClosing, setDrawerClosing] = useState(false);
-    
+
     // Confirmation Modals
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -93,13 +93,13 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             .catch(err => console.error("Metadata Error:", err));
     }, []);
 
-    const loadUsers = async () => {
+    const loadUsers = async (signal?: AbortSignal) => {
         setLoading(true);
         try {
             // First, establish who is logged in if we don't know already
             let meId = currentUserId;
             if (!meId) {
-                const meRes = await fetch("/api/auth/me");
+                const meRes = await fetch("/api/auth/me", { signal });
                 if (meRes.ok) {
                     const meData = await meRes.json();
                     if (meData && meData.user_id) {
@@ -110,7 +110,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             }
 
             const params = new URLSearchParams({
-                limit: "1000", 
+                limit: "1000",
                 search: search,
                 role: roleFilter,
             });
@@ -124,12 +124,12 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                 params.append("status", "DEACTIVATED");
             }
 
-            const res = await fetch(`/api/admin/users/list?${params}`);
+            const res = await fetch(`/api/admin/users/list?${params}`, { signal });
             const data = await res.json();
 
             if (res.ok) {
                 let fetchedUsers = data.users || [];
-                
+
                 // Exclude the currently logged-in user
                 if (meId) {
                     fetchedUsers = fetchedUsers.filter((u: User) => u.user_id !== meId);
@@ -138,35 +138,43 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
                 if (activeTab === "ACTIVE") {
                     fetchedUsers = fetchedUsers.filter((u: User) => u.account_status !== "DISABLED" && u.account_status !== "DEACTIVATED");
                 }
-                
+
                 setUsers(fetchedUsers);
 
                 if (!search && !roleFilter && !statusFilter) {
-                   const statRes = await fetch(`/api/admin/users/list?limit=5000`);
-                   const statData = await statRes.json();
-                   if (statRes.ok) {
-                       let allUsers = statData.users || [];
-                       
-                       // Also exclude current user from the HUD stats calculations
-                       if (meId) {
-                           allUsers = allUsers.filter((u: User) => u.user_id !== meId);
-                       }
+                    const statRes = await fetch(`/api/admin/users/list?limit=5000`, { signal });
+                    const statData = await statRes.json();
+                    if (statRes.ok) {
+                        let allUsers = statData.users || [];
 
-                       setStats({
-                           total: allUsers.length,
-                           active: allUsers.filter((u: User) => u.account_status === "ACTIVE" || !u.account_status).length,
-                           disabled: allUsers.filter((u: User) => u.account_status === "DISABLED").length
-                       });
-                   }
+                        // Also exclude current user from the HUD stats calculations
+                        if (meId) {
+                            allUsers = allUsers.filter((u: User) => u.user_id !== meId);
+                        }
+
+                        setStats({
+                            total: allUsers.length,
+                            active: allUsers.filter((u: User) => u.account_status === "ACTIVE" || !u.account_status).length,
+                            disabled: allUsers.filter((u: User) => u.account_status === "DISABLED").length
+                        });
+                    }
                 }
             }
-        } catch (e) { console.error(e); }
-        finally { setLoading(false); }
+        } catch (e: any) {
+            if (e.name === "AbortError") return;
+            console.error(e);
+        } finally {
+            if (!signal?.aborted) {
+                setLoading(false);
+            }
+        }
     };
 
     useEffect(() => {
         setCurrentPage(1);
-        loadUsers();
+        const controller = new AbortController();
+        loadUsers(controller.signal);
+        return () => controller.abort();
     }, [search, roleFilter, statusFilter, activeTab]);
 
     const sanitizeInput = (value: string, type: 'text' | 'email' | 'userid') => {
@@ -232,7 +240,7 @@ export default function AdminUserManagement({ lightMode = false }: { lightMode?:
             setIsProcessing(false);
             setShowEnableConfirm(false);
             setUserToEnable(null);
-            
+
             if (res.ok) {
                 loadUsers();
                 setResultMessage({ title: "Account Enabled", text: "The user account has been successfully unlocked and enabled.", type: "success" });
