@@ -3,9 +3,9 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request, { params }: { params: { user_id: string } }) {
+export async function GET(request: Request, { params }: { params: Promise<{ user_id: string }> }) {
   try {
-    const { user_id } = params;
+    const { user_id } = await params;
     let userStats = await prisma.d_tbluser_stats.findUnique({
       where: { user_id },
     });

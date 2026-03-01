@@ -25,7 +25,7 @@ export async function GET() {
         total_hours: { not: null }, // Only completed activities
       },
       include: {
-        D_tbluser: {
+        D_tbluser_D_tbltime_log_user_idToD_tbluser: {
           select: {
             user_id: true,
             first_name: true,
@@ -50,14 +50,15 @@ export async function GET() {
     const groupedTimesheets: Record<string, any> = {};
 
     pendingTimesheets.forEach((log) => {
-      const key = `${log.user_id}_${log.log_date.toISOString().split('T')[0]}`;
-      
+      const logDateString = log.log_date ? log.log_date.toISOString().split('T')[0] : '';
+      const key = `${log.user_id}_${logDateString}`;
+
       if (!groupedTimesheets[key]) {
         groupedTimesheets[key] = {
           user_id: log.user_id,
-          employee_name: `${log.D_tbluser.first_name} ${log.D_tbluser.last_name}`,
-          email: log.D_tbluser.email,
-          date: log.log_date.toISOString().split('T')[0],
+          employee_name: `${log.D_tbluser_D_tbltime_log_user_idToD_tbluser?.first_name} ${log.D_tbluser_D_tbltime_log_user_idToD_tbluser?.last_name}`,
+          email: log.D_tbluser_D_tbltime_log_user_idToD_tbluser?.email,
+          date: logDateString,
           total_hours: 0,
           activities: [],
           activity_count: 0,

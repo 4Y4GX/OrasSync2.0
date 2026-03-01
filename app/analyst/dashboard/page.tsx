@@ -488,7 +488,7 @@ export default function AnalystDashboard() {
             const data = await res.json();
             if (!res.ok) {
                 if (data.message === 'OTP_LIMIT_REACHED') {
-                    setOtpError('Daily OTP limit reached (5/day). Try again tomorrow.');
+                    setOtpError("YOU'VE REACHED THE DAILY OTP LIMIT.");
                 } else {
                     setOtpError(data.message || 'Failed to send OTP');
                 }

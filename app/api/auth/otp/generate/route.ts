@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { checkOtpDailyLimit } from "@/lib/otpLimit";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -86,15 +87,17 @@ export async function POST(request: Request) {
     }
 
     // Daily OTP limit (5/day)
-    const { start, end } = todayRange();
-    const todayCount = await prisma.d_tblotp_log.count({
-      where: { user_id: userId, created_at: { gte: start, lte: end } },
-    });
+    const { allowed } = await checkOtpDailyLimit(userId);
 
     // If disabled + OTP limit exceeded → recovery exhausted → create incident
-    if (isDisabled && todayCount >= 5) {
+    if (isDisabled && !allowed) {
       await createIncidentIfMissing(userId, "RECOVERY_LOCKED_OTP_LIMIT_EXCEEDED");
       return generic;
+    }
+
+    // Normal OTP limit (non-disabled users)
+    if (!allowed) {
+      return generic; // Zero-trust pattern: return generic success but don't create OTP
     }
 
     // Normal OTP generation

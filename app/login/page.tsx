@@ -142,7 +142,11 @@ export default function LoginPage() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (data?.requiresOtp) {
+
+      if (res.status === 429 || data?.message === "OTP_LIMIT_REACHED") {
+        setError("YOU'VE REACHED THE DAILY OTP LIMIT.");
+        setStep(1);
+      } else if (data?.requiresOtp) {
         setCountdown(90);
         setOtp(["", "", "", "", "", ""]);
         setResendSent(true);
@@ -200,6 +204,13 @@ export default function LoginPage() {
 
       if (res.status === 403 && data?.locked) {
         setLockedNotice(true);
+        setPassword("");
+        if (step === 2) { setOtp(["", "", "", "", "", ""]); setStep(1); }
+        return;
+      }
+
+      if (res.status === 429 || data?.message === "OTP_LIMIT_REACHED") {
+        setError("YOU'VE REACHED THE DAILY OTP LIMIT.");
         setPassword("");
         if (step === 2) { setOtp(["", "", "", "", "", ""]); setStep(1); }
         return;

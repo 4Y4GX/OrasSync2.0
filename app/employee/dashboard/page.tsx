@@ -589,7 +589,7 @@ export default function DashboardPage() {
         setSettingsStep("otp");
         startOtpCountdown();
       } else if (res.status === 429) {
-        setSettingsMsg({ text: "Daily OTP limit reached (5/day). Try again tomorrow.", type: "error" });
+        setSettingsMsg({ text: "YOU'VE REACHED THE DAILY OTP LIMIT.", type: "error" });
       } else {
         setSettingsMsg({ text: data.message || "Failed to send OTP.", type: "error" });
       }
@@ -615,7 +615,7 @@ export default function DashboardPage() {
         setSettingsMsg({ text: "A new OTP has been sent.", type: "success" });
         startOtpCountdown();
       } else if (res.status === 429) {
-        setSettingsMsg({ text: "Daily OTP limit reached (5/day). Try again tomorrow.", type: "error" });
+        setSettingsMsg({ text: "YOU'VE REACHED THE DAILY OTP LIMIT.", type: "error" });
       } else {
         setSettingsMsg({ text: data.message || "Failed to resend OTP.", type: "error" });
       }

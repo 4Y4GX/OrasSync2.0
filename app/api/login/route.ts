@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signSession, sessionCookieOptions } from "@/lib/auth";
 import { verifyPassword, hashPassword, isBcryptHash } from "@/lib/password";
+import { checkOtpDailyLimit } from "@/lib/otpLimit";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -122,6 +123,16 @@ export async function POST(req: Request) {
 
     if (!otp) {
       // First pass: Credentials are valid, but no OTP provided. Generate one.
+
+      // Daily OTP limit check (5/day)
+      const { allowed } = await checkOtpDailyLimit(userProfile.user_id);
+      if (!allowed) {
+        return NextResponse.json(
+          { message: "OTP_LIMIT_REACHED" },
+          { status: 429 }
+        );
+      }
+
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
       console.log(`[AUTH] Login OTP for ${email}: ${otpCode}`);
 
@@ -156,7 +167,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Verification code expired." }, { status: 400 });
     }
 
-    const maxAttemptsPerOtp = 5;
+    const maxAttemptsPerOtp = 3;
     const otpAttempts = latestLog.attempts ?? 0;
     if (otpAttempts >= maxAttemptsPerOtp) {
       return NextResponse.json({ message: "Too many attempts. Request a new code." }, { status: 400 });

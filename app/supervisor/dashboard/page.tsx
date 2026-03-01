@@ -23,6 +23,14 @@ export default function SupervisorDashboard() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
+  // --- Clock Settings ---
+  const [hasClockedIn, setHasClockedIn] = useState(false);
+  const [currentTime, setCurrentTime] = useState('');
+  const [sessionStart, setSessionStart] = useState<number | null>(null);
+  const [sessionDuration, setSessionDuration] = useState('00:00:00');
+  const [activeSessionNotice, setActiveSessionNotice] = useState(false);
+  const [logoutModal, setLogoutModal] = useState(false);
+
   // UPDATED: Added new stat fields for Monthly data and Compliance array
   const [stats, setStats] = useState({
     totalMembers: 0,
@@ -55,6 +63,50 @@ export default function SupervisorDashboard() {
       loadApprovals();
     }
   }, [activeSection]);
+
+  // Handle Tick
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Check clock status on load
+  useEffect(() => {
+    const initClock = async () => {
+      try {
+        const statusRes = await fetch('/api/supervisor/clock/in');
+        if (statusRes.ok) {
+          const data = await statusRes.json();
+          if (data.isClockedIn) {
+            setHasClockedIn(true);
+            setSessionStart(new Date(data.startTime).getTime());
+          }
+        }
+      } catch (e) {
+        console.error("Failed fetching clock status", e);
+      }
+    };
+    initClock();
+  }, []);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (hasClockedIn && sessionStart) {
+      interval = setInterval(() => {
+        const diff = Date.now() - sessionStart;
+        const hrs = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const secs = Math.floor((diff % (1000 * 60)) / 1000);
+        setSessionDuration(
+          `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        );
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [hasClockedIn, sessionStart]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -119,14 +171,57 @@ export default function SupervisorDashboard() {
   };
 
   const handleLogout = async () => {
+    if (hasClockedIn) {
+      alert("You are currently clocked in. Please clock out before logging out to ensure your time is recorded correctly.");
+      return;
+    }
     try {
       const res = await fetch('/api/auth/logout', { method: 'POST' });
       if (res.ok) {
-        window.location.href = '/';
+        window.location.href = '/login';
       }
     } catch (err) {
       console.error('Logout failed', err);
     }
+  };
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleClockIn = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/supervisor/clock/in', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setSessionStart(new Date(data.startTime).getTime());
+        setHasClockedIn(true);
+      }
+      else { alert(`Failed: ${data.message}`); }
+    } catch (e) { alert("Connection Error."); } finally { setIsLoading(false); }
+  };
+
+  const handleClockOut = async () => {
+    if (!confirm("End Supervisor Session?")) return;
+    try {
+      const res = await fetch('/api/supervisor/clock/out', { method: 'POST' });
+      if (res.ok) {
+        setHasClockedIn(false);
+        setSessionStart(null);
+        setSessionDuration('00:00:00');
+        window.location.reload();
+      }
+      else { alert("Failed to end session."); }
+    } catch (e) { alert("Connection error."); }
+  };
+
+  const handleNavClick = (section: string) => {
+    if (!hasClockedIn) return;
+    setActiveSection(section);
+  };
+
+  const getDateString = () => {
+    const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    return new Date().toLocaleDateString('en-US', options);
   };
 
   const [userProfile, setUserProfile] = useState({
@@ -210,12 +305,15 @@ export default function SupervisorDashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier: userProfile.email })
       });
-      if (res.ok || res.status === 200) {
+      const err = await res.json().catch(() => ({}));
+
+      if (res.status === 429 || err?.message === "OTP_LIMIT_REACHED") {
+        setCpError("YOU'VE REACHED THE DAILY OTP LIMIT.");
+      } else if (res.ok || res.status === 200) {
         setCpOtpSent(true);
         setCpCountdown(90);
         setTimeout(() => cpOtpRefs.current[0]?.focus(), 100);
       } else {
-        const err = await res.json().catch(() => ({}));
         setCpError(err.message || "Failed to send OTP");
       }
     } catch {
@@ -382,16 +480,16 @@ export default function SupervisorDashboard() {
           <div className="brand-logo">ORASync</div>
 
           <ul className="nav-links">
-            <li className={`nav-item ${activeSection === 'team' ? 'active' : ''}`} onClick={() => setActiveSection('team')}>
+            <li className={`nav-item ${activeSection === 'team' ? 'active' : ''} ${!hasClockedIn ? 'locked' : ''}`} onClick={() => handleNavClick('team')}>
               Team Overview
             </li>
-            <li className={`nav-item ${activeSection === 'approval' ? 'active' : ''}`} onClick={() => setActiveSection('approval')}>
+            <li className={`nav-item ${activeSection === 'approval' ? 'active' : ''} ${!hasClockedIn ? 'locked' : ''}`} onClick={() => handleNavClick('approval')}>
               Timesheet Approval
             </li>
-            <li className={`nav-item ${activeSection === 'schedule' ? 'active' : ''}`} onClick={() => setActiveSection('schedule')}>
+            <li className={`nav-item ${activeSection === 'schedule' ? 'active' : ''} ${!hasClockedIn ? 'locked' : ''}`} onClick={() => handleNavClick('schedule')}>
               Team Schedule
             </li>
-            <li className={`nav-item ${activeSection === 'analytics' ? 'active' : ''}`} onClick={() => setActiveSection('analytics')}>
+            <li className={`nav-item ${activeSection === 'analytics' ? 'active' : ''} ${!hasClockedIn ? 'locked' : ''}`} onClick={() => handleNavClick('analytics')}>
               Team Analytics
             </li>
           </ul>
@@ -445,9 +543,52 @@ export default function SupervisorDashboard() {
           </div>
 
           <div className="content-area">
-            {activeSection === 'team' && (
+            {/* LANDING SCREEN */}
+            {!hasClockedIn && (
+              <div id="layout-initial" className="fade-in" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div className="landing-card">
+                  <div className="hero-clock-label">Supervisor Control</div>
+                  <div className="hero-clock-row">
+                    {currentTime.split(" ")[0] || '00:00:00'}
+                    <span className="clock-ampm">
+                      {currentTime.split(" ")[1] || ''}
+                    </span>
+                  </div>
+                  <div className="hero-date-display">
+                    {getDateString()}
+                  </div>
+                  <p style={{ color: 'var(--text-muted)', marginBottom: '30px', textAlign: 'center' }}>Supervisor access enabled. Click below to begin session.</p>
+
+                  <button className="btn-clock-in-large" onClick={handleClockIn} disabled={isLoading}>
+                    {isLoading ? "STARTING..." : "CLOCK IN"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ACTIVE VIEW */}
+            {hasClockedIn && activeSection === 'team' && (
               <div className="section-view fade-in">
                 <div className="section-animate">
+                  <div className="hud-row" style={{ marginBottom: '20px' }}>
+                    <div className="hud-card">
+                      <div className="hud-bg-icon">⏱</div>
+                      <div className="hud-label">CURRENT TIME</div>
+                      <div className="hud-val" style={{ color: 'var(--accent-cyan)' }}>{currentTime}</div>
+                    </div>
+                    <div className="hud-card">
+                      <div className="hud-bg-icon">⚡</div>
+                      <div className="hud-label">SESSION DURATION</div>
+                      <div className="hud-val">{sessionDuration}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '5px' }}>Productivity Target: {sessionDuration.substring(0, 5)} / 8h</div>
+                    </div>
+                    <div className="hud-card" style={{ display: 'flex', flexDirection: 'column', padding: '15px 25px', justifyContent: 'center' }}>
+                      <div className="hud-label" style={{ marginBottom: '5px' }}>MY STATUS</div>
+                      <div className="status-badge go" style={{ display: 'flex', marginBottom: '10px', width: '100%', justifyContent: 'center', padding: '10px', background: 'var(--bg-input)', borderRadius: '8px' }}>CLOCKED IN</div>
+                      <button className="btn-action btn-urgent" onClick={handleClockOut} style={{ borderRadius: '8px', padding: '10px' }}>Clock Out</button>
+                    </div>
+                  </div>
+
                   <div className="hud-row">
                     <div className="hud-card">
                       <div className="hud-bg-icon">👥</div>
@@ -488,7 +629,7 @@ export default function SupervisorDashboard() {
               </div>
             )}
 
-            {activeSection === 'approval' && (
+            {hasClockedIn && activeSection === 'approval' && (
               <div className="section-view active fade-in">
                 <div className="section-animate">
                   <div className="glass-card">
@@ -601,7 +742,7 @@ export default function SupervisorDashboard() {
               </div>
             )}
 
-            {activeSection === 'schedule' && (
+            {hasClockedIn && activeSection === 'schedule' && (
               <div className="section-view active fade-in">
                 <div className="section-animate">
                   <SupervisorScheduleManagement />
@@ -610,7 +751,7 @@ export default function SupervisorDashboard() {
             )}
 
             {/* --- COMPLETELY REBUILT ANALYTICS SECTION --- */}
-            {activeSection === 'analytics' && (
+            {hasClockedIn && activeSection === 'analytics' && (
               <div className="section-view active fade-in">
                 <div className="section-animate">
 

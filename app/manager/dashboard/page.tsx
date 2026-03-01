@@ -431,8 +431,15 @@ export default function ManagerDashboard() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: managerEmailInput.trim() })
       });
-      if (res.ok) { setPwStep(1); setOtp(["", "", "", "", "", ""]); setOtpCountdown(90); }
-      else { setPwError("Failed to send OTP. Check your email address."); }
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 429 || data?.message === "OTP_LIMIT_REACHED") {
+        setPwError("YOU'VE REACHED THE DAILY OTP LIMIT.");
+      } else if (res.ok) {
+        setPwStep(1); setOtp(["", "", "", "", "", ""]); setOtpCountdown(90);
+      } else {
+        setPwError("Failed to send OTP. Check your email address.");
+      }
     } catch (e) { setPwError("Connection error."); }
     finally { setPwLoading(false); }
   };
@@ -446,8 +453,15 @@ export default function ManagerDashboard() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: managerEmailInput.trim() })
       });
-      if (res.ok) { setOtp(["", "", "", "", "", ""]); setOtpCountdown(90); }
-      else { setPwError("Failed to resend code."); }
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 429 || data?.message === "OTP_LIMIT_REACHED") {
+        setPwError("YOU'VE REACHED THE DAILY OTP LIMIT.");
+      } else if (res.ok) {
+        setOtp(["", "", "", "", "", ""]); setOtpCountdown(90);
+      } else {
+        setPwError("Failed to resend code.");
+      }
     } catch (e) { setPwError("Connection error."); }
     finally { setResending(false); }
   };

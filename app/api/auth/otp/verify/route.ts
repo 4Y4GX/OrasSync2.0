@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "REQUEST FAILED" }, { status: 400 });
     }
 
-    const maxAttemptsPerOtp = 5;
+    const maxAttemptsPerOtp = 3;
     const attempts = latestLog.attempts ?? 0;
 
     if (latestLog.is_verified) {

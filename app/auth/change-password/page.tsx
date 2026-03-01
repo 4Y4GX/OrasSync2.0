@@ -260,7 +260,11 @@ export default function ChangePasswordPage() {
         body: JSON.stringify({ email }),
       });
 
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 429 || data?.message === "OTP_LIMIT_REACHED") {
+        setError("YOU'VE REACHED THE DAILY OTP LIMIT.");
+      } else if (res.ok) {
         setCountdown(90);
         setShowSuccessSubtitle(true);
         setTimeout(() => setShowSuccessSubtitle(false), 4000);
@@ -291,7 +295,12 @@ export default function ChangePasswordPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 429 || data?.message === "OTP_LIMIT_REACHED") {
+        setError("YOU'VE REACHED THE DAILY OTP LIMIT.");
+        setOtpSent(false); // Move back to email view
+      } else if (res.ok) {
         setCountdown(90);
         setOtp(["", "", "", "", "", ""]);
         setResendSent(true);

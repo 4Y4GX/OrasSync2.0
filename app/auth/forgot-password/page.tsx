@@ -82,7 +82,11 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email: normalizeIdentifier(username) }),
       });
 
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 429 || data?.message === "OTP_LIMIT_REACHED") {
+        setError("YOU'VE REACHED THE DAILY OTP LIMIT.");
+      } else if (res.ok) {
         setCountdown(90);
         setShowSuccessSubtitle(true);
         setTimeout(() => setShowSuccessSubtitle(false), 4000);
@@ -156,7 +160,12 @@ export default function ForgotPasswordPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: normalizeIdentifier(username) }),
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 429 || data?.message === "OTP_LIMIT_REACHED") {
+        setError("YOU'VE REACHED THE DAILY OTP LIMIT.");
+        setStep(1);
+      } else if (res.ok) {
         setCountdown(90);
         setOtp(["", "", "", "", "", ""]);
         setResendSent(true);

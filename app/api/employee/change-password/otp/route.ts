@@ -1,15 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
-
-function todayRange() {
-    const now = new Date();
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(now);
-    end.setHours(23, 59, 59, 999);
-    return { start, end };
-}
+import { checkOtpDailyLimit } from "@/lib/otpLimit";
 
 export async function POST() {
     try {
@@ -31,14 +23,11 @@ export async function POST() {
         }
 
         // Daily OTP limit (5/day)
-        const { start, end } = todayRange();
-        const todayCount = await prisma.d_tblotp_log.count({
-            where: { user_id: userId, created_at: { gte: start, lte: end } },
-        });
+        const { allowed, count: todayCount } = await checkOtpDailyLimit(userId);
 
-        if (todayCount >= 5) {
+        if (!allowed) {
             return NextResponse.json(
-                { message: "DAILY_LIMIT_REACHED", dailyCount: todayCount },
+                { message: "OTP_LIMIT_REACHED", dailyCount: todayCount },
                 { status: 429 }
             );
         }

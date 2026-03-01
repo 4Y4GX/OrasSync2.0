@@ -1,0 +1,154 @@
+
+> timea-mvp@0.1.0 build
+> next build
+
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   ▲ Next.js 16.0.7 (Turbopack)
+   - Environments: .env
+
+ ⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+   Creating an optimized production build ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ ✓ Compiled successfully in 4.6s
+   Running TypeScript ...
+   Collecting page data using 15 workers ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 15 workers (0/59) ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+   Generating static pages using 15 workers (14/59) 
+   Generating static pages using 15 workers (29/59) 
+   Generating static pages using 15 workers (44/59) 
+ ✓ Generating static pages using 15 workers (59/59) in 1093.5ms
+   Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin/dashboard
+├ ○ /analyst/dashboard
+├ ƒ /api/admin/audit
+├ ƒ /api/admin/metadata
+├ ƒ /api/admin/users/[user_id]
+├ ƒ /api/admin/users/create
+├ ƒ /api/admin/users/delete
+├ ƒ /api/admin/users/list
+├ ƒ /api/admin/users/update
+├ ƒ /api/ai/predict-timesheet
+├ ƒ /api/analyst/audit
+├ ƒ /api/analyst/change-password/otp
+├ ƒ /api/analyst/change-password/question
+├ ƒ /api/analyst/change-password/reset
+├ ƒ /api/analyst/change-password/verify-otp
+├ ƒ /api/analyst/kpis
+├ ƒ /api/analyst/overtime
+├ ƒ /api/analyst/performers
+├ ƒ /api/analyst/profile
+├ ƒ /api/analyst/reports
+├ ƒ /api/analyst/sentiment
+├ ƒ /api/analytics/dashboard
+├ ƒ /api/analytics/team
+├ ƒ /api/auth/first-login
+├ ƒ /api/auth/logout
+├ ƒ /api/auth/me
+├ ƒ /api/auth/otp/generate
+├ ƒ /api/auth/otp/verify
+├ ƒ /api/auth/recovery/session
+├ ƒ /api/auth/reset-password
+├ ƒ /api/auth/security-question
+├ ƒ /api/calendar
+├ ƒ /api/employee/activity/current
+├ ƒ /api/employee/activity/end
+├ ƒ /api/employee/activity/ledger
+├ ƒ /api/employee/activity/list
+├ ƒ /api/employee/activity/start
+├ ƒ /api/employee/activity/switch
+├ ƒ /api/employee/change-password/otp
+├ ƒ /api/employee/change-password/question
+├ ƒ /api/employee/change-password/reset
+├ ƒ /api/employee/change-password/verify-otp
+├ ƒ /api/employee/clock/in
+├ ƒ /api/employee/clock/out
+├ ƒ /api/employee/clock/status
+├ ƒ /api/employee/schedule/future
+├ ƒ /api/employee/sentiment
+├ ƒ /api/employee/sentiment/status
+├ ƒ /api/employee/timesheet
+├ ƒ /api/employee/timesheet/submit
+├ ƒ /api/export/timesheets
+├ ƒ /api/export/users
+├ ƒ /api/import/users
+├ ƒ /api/login
+├ ƒ /api/logout
+├ ƒ /api/manager/analytics
+├ ƒ /api/manager/clock/in
+├ ƒ /api/manager/clock/out
+├ ƒ /api/manager/employee/search
+├ ƒ /api/manager/me
+├ ƒ /api/manager/reports/export
+├ ƒ /api/manager/roster
+├ ƒ /api/manager/schedule/assign
+├ ƒ /api/manager/schedule/create
+├ ƒ /api/manager/schedule/list
+├ ƒ /api/manager/schedule/update
+├ ƒ /api/manager/security-questions
+├ ƒ /api/manager/shifts/list
+├ ƒ /api/manager/timesheets/approve
+├ ƒ /api/manager/timesheets/pending
+├ ƒ /api/manager/timesheets/reject
+├ ƒ /api/seed
+├ ƒ /api/seed-test-data
+├ ƒ /api/status
+├ ƒ /api/supervisor/analytics
+├ ƒ /api/supervisor/approvals/action
+├ ƒ /api/supervisor/approvals/list
+├ ƒ /api/supervisor/future-schedule/create
+├ ƒ /api/supervisor/future-schedule/delete
+├ ƒ /api/supervisor/future-schedule/list
+├ ƒ /api/supervisor/reports/generate
+├ ƒ /api/supervisor/schedules/create
+├ ƒ /api/supervisor/schedules/delete
+├ ƒ /api/supervisor/schedules/list
+├ ƒ /api/supervisor/schedules/update
+├ ƒ /api/supervisor/settings/change-password
+├ ƒ /api/supervisor/settings/preferences
+├ ƒ /api/supervisor/settings/security-question
+├ ƒ /api/supervisor/shifts/list
+├ ƒ /api/supervisor/stats
+├ ƒ /api/supervisor/team/members
+├ ƒ /api/supervisor/team/status
+├ ƒ /api/supervisor/timesheets/pending
+├ ƒ /api/system/time
+├ ƒ /api/user/attendance/[user_id]
+├ ƒ /api/user/me
+├ ○ /auth/change-password
+├ ○ /auth/forgot-password
+├ ○ /auth/reset-password
+├ ○ /employee/dashboard
+├ ○ /employee/sentiment
+├ ○ /employee/timesheet
+├ ○ /login
+├ ○ /manager/dashboard
+└ ○ /supervisor/dashboard
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

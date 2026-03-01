@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/db';
 
 /**
  * POST /api/ai/predict-timesheet
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       activity_name: row.D_tblactivity?.activity_name || '',
       activity_code: row.D_tblactivity?.activity_code || '',
       is_billable: row.D_tblactivity?.is_billable ? 1 : 0,
-      log_date: row.log_date.toISOString().split('T')[0],
+      log_date: row.log_date?.toISOString().split('T')[0] || '',
       start_time: row.start_time,
       end_time: row.end_time,
       total_hours: row.total_hours,
@@ -175,9 +175,9 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Prediction error:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to generate predictions',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     );
