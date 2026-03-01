@@ -42,17 +42,26 @@ export async function POST(request: Request) {
     }
 
     const hashedPassword = await hashPassword(newPassword);
-    await prisma.d_tbluser_authentication.update({
-      where: { user_id: userId },
-      data: {
-        password_hash: hashedPassword,
-        failed_attempts: 0,
-        is_disabled: false,
-        last_failed_attempt: null,
-        // keep question_attempts as-is or reset — safe to reset:
-        question_attempts: 0,
-      },
-    });
+
+    await prisma.$transaction([
+      prisma.d_tbluser_authentication.update({
+        where: { user_id: userId },
+        data: {
+          password_hash: hashedPassword,
+          failed_attempts: 0,
+          is_disabled: false,
+          last_failed_attempt: null,
+          // keep question_attempts as-is or reset — safe to reset:
+          question_attempts: 0,
+        },
+      }),
+      prisma.d_tbluser.update({
+        where: { user_id: userId },
+        data: {
+          account_status: "ACTIVE",
+        },
+      }),
+    ]);
 
     const res = NextResponse.json({ message: "OK" }, { status: 200 });
 
