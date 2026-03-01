@@ -23,12 +23,13 @@ export async function GET() {
     const employees = await prisma.d_tbluser.findMany({
       where: {
         dept_id: managerData.dept_id,
-        role_id: { in: [1, 4] } 
+        role_id: { in: [1, 4] }
       },
       select: {
         user_id: true,
         first_name: true,
         last_name: true,
+        role_id: true,
         D_tblweekly_schedule: {
           where: { is_active: true },
           take: 1,
@@ -48,35 +49,36 @@ export async function GET() {
 
     // Helper to format Prisma db.Time into a readable 12-hour format
     const formatTime = (dateObj: Date | null) => {
-        if (!dateObj) return null;
-        return new Date(dateObj).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+      if (!dateObj) return null;
+      return new Date(dateObj).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     };
 
     // Restructure the data so the frontend can easily loop through it by day
     const formattedSchedule = employees.map(emp => {
-        const sched = emp.D_tblweekly_schedule[0];
-        
-        const getShiftData = (shiftRef: any) => {
-            if (!shiftRef) return null; // Employee has the day off
-            return {
-                shift_name: shiftRef.shift_name,
-                time: `${formatTime(shiftRef.start_time)} - ${formatTime(shiftRef.end_time)}`
-            };
-        };
+      const sched = emp.D_tblweekly_schedule[0];
 
+      const getShiftData = (shiftRef: any) => {
+        if (!shiftRef) return null; // Employee has the day off
         return {
-            user_id: emp.user_id,
-            name: `${emp.first_name} ${emp.last_name}`,
-            schedule: {
-                monday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template),
-                tuesday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template),
-                wednesday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template),
-                thursday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template),
-                friday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template),
-                saturday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template),
-                sunday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template),
-            }
+          shift_name: shiftRef.shift_name,
+          time: `${formatTime(shiftRef.start_time)} - ${formatTime(shiftRef.end_time)}`
         };
+      };
+
+      return {
+        user_id: emp.user_id,
+        name: `${emp.first_name} ${emp.last_name}`,
+        role_id: emp.role_id,
+        schedule: {
+          monday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template),
+          tuesday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template),
+          wednesday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_wednesday_shift_idToD_tblshift_template),
+          thursday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_thursday_shift_idToD_tblshift_template),
+          friday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_friday_shift_idToD_tblshift_template),
+          saturday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_saturday_shift_idToD_tblshift_template),
+          sunday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_sunday_shift_idToD_tblshift_template),
+        }
+      };
     });
 
     return NextResponse.json({ schedule: formattedSchedule });

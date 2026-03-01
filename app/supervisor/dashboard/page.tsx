@@ -41,6 +41,8 @@ export default function SupervisorDashboard() {
   });
 
   const [approvals, setApprovals] = useState<any[]>([]);
+  const [managerRejected, setManagerRejected] = useState<any[]>([]);
+  const [approvalTab, setApprovalTab] = useState<'pending' | 'manager_rejected'>('pending');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTimesheet, setSelectedTimesheet] = useState<any>(null);
@@ -67,10 +69,12 @@ export default function SupervisorDashboard() {
 
   const loadApprovals = async () => {
     try {
-      const res = await fetch('/api/supervisor/approvals/list');
-      if (res.ok) {
-        setApprovals(await res.json());
-      }
+      const [pendingRes, rejectedRes] = await Promise.all([
+        fetch('/api/supervisor/approvals/list?filter=pending'),
+        fetch('/api/supervisor/approvals/list?filter=manager_rejected'),
+      ]);
+      if (pendingRes.ok) setApprovals(await pendingRes.json());
+      if (rejectedRes.ok) setManagerRejected(await rejectedRes.json());
     } catch (err) {
       console.error("Failed to load approvals", err);
     }
@@ -488,41 +492,109 @@ export default function SupervisorDashboard() {
               <div className="section-view active fade-in">
                 <div className="section-animate">
                   <div className="glass-card">
-                    <div className="section-title">
-                      <span>Pending Timesheet Approvals</span>
-                      <span style={{ color: 'var(--color-warn)', fontSize: '1rem' }}>{approvals.length} Waiting</span>
+                    <div className="section-title" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
+                      <span>Timesheet Approvals</span>
+                    </div>
+                    <div className="detail-log-tabs" style={{ marginBottom: 20 }}>
+                      {([
+                        { key: 'pending' as const, label: 'Pending', color: '#eab308', count: approvals.length },
+                        { key: 'manager_rejected' as const, label: 'Rejected by Manager', color: '#ef4444', count: managerRejected.length },
+                      ]).map(tab => (
+                        <button
+                          key={tab.key}
+                          className={`detail-log-tab ${approvalTab === tab.key ? 'active' : ''}`}
+                          onClick={() => setApprovalTab(tab.key)}
+                          style={approvalTab === tab.key ? { '--tab-color': tab.color } as React.CSSProperties : undefined}
+                        >
+                          {tab.label}
+                          <span className="detail-log-tab-count" style={approvalTab === tab.key ? { background: tab.color, color: '#000' } : undefined}>
+                            {tab.count}
+                          </span>
+                        </button>
+                      ))}
                     </div>
                     <div className="approval-grid">
-                      {approvals.length === 0 ? (
-                        <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                          No pending approvals found.
-                        </div>
-                      ) : approvals.map((timesheet, i) => (
-                        <div key={i} className="approval-card">
-                          <div className="approval-header">
-                            <div>
-                              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{timesheet.employee}</div>
-                              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {timesheet.date}</div>
+                      {approvalTab === 'pending' && (
+                        <>
+                          {approvals.length === 0 ? (
+                            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                              <div style={{ fontSize: '1.3rem', marginBottom: 6, opacity: 0.4 }}>⏳</div>
+                              No pending approvals found.
                             </div>
-                            <div className="approval-badge pending">PENDING</div>
-                          </div>
-                          <div className="approval-stats">
-                            <div className="stat-item">
-                              <span className="stat-label">Total Time</span>
-                              <span className="stat-value">{formatHoursToHHMM(timesheet.hours)}</span>
+                          ) : approvals.map((timesheet, i) => (
+                            <div key={i} className="approval-card">
+                              <div className="approval-header">
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{timesheet.employee}</div>
+                                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {timesheet.date}</div>
+                                </div>
+                                <div className="approval-badge pending">PENDING</div>
+                              </div>
+                              <div className="approval-stats">
+                                <div className="stat-item">
+                                  <span className="stat-label">Total Time</span>
+                                  <span className="stat-value">{formatHoursToHHMM(timesheet.hours)}</span>
+                                </div>
+                                <div className="stat-item">
+                                  <span className="stat-label">Activities</span>
+                                  <span className="stat-value">{timesheet.activities}</span>
+                                </div>
+                              </div>
+                              <div className="approval-actions">
+                                <button className="btn-view" onClick={() => openDetailsModal(timesheet)}>View Details</button>
+                                <button className="btn-approve" onClick={() => handleApprovalAction(timesheet.log_ids, 'APPROVE')}>✓ Approve</button>
+                                <button className="btn-reject" onClick={() => openRejectModal(timesheet)}>✗ Reject</button>
+                              </div>
                             </div>
-                            <div className="stat-item">
-                              <span className="stat-label">Activities</span>
-                              <span className="stat-value">{timesheet.activities}</span>
+                          ))}
+                        </>
+                      )}
+                      {approvalTab === 'manager_rejected' && (
+                        <>
+                          {managerRejected.length === 0 ? (
+                            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                              <div style={{ fontSize: '1.3rem', marginBottom: 6, opacity: 0.4 }}>✅</div>
+                              No manager-rejected timesheets found.
                             </div>
-                          </div>
-                          <div className="approval-actions">
-                            <button className="btn-view" onClick={() => openDetailsModal(timesheet)}>View Details</button>
-                            <button className="btn-approve" onClick={() => handleApprovalAction(timesheet.log_ids, 'APPROVE')}>✓ Approve</button>
-                            <button className="btn-reject" onClick={() => openRejectModal(timesheet)}>✗ Reject</button>
-                          </div>
-                        </div>
-                      ))}
+                          ) : managerRejected.map((timesheet, i) => (
+                            <div key={i} className="approval-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                              <div className="approval-header">
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{timesheet.employee}</div>
+                                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {timesheet.date}</div>
+                                </div>
+                                <div className="approval-badge rejected">REJECTED</div>
+                              </div>
+                              {timesheet.rejection_reason && (
+                                <div style={{
+                                  padding: '8px 12px',
+                                  borderRadius: 6,
+                                  background: 'rgba(239, 68, 68, 0.08)',
+                                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                                  fontSize: '0.85rem',
+                                  color: '#ef4444',
+                                  marginTop: 8,
+                                }}>
+                                  <span style={{ fontWeight: 600 }}>Manager's Reason:</span> {timesheet.rejection_reason}
+                                </div>
+                              )}
+                              <div className="approval-stats">
+                                <div className="stat-item">
+                                  <span className="stat-label">Total Time</span>
+                                  <span className="stat-value">{formatHoursToHHMM(timesheet.hours)}</span>
+                                </div>
+                                <div className="stat-item">
+                                  <span className="stat-label">Activities</span>
+                                  <span className="stat-value">{timesheet.activities}</span>
+                                </div>
+                              </div>
+                              <div className="approval-actions">
+                                <button className="btn-view" onClick={() => openDetailsModal(timesheet)}>View Details</button>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

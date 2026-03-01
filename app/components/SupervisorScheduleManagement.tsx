@@ -54,6 +54,7 @@ type FutureActivity = {
 export default function SupervisorScheduleManagement() {
   const [calendarView, setCalendarView] = useState<'weekly' | 'monthly'>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [scheduleData, setScheduleData] = useState<any[]>([]);
@@ -79,6 +80,21 @@ export default function SupervisorScheduleManagement() {
     end_time: '',
     notes: ''
   });
+
+  // --- Assign Schedule ---
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignForm, setAssignForm] = useState({
+    employee_id: '',
+    shift_id: '',
+    days: { monday: false, tuesday: false, wednesday: false, thursday: false, friday: false, saturday: false, sunday: false } as Record<string, boolean>,
+  });
+  const [assignConfirmModal, setAssignConfirmModal] = useState<{ show: boolean; hasConflicts: boolean; conflictDays: string[] }>({
+    show: false, hasConflicts: false, conflictDays: [],
+  });
+  const [assignResultModal, setAssignResultModal] = useState<{ show: boolean; success: boolean; message: string }>({
+    show: false, success: false, message: '',
+  });
+  const [assignSaving, setAssignSaving] = useState(false);
 
   const fetchScheduleData = async () => {
     setSchedLoading(true);
@@ -339,6 +355,10 @@ export default function SupervisorScheduleManagement() {
           </div>
 
           <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+            <button
+              onClick={() => { setAssignForm({ employee_id: '', shift_id: '', days: { monday: false, tuesday: false, wednesday: false, thursday: false, friday: false, saturday: false, sunday: false } }); setShowAssignModal(true); }}
+              style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--accent-primary)', background: 'rgba(167, 139, 250, 0.1)', color: 'var(--accent-primary)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+            >+ Assign Schedule</button>
             <div style={{ background: 'var(--bg-input)', borderRadius: '8px', display: 'flex', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
               <button onClick={() => setCalendarView('weekly')} style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', background: calendarView === 'weekly' ? 'var(--accent-primary)' : 'transparent', color: calendarView === 'weekly' ? '#fff' : 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}>Weekly</button>
               <button onClick={() => setCalendarView('monthly')} style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', background: calendarView === 'monthly' ? 'var(--accent-primary)' : 'transparent', color: calendarView === 'monthly' ? '#fff' : 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}>Monthly</button>
@@ -396,10 +416,135 @@ export default function SupervisorScheduleManagement() {
               })}
             </div>
           ) : (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--text-muted)' }}>Monthly view coming soon...</div>
+            (() => {
+              const year = currentDate.getFullYear();
+              const month = currentDate.getMonth();
+              const firstDay = new Date(year, month, 1);
+              const lastDay = new Date(year, month + 1, 0);
+              const startOffset = (firstDay.getDay() + 6) % 7;
+              const totalDays = lastDay.getDate();
+              const totalCells = Math.ceil((startOffset + totalDays) / 7) * 7;
+              const today = new Date();
+              const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+              const cells: { date: Date; inMonth: boolean; dayKey: string; dateStr: string }[] = [];
+              for (let i = 0; i < totalCells; i++) {
+                const diff = i - startOffset;
+                const d = new Date(year, month, diff + 1);
+                cells.push({ date: d, inMonth: diff >= 0 && diff < totalDays, dayKey: dayNameMap[d.getDay()], dateStr: d.toISOString().split('T')[0] });
+              }
+
+              const weeks: typeof cells[] = [];
+              for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                      <div key={d} style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.8rem', color: 'var(--accent-primary)', letterSpacing: '1px', textTransform: 'uppercase', padding: '8px 0' }}>{d}</div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                    {weeks.map((week, wi) => (
+                      <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', flex: 1 }}>
+                        {week.map((cell, ci) => {
+                          const isToday = cell.inMonth && cell.date.toDateString() === today.toDateString();
+                          const empCount = scheduleData.filter((emp: any) => emp.schedule && emp.schedule[cell.dayKey] !== null).length;
+                          return (
+                            <div
+                              key={ci}
+                              onClick={() => cell.inMonth && empCount > 0 && setExpandedDay(cell.dateStr)}
+                              style={{
+                                background: isToday ? 'rgba(167, 139, 250, 0.1)' : cell.inMonth ? 'var(--bg-input)' : 'rgba(0,0,0,0.15)',
+                                border: isToday ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                borderRadius: '8px', padding: '10px',
+                                cursor: cell.inMonth && empCount > 0 ? 'pointer' : 'default',
+                                opacity: cell.inMonth ? 1 : 0.35, transition: 'all 0.2s',
+                                display: 'flex', flexDirection: 'column', minHeight: '80px',
+                              }}
+                              onMouseOver={(e) => { if (cell.inMonth && empCount > 0) { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.boxShadow = '0 0 12px rgba(167,139,250,0.2)'; } }}
+                              onMouseOut={(e) => { e.currentTarget.style.borderColor = isToday ? 'var(--accent-primary)' : 'var(--border-subtle)'; e.currentTarget.style.boxShadow = 'none'; }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontWeight: 700, fontSize: '1rem', color: isToday ? 'var(--accent-primary)' : cell.inMonth ? 'var(--text-main)' : 'var(--text-muted)' }}>{cell.date.getDate()}</span>
+                                {isToday && <span style={{ fontSize: '0.6rem', background: 'var(--accent-primary)', color: '#000', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, letterSpacing: '0.5px' }}>TODAY</span>}
+                              </div>
+                              {cell.inMonth && empCount > 0 && (
+                                <div style={{ marginTop: 'auto', fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <span>👥</span> {empCount} scheduled
+                                </div>
+                              )}
+                              {cell.inMonth && empCount === 0 && !schedLoading && (
+                                <div style={{ marginTop: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)' }}>No shifts</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()
           )}
         </div>
       </div>
+
+      {/* --- EXPANDED DAY MODAL --- */}
+      {expandedDay && (() => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const expandDate = new Date(expandedDay + 'T00:00:00');
+        const dayKey = dayNameMap[expandDate.getDay()];
+        const expandedShifts = scheduleData.filter((emp: any) => emp.schedule && emp.schedule[dayKey] !== null);
+
+        return (
+          <div className="modal-overlay" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setExpandedDay(null); }}>
+            <div className="modal-card" style={{ maxWidth: '550px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent-primary)' }}>
+                    {expandDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                  </span>
+                  <span style={{ background: 'var(--bg-input)', padding: '3px 10px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
+                    {expandedShifts.length} employees
+                  </span>
+                </div>
+                <span onClick={() => setExpandedDay(null)} style={{ cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-muted)' }}>✕</span>
+              </div>
+              <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', padding: '20px 25px' }}>
+                {expandedShifts.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '30px 0' }}>No employees scheduled for this day.</div>
+                ) : expandedShifts.map((emp: any) => (
+                  <div
+                    key={emp.user_id}
+                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '15px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
+                    onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.background = 'rgba(167,139,250,0.06)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
+                    onClick={() => {
+                      const dayShortMap: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
+                      setExpandedDay(null);
+                      setEditShiftModal({ show: true, empId: emp.user_id, empName: emp.name, day: dayShortMap[dayKey], currentShift: emp.schedule[dayKey].shift_name, newShiftId: '', scheduleId: emp.schedule_id });
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)' }}>{emp.name}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>{emp.schedule[dayKey].shift_name}</div>
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: 600, textAlign: 'right' }}>
+                      {emp.schedule[dayKey].time || ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '15px 25px' }}>
+                <button className="btn-view" style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }} onClick={() => setExpandedDay(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* --- MODALS --- */}
 
@@ -575,6 +720,251 @@ export default function SupervisorScheduleManagement() {
         </div>
       )}
 
+      {/* 4. ASSIGN SCHEDULE MODAL */}
+      {showAssignModal && (
+        <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-title" style={{ color: 'var(--accent-primary)' }}>Assign Schedule</div>
+            <div style={{ marginTop: '1rem' }}>
+              <div style={{ marginBottom: '1rem' }}>
+                <label className="label-sm">Employee *</label>
+                <select
+                  className="select custom-select"
+                  value={assignForm.employee_id}
+                  onChange={(e) => setAssignForm({ ...assignForm, employee_id: e.target.value })}
+                >
+                  <option value="">Select Employee</option>
+                  {teamMembers.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.first_name} {member.last_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label className="label-sm">Shift *</label>
+                <select
+                  className="select custom-select"
+                  value={assignForm.shift_id}
+                  onChange={(e) => setAssignForm({ ...assignForm, shift_id: e.target.value })}
+                >
+                  <option value="">Select Shift</option>
+                  {shiftTemplates.map((shift: any) => (
+                    <option key={shift.shift_id} value={shift.shift_id}>
+                      {shift.shift_name} ({shift.start_time?.substring(0, 5)} - {shift.end_time?.substring(0, 5)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label className="label-sm" style={{ marginBottom: '10px', display: 'block' }}>Days to Assign *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map(day => (
+                    <label
+                      key={day}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                        background: assignForm.days[day] ? 'rgba(167, 139, 250, 0.15)' : 'var(--bg-input)',
+                        border: `1px solid ${assignForm.days[day] ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                        transition: 'all 0.2s', fontSize: '0.85rem', fontWeight: 600,
+                        color: assignForm.days[day] ? 'var(--accent-primary)' : 'var(--text-muted)',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={assignForm.days[day]}
+                        onChange={(e) => setAssignForm({ ...assignForm, days: { ...assignForm.days, [day]: e.target.checked } })}
+                        style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
+                      />
+                      {day.charAt(0).toUpperCase() + day.slice(1, 3)}
+                    </label>
+                  ))}
+                  <label
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                      background: Object.values(assignForm.days).every(v => v) ? 'rgba(74, 222, 128, 0.15)' : 'var(--bg-input)',
+                      border: `1px solid ${Object.values(assignForm.days).every(v => v) ? '#4ade80' : 'var(--border-subtle)'}`,
+                      transition: 'all 0.2s', fontSize: '0.85rem', fontWeight: 700,
+                      color: Object.values(assignForm.days).every(v => v) ? '#4ade80' : 'var(--text-muted)',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Object.values(assignForm.days).every(v => v)}
+                      onChange={(e) => {
+                        const allChecked = e.target.checked;
+                        setAssignForm({ ...assignForm, days: { monday: allChecked, tuesday: allChecked, wednesday: allChecked, thursday: allChecked, friday: allChecked, saturday: allChecked, sunday: allChecked } });
+                      }}
+                      style={{ accentColor: '#4ade80', width: '16px', height: '16px' }}
+                    />
+                    All
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions" style={{ marginTop: '1rem' }}>
+              <button className="modal-btn ghost" onClick={() => setShowAssignModal(false)}>Cancel</button>
+              <button
+                className="modal-btn ok"
+                onClick={() => {
+                  if (!assignForm.employee_id) { alert('Please select an employee.'); return; }
+                  if (!assignForm.shift_id) { alert('Please select a shift.'); return; }
+                  const selectedDays = Object.entries(assignForm.days).filter(([, v]) => v).map(([k]) => k);
+                  if (selectedDays.length === 0) { alert('Please select at least one day.'); return; }
+
+                  // Check for conflicts
+                  const empData = scheduleData.find((e: any) => e.user_id === assignForm.employee_id);
+                  const conflictDays: string[] = [];
+                  if (empData) {
+                    selectedDays.forEach(day => {
+                      if (empData.schedule && empData.schedule[day] !== null) {
+                        conflictDays.push(day);
+                      }
+                    });
+                  }
+
+                  setAssignConfirmModal({ show: true, hasConflicts: conflictDays.length > 0, conflictDays });
+                }}
+              >Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. ASSIGN CONFIRM MODAL */}
+      {assignConfirmModal.show && (
+        <div className="modal-overlay" style={{ zIndex: 99999 }} onClick={() => !assignSaving && setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] })}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', textAlign: 'center' }}>
+            <div style={{ padding: '20px 10px' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '15px', color: assignConfirmModal.hasConflicts ? '#fbbf24' : 'var(--accent-primary)' }}>
+                {assignConfirmModal.hasConflicts ? '⚠️' : '📋'}
+              </div>
+              <h3 style={{ color: 'var(--text-main)', marginBottom: '10px', fontSize: '1.2rem', fontWeight: 700 }}>
+                {assignConfirmModal.hasConflicts ? 'Schedule Conflict Detected' : 'Confirm Schedule Assignment'}
+              </h3>
+              {assignConfirmModal.hasConflicts ? (
+                <div>
+                  <p style={{ color: 'var(--text-muted)', marginBottom: '12px' }}>
+                    This employee already has a schedule on the following day(s):
+                  </p>
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
+                    {assignConfirmModal.conflictDays.map(d => (
+                      <span key={d} style={{ padding: '3px 10px', borderRadius: '6px', background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', fontSize: '0.8rem', fontWeight: 700, textTransform: 'capitalize', border: '1px solid rgba(251,191,36,0.3)' }}>{d}</span>
+                    ))}
+                  </div>
+                  <p style={{ color: '#f87171', fontSize: '0.85rem', fontWeight: 600 }}>
+                    Saving will overwrite the existing schedule for these days.
+                  </p>
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)' }}>
+                  Are you sure you want to assign this schedule?
+                </p>
+              )}
+            </div>
+            <div className="modal-actions" style={{ justifyContent: 'center', marginTop: '1rem' }}>
+              <button className="modal-btn ghost" onClick={() => setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] })} disabled={assignSaving}>Cancel</button>
+              <button
+                className="modal-btn ok"
+                disabled={assignSaving}
+                onClick={async () => {
+                  setAssignSaving(true);
+                  try {
+                    const selectedDays = Object.entries(assignForm.days).filter(([, v]) => v).map(([k]) => k);
+                    const shiftId = Number(assignForm.shift_id);
+
+                    const payload: Record<string, any> = {
+                      user_id: assignForm.employee_id,
+                    };
+
+                    // For each day: if selected set to shiftId, otherwise set to null (no shift)
+                    const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                    allDays.forEach(day => {
+                      payload[`${day}_shift_id`] = selectedDays.includes(day) ? shiftId : null;
+                    });
+
+                    // Check if employee already has a schedule (use update) or doesn't (use create)
+                    const empData = scheduleData.find((e: any) => e.user_id === assignForm.employee_id);
+                    let res;
+
+                    if (empData && empData.schedule_id) {
+                      // Update existing — but we need to preserve days NOT selected
+                      const updatePayload: Record<string, any> = { schedule_id: empData.schedule_id };
+                      allDays.forEach(day => {
+                        if (selectedDays.includes(day)) {
+                          updatePayload[`${day}_shift_id`] = shiftId;
+                        }
+                        // Don't include unselected days so they remain unchanged
+                      });
+
+                      res = await fetch('/api/supervisor/schedules/update', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updatePayload),
+                      });
+                    } else {
+                      // Create new schedule
+                      res = await fetch('/api/supervisor/schedules/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                      });
+                    }
+
+                    if (res.ok) {
+                      setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] });
+                      setShowAssignModal(false);
+                      setAssignResultModal({ show: true, success: true, message: 'Schedule assigned successfully!' });
+                      fetchScheduleData();
+                    } else {
+                      const data = await res.json();
+                      setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] });
+                      setAssignResultModal({ show: true, success: false, message: data.message || 'Failed to assign schedule.' });
+                    }
+                  } catch (err) {
+                    setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] });
+                    setAssignResultModal({ show: true, success: false, message: 'Connection error. Please try again.' });
+                  } finally {
+                    setAssignSaving(false);
+                  }
+                }}
+              >
+                {assignSaving ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                    Processing...
+                  </span>
+                ) : assignConfirmModal.hasConflicts ? 'Overwrite & Save' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. ASSIGN RESULT MODAL */}
+      {assignResultModal.show && (
+        <div className="modal-overlay" style={{ zIndex: 999999 }} onClick={() => setAssignResultModal({ show: false, success: false, message: '' })}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '380px', textAlign: 'center' }}>
+            <div style={{ padding: '30px 20px' }}>
+              <div style={{ fontSize: '3.5rem', marginBottom: '15px' }}>
+                {assignResultModal.success ? '✅' : '❌'}
+              </div>
+              <h3 style={{ color: 'var(--text-main)', marginBottom: '10px', fontSize: '1.2rem', fontWeight: 700 }}>
+                {assignResultModal.success ? 'Success!' : 'Failed'}
+              </h3>
+              <p style={{ color: 'var(--text-muted)' }}>{assignResultModal.message}</p>
+            </div>
+            <div className="modal-actions" style={{ justifyContent: 'center' }}>
+              <button className="modal-btn ok" onClick={() => setAssignResultModal({ show: false, success: false, message: '' })}>OK</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
         /* Global override for options inside custom-select */
         .custom-select option {
@@ -620,6 +1010,9 @@ export default function SupervisorScheduleManagement() {
           border-color: var(--accent-primary);
           transform: translateY(-2px);
           box-shadow: 0 6px 16px rgba(167, 139, 250, 0.2);
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>

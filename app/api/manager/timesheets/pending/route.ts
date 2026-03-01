@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserFromCookie } from "@/lib/auth";
+import { D_tbltime_log_approval_status } from "@prisma/client";
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getUserFromCookie();
 
   // 1. Authenticate and check role (Manager/Admin: 5, Supervisor: 4)
@@ -11,6 +12,9 @@ export async function GET() {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const filter = searchParams.get('filter') || 'pending';
+
     // 2. Fetch the logged-in manager's full record to get their dept_id
     // (Adjust 'user.user_id' if your session token uses a different property name like 'user.id')
     const managerData = await prisma.d_tbluser.findUnique({
@@ -22,15 +26,22 @@ export async function GET() {
       return NextResponse.json({ message: "Department not found for this user" }, { status: 400 });
     }
 
+    // Determine the approval status to filter by
+    let statusFilter: D_tbltime_log_approval_status = "SUPERVISOR_APPROVED";
+    if (filter === 'awaiting_supervisor') {
+      statusFilter = "PENDING";
+    }
+
     // 3. Fetch all time logs for users in the manager's department AND who are Employees
     const rawTimeLogs = await prisma.d_tbltime_log.findMany({
       where: {
+        approval_status: statusFilter,
         // This ensures we only get logs from users in the manager's department
         D_tbluser_D_tbltime_log_user_idToD_tbluser: {
           dept_id: managerData.dept_id,
           // NEW: Ensures we only fetch timesheets belonging to the Employee role
           D_tblrole: {
-            role_name: "Employee" 
+            role_name: "Employee"
           }
         }
       },
@@ -54,7 +65,7 @@ export async function GET() {
 
       // Create a clean date string (e.g., "2026-02-20") to use as part of the grouping key
       const dateString = curr.log_date.toISOString().split('T')[0];
-      
+
       // Create a unique key for this employee on this specific day (e.g., "EMP001_2026-02-20")
       const groupKey = `${curr.user_id}_${dateString}`;
 
@@ -67,7 +78,7 @@ export async function GET() {
           date: dateString,
           approval_status: curr.approval_status, // Useful to show if the day is Pending/Approved
           total_hours: 0,
-          activities: [] 
+          activities: []
         };
       }
 

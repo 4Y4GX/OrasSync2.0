@@ -192,6 +192,31 @@ export default function DashboardPage() {
   const [selectedTimelineDate, setSelectedTimelineDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [ganttTip, setGanttTip] = useState<{ x: number; y: number; text: string; sub?: string } | null>(null);
 
+  const [detailLogTab, setDetailLogTab] = useState<"NOT_SUBMITTED" | "PENDING" | "REJECTED" | "APPROVED">("NOT_SUBMITTED");
+
+  const detailLogTabCounts = useMemo(() => {
+    const counts = { NOT_SUBMITTED: 0, PENDING: 0, REJECTED: 0, APPROVED: 0 };
+    for (const day of timesheetDays) {
+      for (const act of day.activities || []) {
+        if (act.approval_status === "NOT_SUBMITTED") counts.NOT_SUBMITTED++;
+        else if (act.approval_status === "PENDING") counts.PENDING++;
+        else if (act.approval_status === "REJECTED") counts.REJECTED++;
+        else if (act.approval_status === "SUPERVISOR_APPROVED") counts.APPROVED++;
+      }
+    }
+    return counts;
+  }, [timesheetDays]);
+
+  const filteredTimesheetLogs = useMemo(() => {
+    const statusMatch = detailLogTab === "APPROVED" ? "SUPERVISOR_APPROVED" : detailLogTab;
+    return timesheetDays
+      .map(day => ({
+        ...day,
+        activities: (day.activities || []).filter((act: any) => act.approval_status === statusMatch),
+      }))
+      .filter(day => day.activities.length > 0);
+  }, [timesheetDays, detailLogTab]);
+
   const [calView, setCalView] = useState<"week" | "month">("week");
   const [calDate, setCalDate] = useState(() => new Date());
   const [calendar, setCalendar] = useState<Record<string, any>>({});
@@ -1531,7 +1556,29 @@ export default function DashboardPage() {
 
                       <div className="ts-right">
                         <div className="glass-card" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", padding: 0 }}>
-                          <div className="section-title" style={{ padding: 20 }}>Detailed Logs</div>
+                          <div className="detail-log-header">
+                            <div className="section-title" style={{ padding: "20px 20px 0 20px", marginBottom: 0, borderBottom: "none" }}>Detailed Logs</div>
+                            <div className="detail-log-tabs">
+                              {([
+                                { key: "NOT_SUBMITTED" as const, label: "Not Submitted", color: "#9ca3af" },
+                                { key: "PENDING" as const, label: "Pending", color: "#eab308" },
+                                { key: "REJECTED" as const, label: "Rejected", color: "#ef4444" },
+                                { key: "APPROVED" as const, label: "Approved", color: "#22c55e" },
+                              ]).map(tab => (
+                                <button
+                                  key={tab.key}
+                                  className={`detail-log-tab ${detailLogTab === tab.key ? "active" : ""}`}
+                                  onClick={() => setDetailLogTab(tab.key)}
+                                  style={detailLogTab === tab.key ? { "--tab-color": tab.color } as React.CSSProperties : undefined}
+                                >
+                                  {tab.label}
+                                  <span className="detail-log-tab-count" style={detailLogTab === tab.key ? { background: tab.color, color: "#000" } : undefined}>
+                                    {detailLogTabCounts[tab.key]}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                           <div className="table-container" style={{ flex: 1, overflowY: "auto" }}>
                             <table className="data-table">
                               <thead>
@@ -1545,7 +1592,7 @@ export default function DashboardPage() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {timesheetDays.map(day => (
+                                {filteredTimesheetLogs.map(day => (
                                   day.activities.map((act: any, idx: number) => (
                                     <tr key={`${day.date}-${idx}-tr`}>
                                       <td>{day.date}</td>
@@ -1574,8 +1621,13 @@ export default function DashboardPage() {
                                     </tr>
                                   ))
                                 ))}
-                                {timesheetDays.length === 0 && (
-                                  <tr><td colSpan={6} style={{ textAlign: "center", padding: 20, color: "var(--text-muted)" }}>No logs found.</td></tr>
+                                {filteredTimesheetLogs.length === 0 && (
+                                  <tr><td colSpan={6} style={{ textAlign: "center", padding: 40, color: "var(--text-muted)" }}>
+                                    <div style={{ fontSize: "1.3rem", marginBottom: 6, opacity: 0.4 }}>
+                                      {detailLogTab === "NOT_SUBMITTED" ? "📝" : detailLogTab === "PENDING" ? "⏳" : detailLogTab === "REJECTED" ? "❌" : "✅"}
+                                    </div>
+                                    No {detailLogTab === "NOT_SUBMITTED" ? "unsubmitted" : detailLogTab.toLowerCase()} logs found.
+                                  </td></tr>
                                 )}
                               </tbody>
                             </table>

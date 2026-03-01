@@ -70,8 +70,8 @@ export async function PUT(request: Request) {
         changed_by: user.user_id,
         action_type: "UPDATE_SCHEDULE",
         table_affected: "D_tblweekly_schedule",
-        old_value: JSON.stringify(existingSchedule),
-        new_value: JSON.stringify(updatedSchedule),
+        old_value: `Schedule ID: ${schedule_id}`,
+        new_value: `Updated shifts for user: ${existingSchedule.user_id}`,
       },
     });
 

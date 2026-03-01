@@ -1797,6 +1797,211 @@ body.light-mode .ts-submit-btn:hover {
   box-shadow: 0 6px 25px rgba(15, 52, 166, 0.4);
 }
 
+/* --- DETAILED LOGS TABS --- */
+.detail-log-header {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-log-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 10px 20px 0 20px;
+  overflow-x: auto;
+}
+
+.detail-log-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  position: relative;
+  transition: color 0.2s, background 0.2s;
+  white-space: nowrap;
+  font-family: var(--font-main);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.detail-log-tab:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.detail-log-tab.active {
+  color: var(--tab-color, var(--text-main));
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom-color: var(--tab-color, var(--accent-blue));
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+}
+
+.detail-log-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  line-height: 1;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* LIGHT MODE TAB OVERRIDES */
+body.light-mode .detail-log-tab:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+body.light-mode .detail-log-tab.active {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+body.light-mode .detail-log-tab-count {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+}
+
+/* --- APPROVAL CARDS (Manager Dashboard) --- */
+.approval-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.approval-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s;
+}
+
+.approval-card:hover {
+  border-color: var(--accent-blue);
+  box-shadow: 0 5px 20px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+}
+
+.approval-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.approval-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.approval-badge.pending {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--color-go);
+  border: 1px solid var(--color-go);
+}
+
+.approval-badge.awaiting {
+  background: rgba(244, 114, 182, 0.15);
+  color: #f472b6;
+  border: 1px solid #f472b6;
+}
+
+.approval-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.approval-stats .stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.approval-stats .stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 5px;
+}
+
+.approval-stats .stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent-blue);
+}
+
+.approval-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.approval-actions .btn-approve,
+.approval-actions .btn-reject,
+.approval-actions .btn-view {
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+
+.approval-actions .btn-approve {
+  background: var(--color-go);
+  color: #003d1a;
+}
+
+.approval-actions .btn-approve:hover {
+  background: #3bc76e;
+  transform: translateY(-1px);
+}
+
+.approval-actions .btn-reject {
+  background: var(--color-urgent, #ef4444);
+  color: white;
+}
+
+.approval-actions .btn-reject:hover {
+  background: #f65858;
+  transform: translateY(-1px);
+}
+
+.approval-actions .btn-view {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.approval-actions .btn-view:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
 /* ===========================================
    ANALYTICS VIEW
    =========================================== */

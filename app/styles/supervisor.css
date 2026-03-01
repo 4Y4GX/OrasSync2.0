@@ -1028,3 +1028,83 @@
 .cp-eye-btn:hover {
   color: var(--text-main);
 }
+
+/* --- DETAIL LOG TABS (Approval Tabs) --- */
+.detail-log-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 10px 0 0 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-log-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  position: relative;
+  transition: color 0.2s, background 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.detail-log-tab:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.detail-log-tab.active {
+  color: var(--tab-color, var(--text-main));
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom-color: var(--tab-color, var(--accent-primary));
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.1);
+}
+
+.detail-log-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  line-height: 1;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* Light mode tab overrides */
+.supervisor-theme.light-mode .detail-log-tab:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.supervisor-theme.light-mode .detail-log-tab.active {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.supervisor-theme.light-mode .detail-log-tab-count {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+}
+
+/* --- Rejected Badge --- */
+.approval-badge.rejected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}

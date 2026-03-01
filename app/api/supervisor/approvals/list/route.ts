@@ -9,6 +9,9 @@ export async function GET(req: Request) {
             return NextResponse.json({ message: "Unauthorized. Supervisor access required." }, { status: 403 });
         }
 
+        const { searchParams } = new URL(req.url);
+        const filter = searchParams.get("filter") || "pending";
+
         // Get team members for supervisor
         let teamMembers;
         if (user.role_id === 4) {
@@ -32,19 +35,47 @@ export async function GET(req: Request) {
         const teamIds = teamMembers.map((m: any) => m.user_id);
         const userIdToName = Object.fromEntries(teamMembers.map((m: any) => [m.user_id, `${m.first_name ?? ''} ${m.last_name ?? ''}`.trim()]));
 
-        // Get all pending time logs for team
-        const pendingLogs = await prisma.d_tbltime_log.findMany({
-            where: {
-                user_id: { in: teamIds },
-                approval_status: "PENDING",
-            },
+        // Build query based on filter
+        const whereClause: any = {
+            user_id: { in: teamIds },
+        };
+
+        if (filter === "manager_rejected") {
+            whereClause.approval_status = "SUPERVISOR_APPROVED";
+            whereClause.approved_by_manager_id = "REJECTED";
+        } else {
+            whereClause.approval_status = "PENDING";
+        }
+
+        const logs = await prisma.d_tbltime_log.findMany({
+            where: whereClause,
             include: { D_tblactivity: true },
             orderBy: [{ user_id: "asc" }, { log_date: "desc" }, { start_time: "asc" }],
         });
 
+        // Format helpers
+        function formatDate(dt: Date | string | null | undefined): string {
+            if (!dt) return "";
+            const d = new Date(dt);
+            return `${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}/${d.getFullYear()}`;
+        }
+        function formatTime(dt: Date | string | null | undefined): string {
+            if (!dt) return "";
+            const d = new Date(dt);
+            return `${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`;
+        }
+        function formatHoursToHHMM(hours: number | string | null | undefined): string {
+            if (!hours) return "00:00";
+            const h = typeof hours === 'number' ? hours : parseFloat(hours as string);
+            const totalMinutes = Math.round(h * 60);
+            const hh = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
+            const mm = (totalMinutes % 60).toString().padStart(2, '0');
+            return `${hh}:${mm}`;
+        }
+
         // Group by user and date
         const grouped: Record<string, any> = {};
-        for (const log of pendingLogs) {
+        for (const log of logs) {
             const dateKey = `${log.user_id}|${log.log_date?.toISOString().slice(0, 10)}`;
             if (!grouped[dateKey]) {
                 grouped[dateKey] = {
@@ -53,34 +84,17 @@ export async function GET(req: Request) {
                     date: log.log_date?.toISOString().slice(0, 10) ?? '',
                     hours: 0,
                     activities: 0,
-                    status: "pending",
+                    status: filter === "manager_rejected" ? "manager_rejected" : "pending",
                     log_ids: [],
                     details: [],
+                    ...(filter === "manager_rejected" ? { rejection_reason: log.rejection_reason || "" } : {}),
                 };
             }
             grouped[dateKey].hours += log.total_hours?.toNumber() || 0;
             grouped[dateKey].activities++;
             grouped[dateKey].log_ids.push(log.tlog_id);
-            // Format date as MM/DD/YYYY
-            function formatDate(dt: Date | string | null | undefined): string {
-                if (!dt) return "";
-                const d = new Date(dt);
-                return `${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}/${d.getFullYear()}`;
-            }
-            // Format time as HH:mm
-            function formatTime(dt: Date | string | null | undefined): string {
-                if (!dt) return "";
-                const d = new Date(dt);
-                return `${d.getUTCHours().toString().padStart(2, '0')}:${d.getUTCMinutes().toString().padStart(2, '0')}`;
-            }
-            // Format decimal hours as HH:mm
-            function formatHoursToHHMM(hours: number | string | null | undefined): string {
-                if (!hours) return "00:00";
-                const h = typeof hours === 'number' ? hours : parseFloat(hours);
-                const totalMinutes = Math.round(h * 60);
-                const hh = Math.floor(totalMinutes / 60).toString().padStart(2, '0');
-                const mm = (totalMinutes % 60).toString().padStart(2, '0');
-                return `${hh}:${mm}`;
+            if (filter === "manager_rejected" && log.rejection_reason && !grouped[dateKey].rejection_reason) {
+                grouped[dateKey].rejection_reason = log.rejection_reason;
             }
             grouped[dateKey].details.push({
                 activity_name: log.D_tblactivity?.activity_name ?? "",

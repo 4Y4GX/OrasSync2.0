@@ -33,11 +33,13 @@ export default function ManagerDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
 
-  const [timesheets, setTimesheets] = useState<any[]>([]);
-  const [tsLoading, setTsLoading] = useState(false);
   const [tsSearch, setTsSearch] = useState("");
   const [tsDate, setTsDate] = useState("");
   const [tsStatus, setTsStatus] = useState("ALL");
+  const [pendingTimesheets, setPendingTimesheets] = useState<any[]>([]);
+  const [awaitingSupervisorTimesheets, setAwaitingSupervisorTimesheets] = useState<any[]>([]);
+  const [approvalTab, setApprovalTab] = useState<'pending' | 'awaiting_supervisor'>('pending');
+  const [tsLoading, setTsLoading] = useState(true);
   const [detailsModal, setDetailsModal] = useState({ show: false, timesheet: null as any });
 
   const [rejectModal, setRejectModal] = useState({ show: false, tlogIds: [] as number[], reason: "" });
@@ -100,6 +102,21 @@ export default function ManagerDashboard() {
   const [shiftTemplates, setShiftTemplates] = useState<any[]>([]);
   const [schedLoading, setSchedLoading] = useState(false);
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
+
+  // --- Assign Schedule Feature ---
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignForm, setAssignForm] = useState({
+    employee_id: '',
+    shift_id: '',
+    days: { monday: false, tuesday: false, wednesday: false, thursday: false, friday: false, saturday: false, sunday: false } as Record<string, boolean>,
+  });
+  const [assignConfirmModal, setAssignConfirmModal] = useState<{ show: boolean; hasConflicts: boolean; conflictDays: string[] }>({
+    show: false, hasConflicts: false, conflictDays: [],
+  });
+  const [assignResultModal, setAssignResultModal] = useState<{ show: boolean; success: boolean; message: string }>({
+    show: false, success: false, message: '',
+  });
+  const [assignSaving, setAssignSaving] = useState(false);
 
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
@@ -270,12 +287,22 @@ export default function ManagerDashboard() {
   const fetchPendingTimesheets = async () => {
     setTsLoading(true);
     try {
-      const res = await fetch('/api/manager/timesheets/pending');
-      if (res.ok) {
-        const data = await res.json();
-        setTimesheets(data.timesheets || []);
+      const [pendingRes, awaitingRes] = await Promise.all([
+        fetch('/api/manager/timesheets/pending?filter=pending'),
+        fetch('/api/manager/timesheets/pending?filter=awaiting_supervisor')
+      ]);
+
+      if (pendingRes.ok && awaitingRes.ok) {
+        const pendingData = await pendingRes.json();
+        const awaitingData = await awaitingRes.json();
+        setPendingTimesheets(pendingData.timesheets || []);
+        setAwaitingSupervisorTimesheets(awaitingData.timesheets || []);
       }
-    } catch (e) { } finally { setTsLoading(false); }
+    } catch (error) {
+      console.error("Error fetching manager timesheets:", error);
+    } finally {
+      setTsLoading(false);
+    }
   };
 
   const fetchAnalyticsData = async () => {
@@ -725,103 +752,131 @@ export default function ManagerDashboard() {
 
             {/* APPROVALS VIEW */}
             {hasClockedIn && activeSection === 'timesheets' && (() => {
-              const filteredTimesheets = timesheets.filter(ts => {
+              const currentTimesheets = approvalTab === 'pending' ? pendingTimesheets : awaitingSupervisorTimesheets;
+              const filteredTimesheets = currentTimesheets.filter(ts => {
                 const matchesSearch = ts.employee_name.toLowerCase().includes(tsSearch.toLowerCase());
                 const matchesDate = tsDate ? ts.date === tsDate : true;
-                const matchesStatus = tsStatus === "ALL" ? true : (tsStatus === "ACTIONABLE" ? ts.approval_status === "SUPERVISOR_APPROVED" : ts.approval_status !== "SUPERVISOR_APPROVED");
-                return matchesSearch && matchesDate && matchesStatus;
+                return matchesSearch && matchesDate;
               });
 
-              return (
-                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
-                  <div className="section-title" style={{ padding: '15px 25px', margin: 0, border: '1px solid var(--border-subtle)', background: 'var(--bg-panel)', justifyContent: 'space-between', alignItems: 'center', borderRadius: '12px 12px 0 0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                      <span style={{ fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>Pending Timesheet Approvals</span>
-                      <span className="status-badge go" style={{ background: 'var(--bg-input)', padding: '5px 15px', color: 'var(--color-go)', border: '1px solid var(--border-subtle)', borderRadius: '8px' }}>{filteredTimesheets.length} Submissions</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <select className="input-rounded" style={{ padding: '8px 12px', cursor: 'pointer', appearance: 'auto' }} value={tsStatus} onChange={(e) => setTsStatus(e.target.value)}>
-                        <option value="ALL">All Statuses</option>
-                        <option value="ACTIONABLE">Actionable</option>
-                        <option value="PENDING">Pending</option>
-                      </select>
-                      <input type="date" className="input-rounded" style={{ padding: '8px 12px', color: tsDate ? 'var(--accent-blue)' : 'var(--text-main)', fontWeight: 700, fontFamily: 'var(--font-mono)', letterSpacing: '2px', cursor: 'pointer' }} value={tsDate} onChange={(e) => setTsDate(e.target.value)} />
-                      <input type="text" placeholder="Search approvals..." className="input-rounded" style={{ width: '220px', padding: '8px 15px' }} value={tsSearch} onChange={(e) => setTsSearch(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="table-container" style={{ padding: '20px', paddingBottom: '30px', background: 'var(--bg-deep)', borderRadius: '0 0 12px 12px', borderBottom: '1px solid var(--border-subtle)', borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px', alignContent: 'start', overflowY: 'auto', WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 30px), transparent 100%)', maskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 30px), transparent 100%)' }}>
-                    {tsLoading ? (
-                      <div className="fade-in" style={{ color: 'var(--text-muted)', gridColumn: '1 / -1', minHeight: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '15px', marginTop: '100px' }}>
-                        <div className="loading-spinner"></div>
-                        <span>Loading Approvals...</span>
-                      </div>
-                    ) : filteredTimesheets.length === 0 ? (
-                      <div style={{ color: 'var(--text-muted)', gridColumn: '1 / -1', textAlign: 'center', marginTop: '40px' }}>{timesheets.length === 0 ? "All caught up! No pending submissions found." : "No submissions match your filters."}</div>
-                    ) : (
-                      filteredTimesheets.map((ts, index) => {
-                        const cardId = `${ts.user_id}_${ts.date}`;
+              const formatHoursToHHMM = (hours: number) => {
+                const h = Math.floor(hours);
+                const m = Math.round((hours - h) * 60);
+                return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+              };
 
-                        const isActionable = ts.approval_status === 'SUPERVISOR_APPROVED'; // Only actionable if sup approved
-                        return (
-                          <div key={cardId} className="glass-card fade-in-up" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px', opacity: 0, animation: `fadeInUp 0.5s ease forwards ${index * 0.05}s` }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div>
-                                <div style={{ fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-main)' }}>{ts.employee_name}</div>
-                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: '4px' }}>{ts.date}</div>
+              return (
+                <div className="section-view active fade-in">
+                  <div className="section-animate">
+                    <div className="glass-card">
+                      <div className="section-title" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
+                        <span>Timesheet Approvals</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: 15, padding: '0 20px' }}>
+                        <input type="date" className="input-rounded" style={{ padding: '8px 12px', color: tsDate ? 'var(--accent-blue)' : 'var(--text-main)', fontWeight: 700, fontFamily: 'var(--font-mono)', letterSpacing: '2px', cursor: 'pointer' }} value={tsDate} onChange={(e) => setTsDate(e.target.value)} />
+                        <input type="text" placeholder="Search employee..." className="input-rounded" style={{ width: '220px', padding: '8px 15px' }} value={tsSearch} onChange={(e) => setTsSearch(e.target.value)} />
+                      </div>
+                      <div className="detail-log-tabs" style={{ marginBottom: 20 }}>
+                        {([
+                          { key: 'pending' as const, label: 'Pending', color: '#4ade80', count: pendingTimesheets.length },
+                          { key: 'awaiting_supervisor' as const, label: 'Awaiting Supervisor', color: '#f472b6', count: awaitingSupervisorTimesheets.length },
+                        ]).map(tab => (
+                          <button
+                            key={tab.key}
+                            className={`detail-log-tab ${approvalTab === tab.key ? 'active' : ''}`}
+                            onClick={() => setApprovalTab(tab.key)}
+                            style={approvalTab === tab.key ? { '--tab-color': tab.color } as React.CSSProperties : undefined}
+                          >
+                            {tab.label}
+                            <span className="detail-log-tab-count" style={approvalTab === tab.key ? { background: tab.color, color: '#000' } : undefined}>
+                              {tab.count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="approval-grid">
+                        {approvalTab === 'pending' && (
+                          <>
+                            {tsLoading ? (
+                              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+                                <div className="loading-spinner" style={{ margin: '0 auto 15px' }}></div>
+                                Loading approvals...
                               </div>
-                              <div className="status-badge" style={{ background: 'var(--bg-input)', color: 'var(--accent-blue)', fontSize: '1rem', padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>{ts.total_hours.toFixed(2)} HRS</div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', fontSize: '0.85rem', marginTop: '-5px' }}>
-                              <span style={{ color: 'var(--text-muted)' }}>📂 {ts.activities.length} Activities</span>
-                              <span className={ts.approval_status === 'SUPERVISOR_APPROVED' ? 'tag tag-in' : 'tag tag-out'}>
-                                {ts.approval_status === 'SUPERVISOR_APPROVED' ? '▲ SUP. APPROVED' : '▲ SUP. PENDING'}
-                              </span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
-                              <button className="btn-action" style={{ flex: 1, background: 'transparent', color: 'var(--accent-blue)', fontSize: '0.9rem', fontWeight: 600, padding: '10px', border: '1px solid var(--border-subtle)' }} onClick={() => setDetailsModal({ show: true, timesheet: ts })}>
-                                Details
-                              </button>
-                              <button
-                                className="btn-action"
-                                style={{
-                                  flex: 1,
-                                  fontSize: '0.9rem',
-                                  fontWeight: 600,
-                                  padding: '10px',
-                                  background: 'transparent',
-                                  color: isActionable ? 'var(--color-go)' : 'var(--text-muted)',
-                                  border: '1px solid var(--border-subtle)',
-                                  cursor: isActionable ? 'pointer' : 'not-allowed',
-                                  opacity: isActionable ? 1 : 0.5
-                                }}
-                                onClick={() => setApproveModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id) })}
-                                disabled={!isActionable}
-                              >
-                                Approve
-                              </button>
-                              <button
-                                className="btn-action"
-                                style={{
-                                  flex: 1,
-                                  fontSize: '0.9rem',
-                                  fontWeight: 600,
-                                  padding: '10px',
-                                  background: 'transparent',
-                                  color: isActionable ? 'var(--color-urgent)' : 'var(--text-muted)',
-                                  border: '1px solid var(--border-subtle)',
-                                  cursor: isActionable ? 'pointer' : 'not-allowed',
-                                  opacity: isActionable ? 1 : 0.5
-                                }}
-                                onClick={() => setRejectModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id), reason: '' })}
-                                disabled={!isActionable}
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
+                            ) : filteredTimesheets.length === 0 ? (
+                              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                <div style={{ fontSize: '1.3rem', marginBottom: 6, opacity: 0.4 }}>⏳</div>
+                                {currentTimesheets.length === 0 ? 'All caught up! No pending approvals.' : 'No submissions match your filters.'}
+                              </div>
+                            ) : filteredTimesheets.map((ts, i) => (
+                              <div key={`${ts.user_id}_${ts.date}`} className="approval-card">
+                                <div className="approval-header">
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{ts.employee_name}</div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {ts.date}</div>
+                                  </div>
+                                  <div className="approval-badge pending">READY</div>
+                                </div>
+                                <div className="approval-stats">
+                                  <div className="stat-item">
+                                    <span className="stat-label">Total Time</span>
+                                    <span className="stat-value">{formatHoursToHHMM(ts.total_hours)}</span>
+                                  </div>
+                                  <div className="stat-item">
+                                    <span className="stat-label">Activities</span>
+                                    <span className="stat-value">{ts.activities.length}</span>
+                                  </div>
+                                </div>
+                                <div className="approval-actions">
+                                  <button className="btn-view" onClick={() => setDetailsModal({ show: true, timesheet: ts })}>View Details</button>
+                                  <button className="btn-approve" onClick={() => setApproveModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id) })}>✓ Approve</button>
+                                  <button className="btn-reject" onClick={() => setRejectModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id), reason: '' })}>✗ Reject</button>
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {approvalTab === 'awaiting_supervisor' && (
+                          <>
+                            {tsLoading ? (
+                              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+                                <div className="loading-spinner" style={{ margin: '0 auto 15px' }}></div>
+                                Loading...
+                              </div>
+                            ) : filteredTimesheets.length === 0 ? (
+                              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                                <div style={{ fontSize: '1.3rem', marginBottom: 6, opacity: 0.4 }}>✅</div>
+                                {currentTimesheets.length === 0 ? 'No timesheets awaiting supervisor approval.' : 'No submissions match your filters.'}
+                              </div>
+                            ) : filteredTimesheets.map((ts, i) => (
+                              <div key={`${ts.user_id}_${ts.date}`} className="approval-card" style={{ borderColor: 'rgba(244, 114, 182, 0.3)' }}>
+                                <div className="approval-header">
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{ts.employee_name}</div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {ts.date}</div>
+                                  </div>
+                                  <div className="approval-badge awaiting">AWAITING</div>
+                                </div>
+                                <div className="approval-stats">
+                                  <div className="stat-item">
+                                    <span className="stat-label">Total Time</span>
+                                    <span className="stat-value">{formatHoursToHHMM(ts.total_hours)}</span>
+                                  </div>
+                                  <div className="stat-item">
+                                    <span className="stat-label">Activities</span>
+                                    <span className="stat-value">{ts.activities.length}</span>
+                                  </div>
+                                </div>
+                                <div className="approval-actions">
+                                  <button className="btn-view" onClick={() => setDetailsModal({ show: true, timesheet: ts })}>View Details</button>
+                                  <button className="btn-approve" disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>✓ Approve</button>
+                                  <button className="btn-reject" disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>✗ Reject</button>
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -838,6 +893,10 @@ export default function ManagerDashboard() {
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <button
+                      onClick={() => { setAssignForm({ employee_id: '', shift_id: '', days: { monday: false, tuesday: false, wednesday: false, thursday: false, friday: false, saturday: false, sunday: false } }); setShowAssignModal(true); }}
+                      style={{ padding: '8px 15px', borderRadius: '8px', border: '1px solid var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                    >+ Assign Schedule</button>
                     <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', display: 'flex', overflow: 'hidden' }}>
                       <button onClick={() => setCalendarView('weekly')} style={{ padding: '8px 15px', border: 'none', cursor: 'pointer', background: calendarView === 'weekly' ? 'var(--accent-blue)' : 'transparent', color: calendarView === 'weekly' ? '#fff' : 'var(--text-main)', fontWeight: calendarView === 'weekly' ? 700 : 400 }}>Weekly</button>
                       <button onClick={() => setCalendarView('monthly')} style={{ padding: '8px 15px', border: 'none', cursor: 'pointer', background: calendarView === 'monthly' ? 'var(--accent-blue)' : 'transparent', color: calendarView === 'monthly' ? '#fff' : 'var(--text-main)', fontWeight: calendarView === 'monthly' ? 700 : 400 }}>Monthly</button>
@@ -1120,564 +1179,844 @@ export default function ManagerDashboard() {
               </div>
             )}
           </div>
-        </main>
-      </div>
+        </main >
+      </div >
 
       {/* --- ALL MODALS --- */}
 
       {/* SETTINGS & PASSWORD CHANGE MODAL */}
-      {showSettingsModal && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-card" style={{ maxWidth: '500px' }}>
-            <div className="modal-header">
-              <span className="modal-title" style={{ color: 'var(--accent-gold)' }}>Settings</span>
-              <span onClick={resetSettingsState} style={{ cursor: 'pointer' }}>✕</span>
-            </div>
+      {
+        showSettingsModal && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal-card" style={{ maxWidth: '500px' }}>
+              <div className="modal-header">
+                <span className="modal-title" style={{ color: 'var(--accent-gold)' }}>Settings</span>
+                <span onClick={resetSettingsState} style={{ cursor: 'pointer' }}>✕</span>
+              </div>
 
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-              {pwStep === 0 && (
-                <>
-                  <div>
-                    <h4 style={{ color: 'var(--text-main)', marginBottom: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '5px' }}>Appearance</h4>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-input)', padding: '15px', borderRadius: '8px' }}>
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Theme Mode</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Toggle between Dark and Light mode.</div>
-                      </div>
-                      <button
-                        className="btn-view" onClick={() => setLightMode(!lightMode)}
-                        style={{ padding: '8px 15px', color: lightMode ? '#000' : 'var(--accent-gold)', borderColor: 'var(--accent-gold)', background: lightMode ? 'var(--accent-gold)' : 'transparent' }}
-                      >
-                        {lightMode ? '☀ Light Mode' : '☾ Dark Mode'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 style={{ color: 'var(--text-main)', marginBottom: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '5px' }}>Security</h4>
-                    <div style={{ background: 'var(--bg-input)', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Change Password</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A verification code will be sent to your registered email address.</div>
-
-                      <button className="btn-action btn-standard" onClick={handleStartPasswordChange} style={{ alignSelf: 'flex-start' }} disabled={!managerEmailInput.trim() || pwLoading}>
-                        {pwLoading ? "Sending Code..." : "Change Password"}
-                      </button>
-                      {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem' }}>{pwError}</div>}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* STEP 1: VERIFY OTP */}
-              {pwStep === 1 && (
-                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <h4 style={{ color: 'var(--accent-gold)' }}>Verify Identity</h4>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Enter the 6-digit code sent to your registered contact.</p>
-
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', margin: '15px 0' }}>
-                    {otp.map((digit, idx) => (
-                      <input
-                        key={idx} ref={(el) => { otpRefs.current[idx] = el; }}
-                        type="text" inputMode="numeric" maxLength={1} value={digit}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          const newOtp = [...otp]; newOtp[idx] = val; setOtp(newOtp);
-                          if (val && idx < 5) otpRefs.current[idx + 1]?.focus();
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Backspace" && !otp[idx] && idx > 0) {
-                            const newOtp = [...otp]; newOtp[idx - 1] = ""; setOtp(newOtp);
-                            otpRefs.current[idx - 1]?.focus();
-                          }
-                        }}
-                        style={{ width: '45px', height: '55px', textAlign: 'center', fontSize: '1.5rem', backgroundColor: '#1e1e1e', border: '1px solid #444', color: '#fff', borderRadius: '8px' }}
-                      />
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.82rem', margin: '0 0 5px 0' }}>
-                    {otpCountdown > 0 ? (
-                      <span style={{ color: 'var(--text-muted, #666)' }}>RESEND IN {otpCountdown}s</span>
-                    ) : (
-                      <>
-                        <span style={{ color: 'var(--text-muted, #666)' }}>CODE EXPIRED?</span>
-                        <span
-                          onClick={handleResendOtp}
-                          style={{ color: 'var(--accent-gold, #f59e0b)', fontWeight: 700, cursor: resending ? 'not-allowed' : 'pointer', opacity: resending ? 0.6 : 1 }}
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                {pwStep === 0 && (
+                  <>
+                    <div>
+                      <h4 style={{ color: 'var(--text-main)', marginBottom: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '5px' }}>Appearance</h4>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-input)', padding: '15px', borderRadius: '8px' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Theme Mode</div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Toggle between Dark and Light mode.</div>
+                        </div>
+                        <button
+                          className="btn-view" onClick={() => setLightMode(!lightMode)}
+                          style={{ padding: '8px 15px', color: lightMode ? '#000' : 'var(--accent-gold)', borderColor: 'var(--accent-gold)', background: lightMode ? 'var(--accent-gold)' : 'transparent' }}
                         >
-                          {resending ? "RESENDING..." : "RESEND CODE"}
-                        </span>
-                      </>
+                          {lightMode ? '☀ Light Mode' : '☾ Dark Mode'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 style={{ color: 'var(--text-main)', marginBottom: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '5px' }}>Security</h4>
+                      <div style={{ background: 'var(--bg-input)', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Change Password</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>A verification code will be sent to your registered email address.</div>
+
+                        <button className="btn-action btn-standard" onClick={handleStartPasswordChange} style={{ alignSelf: 'flex-start' }} disabled={!managerEmailInput.trim() || pwLoading}>
+                          {pwLoading ? "Sending Code..." : "Change Password"}
+                        </button>
+                        {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem' }}>{pwError}</div>}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* STEP 1: VERIFY OTP */}
+                {pwStep === 1 && (
+                  <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <h4 style={{ color: 'var(--accent-gold)' }}>Verify Identity</h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Enter the 6-digit code sent to your registered contact.</p>
+
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', margin: '15px 0' }}>
+                      {otp.map((digit, idx) => (
+                        <input
+                          key={idx} ref={(el) => { otpRefs.current[idx] = el; }}
+                          type="text" inputMode="numeric" maxLength={1} value={digit}
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "");
+                            const newOtp = [...otp]; newOtp[idx] = val; setOtp(newOtp);
+                            if (val && idx < 5) otpRefs.current[idx + 1]?.focus();
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Backspace" && !otp[idx] && idx > 0) {
+                              const newOtp = [...otp]; newOtp[idx - 1] = ""; setOtp(newOtp);
+                              otpRefs.current[idx - 1]?.focus();
+                            }
+                          }}
+                          style={{ width: '45px', height: '55px', textAlign: 'center', fontSize: '1.5rem', backgroundColor: '#1e1e1e', border: '1px solid #444', color: '#fff', borderRadius: '8px' }}
+                        />
+                      ))}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', fontSize: '0.82rem', margin: '0 0 5px 0' }}>
+                      {otpCountdown > 0 ? (
+                        <span style={{ color: 'var(--text-muted, #666)' }}>RESEND IN {otpCountdown}s</span>
+                      ) : (
+                        <>
+                          <span style={{ color: 'var(--text-muted, #666)' }}>CODE EXPIRED?</span>
+                          <span
+                            onClick={handleResendOtp}
+                            style={{ color: 'var(--accent-gold, #f59e0b)', fontWeight: 700, cursor: resending ? 'not-allowed' : 'pointer', opacity: resending ? 0.6 : 1 }}
+                          >
+                            {resending ? "RESENDING..." : "RESEND CODE"}
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
+
+                    <button className="btn-action btn-go" onClick={handleVerifyOtp} disabled={pwLoading || otp.join('').length < 6} style={{ opacity: (pwLoading || otp.join('').length < 6) ? 0.5 : 1 }}>
+                      {pwLoading ? "Verifying..." : "Verify Code"}
+                    </button>
+                  </div>
+                )}
+
+                {/* STEP 2: SECURITY QUESTION */}
+                {pwStep === 2 && (
+                  <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <h4 style={{ color: 'var(--accent-gold)' }}>Security Question</h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Please answer your security question to continue.</p>
+
+                    <div style={{ background: 'var(--bg-input)', padding: '15px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600 }}>
+                      {secQuestion.text}
+                    </div>
+
+                    <input
+                      type="text" placeholder="Your Answer"
+                      style={{ width: '100%', padding: '12px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
+                      value={secAnswer} onChange={(e) => setSecAnswer(e.target.value)}
+                    />
+
+                    {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
+
+                    <button className="btn-action btn-go" onClick={handleAnswerQuestion} disabled={pwLoading || !secAnswer.trim()} style={{ opacity: (pwLoading || !secAnswer.trim()) ? 0.5 : 1 }}>
+                      {pwLoading ? "Verifying..." : "Submit Answer"}
+                    </button>
+                  </div>
+                )}
+
+                {/* STEP 3: NEW PASSWORD */}
+                {pwStep === 3 && (
+                  <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <h4 style={{ color: 'var(--accent-gold)' }}>Create New Password</h4>
+
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type={showPw ? "text" : "password"} placeholder="New Password"
+                        style={{ width: '100%', padding: '12px', paddingRight: '120px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
+                        value={newPassword} onChange={(e) => setNewPassword(e.target.value.slice(0, 20))}
+                      />
+                      <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '5px' }}>
+                        {showPw ? "Hide Password" : "Show Password"}
+                      </button>
+                    </div>
+
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type={showConfirmPw ? "text" : "password"} placeholder="Confirm Password"
+                        style={{ width: '100%', padding: '12px', paddingRight: '120px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
+                        value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value.slice(0, 20))}
+                      />
+                      <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '5px' }}>
+                        {showConfirmPw ? "Hide Password" : "Show Password"}
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'var(--bg-input)', padding: '15px', borderRadius: '8px' }}>
+                      <div style={{ color: pwValidation.lengthOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• 15-20 characters</div>
+                      <div style={{ color: pwValidation.upperOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• Uppercase letter</div>
+                      <div style={{ color: pwValidation.lowerOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• Lowercase letter</div>
+                      <div style={{ color: pwValidation.numberOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• Number</div>
+                      <div style={{ color: pwValidation.symbolOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• Symbol (! @ ? _ -)</div>
+                      <div style={{ color: passwordsMatch ? 'var(--color-go)' : 'var(--text-muted)' }}>• Passwords match</div>
+                    </div>
+
+                    {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
+
+                    <button className="btn-action btn-go" onClick={handleResetPassword} disabled={pwLoading || !pwValidation.strongOk || !passwordsMatch} style={{ opacity: (pwLoading || !pwValidation.strongOk || !passwordsMatch) ? 0.5 : 1 }}>
+                      {pwLoading ? "Saving..." : "Set New Password"}
+                    </button>
+                  </div>
+                )}
+
+                {/* STEP 4: SUCCESS */}
+                {pwStep === 4 && (
+                  <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', padding: '20px 0' }}>
+                    <div style={{ fontSize: '3rem', color: 'var(--color-go)' }}>✅</div>
+                    <h4 style={{ color: 'var(--text-main)' }}>Password Updated</h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>Your password has been successfully changed.</p>
+                    <button className="btn-view" onClick={resetSettingsState} style={{ marginTop: '10px', padding: '10px 20px' }}>Return to Settings</button>
+                  </div>
+                )}
+
+              </div>
+              {pwStep === 0 && (
+                <div className="modal-footer" style={{ borderTop: 'none', paddingBottom: '20px' }}>
+                  <button className="btn-view" style={{ width: '100%', padding: '14px', fontSize: '1rem' }} onClick={resetSettingsState}>Close Menu</button>
+                </div>
+              )}
+              {pwStep > 0 && pwStep < 4 && (
+                <div className="modal-footer" style={{ borderTop: 'none', paddingBottom: '20px' }}>
+                  <button className="btn-view" style={{ width: '100%', padding: '14px', fontSize: '1rem' }} onClick={resetSettingsState}>Cancel Update</button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+
+      {/* 1. APPROVE TIMESHEET CONFIRMATION MODAL */}
+      {
+        approveModal.show && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+              <div className="modal-body" style={{ padding: '30px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-go)' }}>✅</div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Confirm Approval</h3>
+                <p style={{ color: 'var(--text-muted)' }}>Are you sure you want to approve this timesheet?</p>
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setApproveModal({ show: false, tlogIds: [] })}>Cancel</button>
+                <button className="btn-action btn-go" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeApproveTimesheet} disabled={isLoading}>
+                  {isLoading ? "Processing..." : "Yes, Approve"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* 2. REJECT TIMESHEET REASON MODAL */}
+      {
+        rejectModal.show && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header">
+                <span className="modal-title" style={{ color: 'var(--color-urgent)' }}>Reject Timesheet</span>
+                <span onClick={() => setRejectModal({ show: false, tlogIds: [], reason: '' })} style={{ cursor: 'pointer' }}>✕</span>
+              </div>
+              <div className="modal-body">
+                <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '0.9rem' }}>
+                  Please provide a reason for rejection. This will change the status to <span className="tag tag-out">Action Required</span> and return it to the staff.
+                </p>
+                <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Reason (Letters, numbers, and .,?! only)</label>
+                <textarea
+                  className="input-rounded" rows={4}
+                  style={{ width: '100%', resize: 'none', background: '#1e1e1e', color: '#ffffff', border: '1px solid #444', padding: '15px', borderRadius: '8px' }}
+                  value={rejectModal.reason}
+                  onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
+                  placeholder="e.g. Please verify the end time."
+                />
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setRejectModal({ show: false, tlogIds: [], reason: '' })}>Cancel</button>
+                <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => {
+                  const isValidReason = /^[a-zA-Z0-9.,?! \n]+$/.test(rejectModal.reason);
+                  if (!isValidReason || !rejectModal.reason.trim()) {
+                    alert("Please enter a valid reason.");
+                    return;
+                  }
+                  setRejectConfirmModal(true);
+                }}>Return to Staff</button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* 3. REJECT TIMESHEET CONFIRMATION MODAL */}
+      {
+        rejectConfirmModal && (
+          <div className="modal-overlay" style={{ zIndex: 99999 }}>
+            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+              <div className="modal-body" style={{ padding: '30px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-urgent)' }}>⚠️</div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Confirm Rejection</h3>
+                <p style={{ color: 'var(--text-muted)' }}>Are you sure you want to return this timesheet to the employee? They will be notified of the reason.</p>
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setRejectConfirmModal(false)}>Cancel</button>
+                <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeRejectTimesheet} disabled={isLoading}>
+                  {isLoading ? "Processing..." : "Yes, Reject"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* 4. EDIT SHIFT MODAL */}
+      {
+        editShiftModal.show && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header">
+                <span className="modal-title" style={{ color: 'var(--accent-gold)' }}>Edit Shift</span>
+                <span onClick={() => setEditShiftModal({ ...editShiftModal, show: false })} style={{ cursor: 'pointer' }}>✕</span>
+              </div>
+              <div className="modal-body">
+                <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '0.9rem' }}>
+                  Updating schedule for <strong style={{ color: 'var(--text-main)' }}>{editShiftModal.empName}</strong> on <strong>{editShiftModal.day}</strong>.
+                </p>
+
+                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px', marginBottom: '15px' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Current Shift</div>
+                  <div style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>{editShiftModal.currentShift}</div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <label className="hud-label" style={{ marginBottom: '-5px' }}>Assign New Shift</label>
+                  <select
+                    className="input-rounded"
+                    style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444' }}
+                    value={editShiftModal.newShiftId}
+                    onChange={(e) => setEditShiftModal({ ...editShiftModal, newShiftId: e.target.value })}
+                  >
+                    <option value="" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>-- Select a Shift --</option>
+                    <option value="OFF" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>Day Off (No Shift)</option>
+                    {shiftTemplates.map(shift => (
+                      <option key={shift.shift_id} value={shift.shift_id} style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>
+                        {shift.shift_name} ({shift.time_string})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setEditShiftModal({ ...editShiftModal, show: false })}>Cancel</button>
+                <button
+                  className="btn-action btn-standard"
+                  style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+                  onClick={() => {
+                    if (!editShiftModal.newShiftId) {
+                      alert("Please select a new shift from the dropdown.");
+                      return;
+                    }
+                    setSaveShiftConfirmModal(true);
+                  }}
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* 5. SHIFT SAVE CONFIRMATION MODAL */}
+      {
+        saveShiftConfirmModal && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+              <div className="modal-body" style={{ padding: '30px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--accent-gold)' }}>⚠️</div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Confirm Shift Change</h3>
+                <p style={{ color: 'var(--text-muted)' }}>
+                  Are you sure you want to change the shift for <strong style={{ color: 'var(--text-main)' }}>{editShiftModal.empName}</strong> on <strong>{editShiftModal.day}</strong>?
+                </p>
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setSaveShiftConfirmModal(false)}>Cancel</button>
+                <button className="btn-action btn-go" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeSaveShiftEdit} disabled={isLoading}>
+                  {isLoading ? "Saving..." : "Confirm Change"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* 6. LOGOUT CONFIRMATION MODAL */}
+      {
+        logoutModal && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+              <div className="modal-body" style={{ padding: '30px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🚪</div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Log Out</h3>
+                <p style={{ color: 'var(--text-muted)' }}>Are you sure you want to end your session and return to the login page?</p>
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setLogoutModal(false)}>Cancel</button>
+                <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeLogout}>Yes, Log Out</button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* 7. ACTIVE SESSION NOTICE MODAL */}
+      {
+        activeSessionNotice && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+              <div className="modal-body" style={{ padding: '30px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-urgent)' }}>⚠️</div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Active Session Detected</h3>
+                <p style={{ color: 'var(--text-muted)' }}>You are currently clocked in. Please clock out before logging out to ensure your time is recorded correctly.</p>
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'center', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-action btn-standard" style={{ padding: '10px 30px', fontSize: '1rem' }} onClick={() => setActiveSessionNotice(false)}>Understood</button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* OTHER EXISTING MODALS (Schedule Override, Activity) */}
+      {
+        showScheduleModal && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header">
+                <span className="modal-title" style={{ color: 'var(--accent-gold)' }}>Add Schedule Override</span>
+                <span onClick={() => setShowScheduleModal(false)} style={{ cursor: 'pointer' }}>✕</span>
+              </div>
+              <div className="modal-body">
+                <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '0.8rem' }}>
+                  Assign a specific task and time slot to an employee.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ position: 'relative' }}>
+                    <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Search Employee</label>
+                    <input
+                      type="text"
+                      className="input-rounded"
+                      placeholder="Type name (e.g. John)..."
+                      value={selectedEmp ? `${selectedEmp.first_name} ${selectedEmp.last_name}` : schedSearch}
+                      onChange={(e) => {
+                        setSchedSearch(e.target.value);
+                        setSelectedEmp(null);
+                      }}
+                      style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
+                    />
+                    {schedResults.length > 0 && !selectedEmp && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0,
+                        background: 'var(--bg-panel)', border: '1px solid var(--border-subtle)',
+                        zIndex: 10, borderRadius: '8px', maxHeight: '150px', overflowY: 'auto'
+                      }}>
+                        {schedResults.map(emp => (
+                          <div
+                            key={emp.user_id}
+                            style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)' }}
+                            onClick={() => {
+                              setSelectedEmp(emp);
+                              setSchedResults([]);
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-input)'}
+                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{ fontWeight: 600 }}>{emp.first_name} {emp.last_name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{emp.user_id} • {emp.D_tbldepartment?.dept_name}</div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
 
-                  {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
-
-                  <button className="btn-action btn-go" onClick={handleVerifyOtp} disabled={pwLoading || otp.join('').length < 6} style={{ opacity: (pwLoading || otp.join('').length < 6) ? 0.5 : 1 }}>
-                    {pwLoading ? "Verifying..." : "Verify Code"}
-                  </button>
-                </div>
-              )}
-
-              {/* STEP 2: SECURITY QUESTION */}
-              {pwStep === 2 && (
-                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <h4 style={{ color: 'var(--accent-gold)' }}>Security Question</h4>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Please answer your security question to continue.</p>
-
-                  <div style={{ background: 'var(--bg-input)', padding: '15px', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600 }}>
-                    {secQuestion.text}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Date</label>
+                      <input type="date" className="input-rounded" value={schedForm.date} onChange={(e) => setSchedForm({ ...schedForm, date: e.target.value })} style={{ width: '100%', padding: '12px' }} />
+                    </div>
+                    <div>
+                      <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Time Slot (Start - End)</label>
+                      <div style={{ display: 'flex', gap: '5px' }}>
+                        <input type="time" className="input-rounded" value={schedForm.start} onChange={(e) => setSchedForm({ ...schedForm, start: e.target.value })} style={{ width: '100%', padding: '12px' }} />
+                        <input type="time" className="input-rounded" value={schedForm.end} onChange={(e) => setSchedForm({ ...schedForm, end: e.target.value })} style={{ width: '100%', padding: '12px' }} />
+                      </div>
+                    </div>
                   </div>
 
-                  <input
-                    type="text" placeholder="Your Answer"
-                    style={{ width: '100%', padding: '12px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
-                    value={secAnswer} onChange={(e) => setSecAnswer(e.target.value)}
-                  />
-
-                  {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
-
-                  <button className="btn-action btn-go" onClick={handleAnswerQuestion} disabled={pwLoading || !secAnswer.trim()} style={{ opacity: (pwLoading || !secAnswer.trim()) ? 0.5 : 1 }}>
-                    {pwLoading ? "Verifying..." : "Submit Answer"}
-                  </button>
-                </div>
-              )}
-
-              {/* STEP 3: NEW PASSWORD */}
-              {pwStep === 3 && (
-                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <h4 style={{ color: 'var(--accent-gold)' }}>Create New Password</h4>
-
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <input
-                      type={showPw ? "text" : "password"} placeholder="New Password"
-                      style={{ width: '100%', padding: '12px', paddingRight: '120px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
-                      value={newPassword} onChange={(e) => setNewPassword(e.target.value.slice(0, 20))}
-                    />
-                    <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '5px' }}>
-                      {showPw ? "Hide Password" : "Show Password"}
-                    </button>
+                  <div>
+                    <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Assigned Task</label>
+                    <input type="text" className="input-rounded" placeholder="e.g. Emergency Room Support" value={schedForm.task} onChange={(e) => setSchedForm({ ...schedForm, task: e.target.value })} style={{ width: '100%', padding: '12px' }} />
                   </div>
-
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <input
-                      type={showConfirmPw ? "text" : "password"} placeholder="Confirm Password"
-                      style={{ width: '100%', padding: '12px', paddingRight: '120px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
-                      value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value.slice(0, 20))}
-                    />
-                    <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} style={{ position: 'absolute', right: '10px', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '5px' }}>
-                      {showConfirmPw ? "Hide Password" : "Show Password"}
-                    </button>
-                  </div>
-
-                  <div style={{ fontSize: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', background: 'var(--bg-input)', padding: '15px', borderRadius: '8px' }}>
-                    <div style={{ color: pwValidation.lengthOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• 15-20 characters</div>
-                    <div style={{ color: pwValidation.upperOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• Uppercase letter</div>
-                    <div style={{ color: pwValidation.lowerOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• Lowercase letter</div>
-                    <div style={{ color: pwValidation.numberOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• Number</div>
-                    <div style={{ color: pwValidation.symbolOk ? 'var(--color-go)' : 'var(--text-muted)' }}>• Symbol (! @ ? _ -)</div>
-                    <div style={{ color: passwordsMatch ? 'var(--color-go)' : 'var(--text-muted)' }}>• Passwords match</div>
-                  </div>
-
-                  {pwError && <div style={{ color: 'var(--color-urgent)', fontSize: '0.85rem', textAlign: 'center' }}>{pwError}</div>}
-
-                  <button className="btn-action btn-go" onClick={handleResetPassword} disabled={pwLoading || !pwValidation.strongOk || !passwordsMatch} style={{ opacity: (pwLoading || !pwValidation.strongOk || !passwordsMatch) ? 0.5 : 1 }}>
-                    {pwLoading ? "Saving..." : "Set New Password"}
-                  </button>
                 </div>
-              )}
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <button className="btn-view" style={{ padding: '12px', fontSize: '1rem' }} onClick={() => setShowScheduleModal(false)}>Cancel</button>
+                <button className="btn-action btn-standard" style={{ padding: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={handleAssignSchedule} disabled={isLoading}>
+                  {isLoading ? "Saving..." : "Assign Schedule"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
-              {/* STEP 4: SUCCESS */}
-              {pwStep === 4 && (
-                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', padding: '20px 0' }}>
-                  <div style={{ fontSize: '3rem', color: 'var(--color-go)' }}>✅</div>
-                  <h4 style={{ color: 'var(--text-main)' }}>Password Updated</h4>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>Your password has been successfully changed.</p>
-                  <button className="btn-view" onClick={resetSettingsState} style={{ marginTop: '10px', padding: '10px 20px' }}>Return to Settings</button>
+      {
+        showActivityModal && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header">
+                <span className="modal-title" style={{ color: 'var(--text-main)' }}>Manage Activities</span>
+                <span onClick={() => setShowActivityModal(false)} style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>✕</span>
+              </div>
+              <div className="modal-body">
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <input type="text" className="input-rounded" placeholder="New Activity Code" style={{ flex: 1, padding: '12px' }} />
+                  <button className="btn-action btn-go" style={{ width: 'auto', padding: '0 25px' }}>Add</button>
                 </div>
-              )}
-
-            </div>
-            {pwStep === 0 && (
-              <div className="modal-footer" style={{ borderTop: 'none', paddingBottom: '20px' }}>
-                <button className="btn-view" style={{ width: '100%', padding: '14px', fontSize: '1rem' }} onClick={resetSettingsState}>Close Menu</button>
               </div>
-            )}
-            {pwStep > 0 && pwStep < 4 && (
-              <div className="modal-footer" style={{ borderTop: 'none', paddingBottom: '20px' }}>
-                <button className="btn-view" style={{ width: '100%', padding: '14px', fontSize: '1rem' }} onClick={resetSettingsState}>Cancel Update</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 1. APPROVE TIMESHEET CONFIRMATION MODAL */}
-      {approveModal.show && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
-            <div className="modal-body" style={{ padding: '30px 20px' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-go)' }}>✅</div>
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Confirm Approval</h3>
-              <p style={{ color: 'var(--text-muted)' }}>Are you sure you want to approve this timesheet?</p>
-            </div>
-            <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
-              <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setApproveModal({ show: false, tlogIds: [] })}>Cancel</button>
-              <button className="btn-action btn-go" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeApproveTimesheet} disabled={isLoading}>
-                {isLoading ? "Processing..." : "Yes, Approve"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. REJECT TIMESHEET REASON MODAL */}
-      {rejectModal.show && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <span className="modal-title" style={{ color: 'var(--color-urgent)' }}>Reject Timesheet</span>
-              <span onClick={() => setRejectModal({ show: false, tlogIds: [], reason: '' })} style={{ cursor: 'pointer' }}>✕</span>
-            </div>
-            <div className="modal-body">
-              <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '0.9rem' }}>
-                Please provide a reason for rejection. This will change the status to <span className="tag tag-out">Action Required</span> and return it to the staff.
-              </p>
-              <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Reason (Letters, numbers, and .,?! only)</label>
-              <textarea
-                className="input-rounded" rows={4}
-                style={{ width: '100%', resize: 'none', background: '#1e1e1e', color: '#ffffff', border: '1px solid #444', padding: '15px', borderRadius: '8px' }}
-                value={rejectModal.reason}
-                onChange={(e) => setRejectModal({ ...rejectModal, reason: e.target.value })}
-                placeholder="e.g. Please verify the end time."
-              />
-            </div>
-            <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
-              <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setRejectModal({ show: false, tlogIds: [], reason: '' })}>Cancel</button>
-              <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => {
-                const isValidReason = /^[a-zA-Z0-9.,?! \n]+$/.test(rejectModal.reason);
-                if (!isValidReason || !rejectModal.reason.trim()) {
-                  alert("Please enter a valid reason.");
-                  return;
-                }
-                setRejectConfirmModal(true);
-              }}>Return to Staff</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. REJECT TIMESHEET CONFIRMATION MODAL */}
-      {rejectConfirmModal && (
-        <div className="modal-overlay" style={{ zIndex: 99999 }}>
-          <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
-            <div className="modal-body" style={{ padding: '30px 20px' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-urgent)' }}>⚠️</div>
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Confirm Rejection</h3>
-              <p style={{ color: 'var(--text-muted)' }}>Are you sure you want to return this timesheet to the employee? They will be notified of the reason.</p>
-            </div>
-            <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
-              <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setRejectConfirmModal(false)}>Cancel</button>
-              <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeRejectTimesheet} disabled={isLoading}>
-                {isLoading ? "Processing..." : "Yes, Reject"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. EDIT SHIFT MODAL */}
-      {editShiftModal.show && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <span className="modal-title" style={{ color: 'var(--accent-gold)' }}>Edit Shift</span>
-              <span onClick={() => setEditShiftModal({ ...editShiftModal, show: false })} style={{ cursor: 'pointer' }}>✕</span>
-            </div>
-            <div className="modal-body">
-              <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '0.9rem' }}>
-                Updating schedule for <strong style={{ color: 'var(--text-main)' }}>{editShiftModal.empName}</strong> on <strong>{editShiftModal.day}</strong>.
-              </p>
-
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '8px', marginBottom: '15px' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Current Shift</div>
-                <div style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>{editShiftModal.currentShift}</div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <label className="hud-label" style={{ marginBottom: '-5px' }}>Assign New Shift</label>
-                <select
-                  className="input-rounded"
-                  style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444' }}
-                  value={editShiftModal.newShiftId}
-                  onChange={(e) => setEditShiftModal({ ...editShiftModal, newShiftId: e.target.value })}
-                >
-                  <option value="" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>-- Select a Shift --</option>
-                  <option value="OFF" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>Day Off (No Shift)</option>
-                  {shiftTemplates.map(shift => (
-                    <option key={shift.shift_id} value={shift.shift_id} style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>
-                      {shift.shift_name} ({shift.time_string})
-                    </option>
-                  ))}
-                </select>
+              <div className="modal-footer">
+                <button className="btn-action btn-standard" onClick={() => setShowActivityModal(false)}>Done</button>
               </div>
             </div>
-            <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
-              <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setEditShiftModal({ ...editShiftModal, show: false })}>Cancel</button>
-              <button
-                className="btn-action btn-standard"
-                style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-                onClick={() => {
-                  if (!editShiftModal.newShiftId) {
-                    alert("Please select a new shift from the dropdown.");
-                    return;
-                  }
-                  setSaveShiftConfirmModal(true);
-                }}
-                disabled={isLoading}
-              >
-                {isLoading ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {/* 5. SHIFT SAVE CONFIRMATION MODAL */}
-      {saveShiftConfirmModal && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
-            <div className="modal-body" style={{ padding: '30px 20px' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--accent-gold)' }}>⚠️</div>
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Confirm Shift Change</h3>
-              <p style={{ color: 'var(--text-muted)' }}>
-                Are you sure you want to change the shift for <strong style={{ color: 'var(--text-main)' }}>{editShiftModal.empName}</strong> on <strong>{editShiftModal.day}</strong>?
-              </p>
-            </div>
-            <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
-              <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setSaveShiftConfirmModal(false)}>Cancel</button>
-              <button className="btn-action btn-go" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeSaveShiftEdit} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Confirm Change"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {
+        detailsModal.show && detailsModal.timesheet && (
+          <div className="modal-overlay" style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="modal-card fade-in-up" style={{ width: '90%', maxWidth: '900px', background: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-subtle)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+              <div className="modal-header" style={{ padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-deep)' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 700 }}>Timesheet Detail: {detailsModal.timesheet.employee_name}</h3>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontFamily: 'var(--font-mono)' }}>Date: {detailsModal.timesheet.date}</span>
+                </div>
+                <span onClick={() => setDetailsModal({ show: false, timesheet: null })} style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.5rem', padding: '0 10px' }}>✕</span>
+              </div>
 
-      {/* 6. LOGOUT CONFIRMATION MODAL */}
-      {logoutModal && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
-            <div className="modal-body" style={{ padding: '30px 20px' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '15px' }}>🚪</div>
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Log Out</h3>
-              <p style={{ color: 'var(--text-muted)' }}>Are you sure you want to end your session and return to the login page?</p>
-            </div>
-            <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
-              <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setLogoutModal(false)}>Cancel</button>
-              <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeLogout}>Yes, Log Out</button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="modal-body" style={{ padding: '0', overflowY: 'auto', flex: 1 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-panel)', boxShadow: '0 1px 0 var(--border-subtle)' }}>
+                    <tr>
+                      <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Activity</th>
+                      <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Category</th>
+                      <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Notes</th>
+                      <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem', textAlign: 'right' }}>Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailsModal.timesheet.activities.map((act: any, idx: number) => {
+                      const durHeader = Number(act.hours || 0).toFixed(2);
+                      let hoursText = (durHeader === '0.00' && act.hours > 0) ? '<0.01h' : `${durHeader}h`;
 
-      {/* 7. ACTIVE SESSION NOTICE MODAL */}
-      {activeSessionNotice && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
-            <div className="modal-body" style={{ padding: '30px 20px' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-urgent)' }}>⚠️</div>
-              <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Active Session Detected</h3>
-              <p style={{ color: 'var(--text-muted)' }}>You are currently clocked in. Please clock out before logging out to ensure your time is recorded correctly.</p>
-            </div>
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'center', borderTop: 'none', paddingBottom: '30px' }}>
-              <button className="btn-action btn-standard" style={{ padding: '10px 30px', fontSize: '1rem' }} onClick={() => setActiveSessionNotice(false)}>Understood</button>
-            </div>
-          </div>
-        </div>
-      )}
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-soft)' }}>
+                          <td style={{ padding: '15px 25px', color: 'var(--text-main)', fontWeight: 600 }}>{act.activity_name || "Unknown"}</td>
+                          <td style={{ padding: '15px 25px', color: 'var(--text-muted)' }}>{act.category || "General"}</td>
+                          <td style={{ padding: '15px 25px', color: 'var(--text-muted)', fontStyle: act.notes ? 'normal' : 'italic' }}>{act.notes || "No notes provided"}</td>
+                          <td style={{ padding: '15px 25px', color: 'var(--accent-blue)', fontWeight: 700, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{hoursText}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-      {/* OTHER EXISTING MODALS (Schedule Override, Activity) */}
-      {showScheduleModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <span className="modal-title" style={{ color: 'var(--accent-gold)' }}>Add Schedule Override</span>
-              <span onClick={() => setShowScheduleModal(false)} style={{ cursor: 'pointer' }}>✕</span>
-            </div>
-            <div className="modal-body">
-              <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '0.8rem' }}>
-                Assign a specific task and time slot to an employee.
-              </p>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <div style={{ position: 'relative' }}>
-                  <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Search Employee</label>
-                  <input
-                    type="text"
-                    className="input-rounded"
-                    placeholder="Type name (e.g. John)..."
-                    value={selectedEmp ? `${selectedEmp.first_name} ${selectedEmp.last_name}` : schedSearch}
-                    onChange={(e) => {
-                      setSchedSearch(e.target.value);
-                      setSelectedEmp(null);
+              <div className="modal-footer" style={{ padding: '20px 25px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>
+                  Total Hours: <span style={{ fontWeight: 700, color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)' }}>{detailsModal.timesheet.total_hours.toFixed(2)} Hrs</span>
+                </div>
+                <div style={{ display: 'flex', gap: '15px' }}>
+                  <button
+                    className="btn-action"
+                    style={{
+                      padding: '10px 20px',
+                      background: 'transparent',
+                      color: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'var(--accent-pink)' : 'var(--text-muted)',
+                      border: `1px solid ${detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'var(--accent-pink)' : 'var(--border-subtle)'}`,
+                      opacity: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 1 : 0.5,
+                      cursor: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'pointer' : 'not-allowed'
                     }}
-                    style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid #444', borderRadius: '8px' }}
-                  />
-                  {schedResults.length > 0 && !selectedEmp && (
-                    <div style={{
-                      position: 'absolute', top: '100%', left: 0, right: 0,
-                      background: 'var(--bg-panel)', border: '1px solid var(--border-subtle)',
-                      zIndex: 10, borderRadius: '8px', maxHeight: '150px', overflowY: 'auto'
-                    }}>
-                      {schedResults.map(emp => (
-                        <div
-                          key={emp.user_id}
-                          style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)' }}
-                          onClick={() => {
-                            setSelectedEmp(emp);
-                            setSchedResults([]);
-                          }}
-                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-input)'}
-                          onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <div style={{ fontWeight: 600 }}>{emp.first_name} {emp.last_name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{emp.user_id} • {emp.D_tbldepartment?.dept_name}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    onClick={() => {
+                      setDetailsModal({ show: false, timesheet: null });
+                      setRejectModal({ show: true, tlogIds: detailsModal.timesheet.activities.map((a: any) => a.tlog_id), reason: "" });
+                    }}
+                    disabled={detailsModal.timesheet.approval_status !== 'SUPERVISOR_APPROVED'}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    className="btn-action"
+                    style={{ padding: '10px 25px', background: 'var(--color-go)', color: '#000', fontWeight: 700, border: 'none' }}
+                    onClick={() => {
+                      setDetailsModal({ show: false, timesheet: null });
+                      setApproveModal({ show: true, tlogIds: detailsModal.timesheet.activities.map((a: any) => a.tlog_id) });
+                    }}
+                    disabled={detailsModal.timesheet.approval_status !== 'SUPERVISOR_APPROVED'}
+                  >
+                    {detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'Approve Timesheet' : 'Pending Supervisor'}
+                  </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+      {/* 4. ASSIGN SCHEDULE MODAL */}
+      {
+        showAssignModal && (
+          <div className="modal-overlay" style={{ zIndex: 99999 }} onClick={() => setShowAssignModal(false)}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px', padding: '0', overflow: 'hidden' }}>
+              <div style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(0,0,0,0) 100%)', padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', color: 'var(--accent-blue)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>📅</div>
                   <div>
-                    <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Date</label>
-                    <input type="date" className="input-rounded" value={schedForm.date} onChange={(e) => setSchedForm({ ...schedForm, date: e.target.value })} style={{ width: '100%', padding: '12px' }} />
+                    <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 700, letterSpacing: '0.5px' }}>Assign Schedule</h3>
+                    <p style={{ margin: '5px 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Set up a weekly schedule for an employee.</p>
                   </div>
-                  <div>
-                    <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Time Slot (Start - End)</label>
-                    <div style={{ display: 'flex', gap: '5px' }}>
-                      <input type="time" className="input-rounded" value={schedForm.start} onChange={(e) => setSchedForm({ ...schedForm, start: e.target.value })} style={{ width: '100%', padding: '12px' }} />
-                      <input type="time" className="input-rounded" value={schedForm.end} onChange={(e) => setSchedForm({ ...schedForm, end: e.target.value })} style={{ width: '100%', padding: '12px' }} />
-                    </div>
-                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding: '25px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <label className="label-sm" style={{ marginBottom: '8px', display: 'block' }}>Employee *</label>
+                  <select
+                    className="input-field"
+                    style={{ width: '100%', padding: '12px', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', color: 'var(--text-main)' }}
+                    value={assignForm.employee_id}
+                    onChange={(e) => setAssignForm({ ...assignForm, employee_id: e.target.value })}
+                  >
+                    <option value="">Select Employee</option>
+                    {scheduleData.filter((member: any) => member.role_id === 1).map((member: any) => (
+                      <option key={member.user_id} value={member.user_id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
-                  <label className="hud-label" style={{ marginBottom: '5px', display: 'block' }}>Assigned Task</label>
-                  <input type="text" className="input-rounded" placeholder="e.g. Emergency Room Support" value={schedForm.task} onChange={(e) => setSchedForm({ ...schedForm, task: e.target.value })} style={{ width: '100%', padding: '12px' }} />
+                  <label className="label-sm" style={{ marginBottom: '8px', display: 'block' }}>Shift *</label>
+                  <select
+                    className="input-field"
+                    style={{ width: '100%', padding: '12px', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', color: 'var(--text-main)' }}
+                    value={assignForm.shift_id}
+                    onChange={(e) => setAssignForm({ ...assignForm, shift_id: e.target.value })}
+                  >
+                    <option value="">Select Shift</option>
+                    {shiftTemplates.map((shift: any) => (
+                      <option key={shift.shift_id} value={shift.shift_id}>
+                        {shift.shift_name} ({shift.time_string})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label-sm" style={{ marginBottom: '10px', display: 'block' }}>Days to Assign *</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                    {(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const).map(day => (
+                      <label
+                        key={day}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '8px',
+                          padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                          background: assignForm.days[day] ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-input)',
+                          border: `1px solid ${assignForm.days[day] ? 'var(--accent-blue)' : 'var(--border-subtle)'}`,
+                          transition: 'all 0.2s', fontSize: '0.85rem', fontWeight: 600,
+                          color: assignForm.days[day] ? 'var(--accent-blue)' : 'var(--text-muted)',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={assignForm.days[day]}
+                          onChange={(e) => setAssignForm({ ...assignForm, days: { ...assignForm.days, [day]: e.target.checked } })}
+                          style={{ accentColor: 'var(--accent-blue)', width: '16px', height: '16px' }}
+                        />
+                        {day.charAt(0).toUpperCase() + day.slice(1, 3)}
+                      </label>
+                    ))}
+                    <label
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                        background: Object.values(assignForm.days).every(v => v) ? 'rgba(74, 222, 128, 0.15)' : 'var(--bg-input)',
+                        border: `1px solid ${Object.values(assignForm.days).every(v => v) ? '#4ade80' : 'var(--border-subtle)'}`,
+                        transition: 'all 0.2s', fontSize: '0.85rem', fontWeight: 700,
+                        color: Object.values(assignForm.days).every(v => v) ? '#4ade80' : 'var(--text-muted)',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Object.values(assignForm.days).every(v => v)}
+                        onChange={(e) => {
+                          const allChecked = e.target.checked;
+                          setAssignForm({ ...assignForm, days: { monday: allChecked, tuesday: allChecked, wednesday: allChecked, thursday: allChecked, friday: allChecked, saturday: allChecked, sunday: allChecked } });
+                        }}
+                        style={{ accentColor: '#4ade80', width: '16px', height: '16px' }}
+                      />
+                      All
+                    </label>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-              <button className="btn-view" style={{ padding: '12px', fontSize: '1rem' }} onClick={() => setShowScheduleModal(false)}>Cancel</button>
-              <button className="btn-action btn-standard" style={{ padding: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={handleAssignSchedule} disabled={isLoading}>
-                {isLoading ? "Saving..." : "Assign Schedule"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showActivityModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <span className="modal-title" style={{ color: 'var(--text-main)' }}>Manage Activities</span>
-              <span onClick={() => setShowActivityModal(false)} style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>✕</span>
-            </div>
-            <div className="modal-body">
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <input type="text" className="input-rounded" placeholder="New Activity Code" style={{ flex: 1, padding: '12px' }} />
-                <button className="btn-action btn-go" style={{ width: 'auto', padding: '0 25px' }}>Add</button>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-action btn-standard" onClick={() => setShowActivityModal(false)}>Done</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {detailsModal.show && detailsModal.timesheet && (
-        <div className="modal-overlay" style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div className="modal-card fade-in-up" style={{ width: '90%', maxWidth: '900px', background: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-subtle)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-            <div className="modal-header" style={{ padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-deep)' }}>
-              <div>
-                <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 700 }}>Timesheet Detail: {detailsModal.timesheet.employee_name}</h3>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontFamily: 'var(--font-mono)' }}>Date: {detailsModal.timesheet.date}</span>
-              </div>
-              <span onClick={() => setDetailsModal({ show: false, timesheet: null })} style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.5rem', padding: '0 10px' }}>✕</span>
-            </div>
-
-            <div className="modal-body" style={{ padding: '0', overflowY: 'auto', flex: 1 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-panel)', boxShadow: '0 1px 0 var(--border-subtle)' }}>
-                  <tr>
-                    <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Activity</th>
-                    <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Category</th>
-                    <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Notes</th>
-                    <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem', textAlign: 'right' }}>Hours</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detailsModal.timesheet.activities.map((act: any, idx: number) => {
-                    const durHeader = Number(act.hours || 0).toFixed(2);
-                    let hoursText = (durHeader === '0.00' && act.hours > 0) ? '<0.01h' : `${durHeader}h`;
-
-                    return (
-                      <tr key={idx} style={{ borderBottom: '1px solid var(--border-soft)' }}>
-                        <td style={{ padding: '15px 25px', color: 'var(--text-main)', fontWeight: 600 }}>{act.activity_name || "Unknown"}</td>
-                        <td style={{ padding: '15px 25px', color: 'var(--text-muted)' }}>{act.category || "General"}</td>
-                        <td style={{ padding: '15px 25px', color: 'var(--text-muted)', fontStyle: act.notes ? 'normal' : 'italic' }}>{act.notes || "No notes provided"}</td>
-                        <td style={{ padding: '15px 25px', color: 'var(--accent-blue)', fontWeight: 700, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{hoursText}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="modal-footer" style={{ padding: '20px 25px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>
-                Total Hours: <span style={{ fontWeight: 700, color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)' }}>{detailsModal.timesheet.total_hours.toFixed(2)} Hrs</span>
-              </div>
-              <div style={{ display: 'flex', gap: '15px' }}>
+              <div className="modal-footer" style={{ display: 'flex', gap: '15px', padding: '20px 25px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-panel)' }}>
+                <button className="btn-view" style={{ flex: 1, padding: '12px' }} onClick={() => setShowAssignModal(false)}>Cancel</button>
                 <button
-                  className="btn-action"
-                  style={{
-                    padding: '10px 20px',
-                    background: 'transparent',
-                    color: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'var(--accent-pink)' : 'var(--text-muted)',
-                    border: `1px solid ${detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'var(--accent-pink)' : 'var(--border-subtle)'}`,
-                    opacity: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 1 : 0.5,
-                    cursor: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'pointer' : 'not-allowed'
-                  }}
+                  className="btn-action btn-go"
+                  style={{ flex: 1, padding: '12px', fontWeight: 600, border: 'none' }}
                   onClick={() => {
-                    setDetailsModal({ show: false, timesheet: null });
-                    setRejectModal({ show: true, tlogIds: detailsModal.timesheet.activities.map((a: any) => a.tlog_id), reason: "" });
+                    if (!assignForm.employee_id) { alert('Please select an employee.'); return; }
+                    if (!assignForm.shift_id) { alert('Please select a shift.'); return; }
+                    const selectedDays = Object.entries(assignForm.days).filter(([, v]) => v).map(([k]) => k);
+                    if (selectedDays.length === 0) { alert('Please select at least one day.'); return; }
+
+                    // Check for conflicts
+                    const empData = scheduleData.find((e: any) => e.user_id === assignForm.employee_id);
+                    const conflictDays: string[] = [];
+                    if (empData) {
+                      selectedDays.forEach(day => {
+                        if (empData.schedule && empData.schedule[day] !== null) {
+                          conflictDays.push(day);
+                        }
+                      });
+                    }
+
+                    setAssignConfirmModal({ show: true, hasConflicts: conflictDays.length > 0, conflictDays });
                   }}
-                  disabled={detailsModal.timesheet.approval_status !== 'SUPERVISOR_APPROVED'}
-                >
-                  Reject
-                </button>
+                >Save Schedule</button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* 5. ASSIGN CONFIRM MODAL */}
+      {
+        assignConfirmModal.show && (
+          <div className="modal-overlay" style={{ zIndex: 999999 }} onClick={() => !assignSaving && setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] })}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '420px', padding: '0', overflow: 'hidden' }}>
+              <div style={{ padding: '30px 20px', textAlign: 'center' }}>
+                <div style={{ fontSize: '3.5rem', marginBottom: '15px' }}>
+                  {assignConfirmModal.hasConflicts ? '⚠️' : '📋'}
+                </div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px', fontSize: '1.2rem', fontWeight: 700 }}>
+                  {assignConfirmModal.hasConflicts ? 'Schedule Conflict' : 'Confirm Assignment'}
+                </h3>
+                {assignConfirmModal.hasConflicts ? (
+                  <div>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '15px' }}>
+                      This employee already has a schedule on:
+                    </p>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '15px' }}>
+                      {assignConfirmModal.conflictDays.map(d => (
+                        <span key={d} style={{ padding: '4px 12px', borderRadius: '6px', background: 'rgba(251, 191, 36, 0.15)', color: '#fbbf24', fontSize: '0.85rem', fontWeight: 700, textTransform: 'capitalize', border: '1px solid rgba(251,191,36,0.3)' }}>{d}</span>
+                      ))}
+                    </div>
+                    <p style={{ color: '#f87171', fontSize: '0.9rem', fontWeight: 600, padding: '10px', background: 'rgba(248, 113, 113, 0.1)', borderRadius: '8px' }}>
+                      Saving will overwrite the existing schedule.
+                    </p>
+                  </div>
+                ) : (
+                  <p style={{ color: 'var(--text-muted)' }}>
+                    Are you sure you want to assign this schedule?
+                  </p>
+                )}
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', gap: '15px', padding: '20px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-panel)' }}>
+                <button className="btn-view" style={{ flex: 1, padding: '12px' }} onClick={() => setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] })} disabled={assignSaving}>Cancel</button>
                 <button
-                  className="btn-action"
-                  style={{ padding: '10px 25px', background: 'var(--color-go)', color: '#000', fontWeight: 700, border: 'none' }}
-                  onClick={() => {
-                    setDetailsModal({ show: false, timesheet: null });
-                    setApproveModal({ show: true, tlogIds: detailsModal.timesheet.activities.map((a: any) => a.tlog_id) });
+                  className="btn-action btn-go"
+                  style={{ flex: 1, padding: '12px', fontWeight: 600, border: 'none', background: assignConfirmModal.hasConflicts ? '#f87171' : 'var(--color-go)', color: assignConfirmModal.hasConflicts ? '#fff' : '#000' }}
+                  disabled={assignSaving}
+                  onClick={async () => {
+                    setAssignSaving(true);
+                    try {
+                      const selectedDays = Object.entries(assignForm.days).filter(([, v]) => v).map(([k]) => k);
+                      const shiftId = Number(assignForm.shift_id);
+
+                      const payload: Record<string, any> = {
+                        user_id: assignForm.employee_id,
+                      };
+
+                      const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                      allDays.forEach(day => {
+                        payload[`${day}_shift_id`] = selectedDays.includes(day) ? shiftId : null;
+                      });
+
+                      // Check if employee already has a schedule (update) or doesn't (create)
+                      // The manager API doesn't return schedule_id in the list right now,
+                      // BUT we can just construct an update payload with all 7 days and try update
+                      // Wait, the manager `list` route returns `schedule` grouped by day. 
+                      // Let's just create a full body for update, then try create. But we don't know schedule_id.
+                      // Oh, the Manager API `update` route relies on `targetUserId` finding the active schedule internally if `schedule_id` isn't provided!
+                      // Wait, earlier I modified `api/manager/schedule/update` to require `schedule_id`, but let's change that there to look it up!
+                      // I will do that lookup on the frontend if I can, but `scheduleData` from manager list doesn't have `schedule_id`.
+                      // So I will make the backend look it up if `schedule_id` is missing but `monday_shift_id` is provided.
+                      // Actually, a simpler approach: `api/manager/schedule/create/route.ts` deactivates ALL existing active schedules for the user before creating a new one!
+                      // Therefore, we can ALWAYS just call `create` because it handles upserts perfectly (by overwriting).
+
+                      const res = await fetch('/api/manager/schedule/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                      });
+
+                      if (res.ok) {
+                        setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] });
+                        setShowAssignModal(false);
+                        setAssignResultModal({ show: true, success: true, message: 'Schedule assigned successfully!' });
+                        fetchScheduleData();
+                      } else {
+                        const data = await res.json();
+                        setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] });
+                        setAssignResultModal({ show: true, success: false, message: data.message || 'Failed to assign schedule.' });
+                      }
+                    } catch (err) {
+                      setAssignConfirmModal({ show: false, hasConflicts: false, conflictDays: [] });
+                      setAssignResultModal({ show: true, success: false, message: 'Connection error. Please try again.' });
+                    } finally {
+                      setAssignSaving(false);
+                    }
                   }}
-                  disabled={detailsModal.timesheet.approval_status !== 'SUPERVISOR_APPROVED'}
                 >
-                  {detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'Approve Timesheet' : 'Pending Supervisor'}
+                  {assignSaving ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                      Saving...
+                    </span>
+                  ) : assignConfirmModal.hasConflicts ? 'Overwrite & Save' : 'Confirm'}
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
+      {/* 6. ASSIGN RESULT MODAL */}
+      {
+        assignResultModal.show && (
+          <div className="modal-overlay" style={{ zIndex: 999999 }} onClick={() => setAssignResultModal({ show: false, success: false, message: '' })}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '380px', padding: '0', overflow: 'hidden', textAlign: 'center' }}>
+              <div style={{ padding: '40px 20px' }}>
+                <div style={{ fontSize: '4rem', marginBottom: '20px' }}>
+                  {assignResultModal.success ? '✅' : '❌'}
+                </div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px', fontSize: '1.4rem', fontWeight: 700 }}>
+                  {assignResultModal.success ? 'Success!' : 'Assignment Failed'}
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>{assignResultModal.message}</p>
+              </div>
+              <div className="modal-footer" style={{ padding: '20px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-panel)' }}>
+                <button className="btn-action btn-go" style={{ width: '100%', padding: '12px', fontWeight: 600, border: 'none' }} onClick={() => setAssignResultModal({ show: false, success: false, message: '' })}>OK</button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      <style jsx>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </>
   );
 }
