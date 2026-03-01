@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import ActivityTracker from "@/app/components/ActivityTracker";
 import AnalyticsDashboard from "@/app/components/AnalyticsDashboard";
@@ -137,6 +138,15 @@ export default function DashboardPage() {
   const [showLogoutPrompt, setShowLogoutPrompt] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [activeSessionNotice, setActiveSessionNotice] = useState(false);
+  const [isClosingActiveSession, setIsClosingActiveSession] = useState(false);
+
+  const closeActiveSessionModal = useCallback(() => {
+    setIsClosingActiveSession(true);
+    setTimeout(() => {
+      setActiveSessionNotice(false);
+      setIsClosingActiveSession(false);
+    }, 300); // Wait for animation to finish
+  }, []);
 
   // 🚨 MULTI-STEP SETTINGS MODAL STATES
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -180,6 +190,7 @@ export default function DashboardPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [selectedTimelineDate, setSelectedTimelineDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [ganttTip, setGanttTip] = useState<{ x: number; y: number; text: string; sub?: string } | null>(null);
 
   const [calView, setCalView] = useState<"week" | "month">("week");
   const [calDate, setCalDate] = useState(() => new Date());
@@ -1091,7 +1102,7 @@ export default function DashboardPage() {
     if (activeSection !== "analytics") return;
 
     const fetchAnalytics = async () => {
-      setAnalyticsLoading(true);
+      if (!analyticsData) setAnalyticsLoading(true);
       try {
         const today = new Date();
         const dayOfWeek = today.getDay();
@@ -1258,17 +1269,9 @@ export default function DashboardPage() {
         </aside>
 
         <main className="workspace-panel">
-          <div className="top-bar" style={{ justifyContent: "space-between", padding: "20px 30px" }}>
-            <div className="status-badge go" style={{ background: "transparent", border: "none", padding: 0, boxShadow: "none" }}>
-              <span className="dot go" />
-              <span style={{ marginLeft: 10, fontSize: "0.8rem", letterSpacing: "2px", fontWeight: "bold", color: "#4ade80" }}>SYSTEM ONLINE</span>
-            </div>
-            <button className="theme-btn" onClick={toggleTheme} title="Toggle Theme">
-              {lightMode ? "☀" : "🌙"}
-            </button>
-          </div>
 
-          <div className="content-area">
+
+          <div className="content-area" style={{ paddingTop: 25 }}>
             {!isClockedIn ? (
               <div id="layout-initial" className="fade-in" style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div className="landing-card">
@@ -1283,8 +1286,8 @@ export default function DashboardPage() {
                     {formatDateLine(now)}
                   </div>
 
-                  <button className="btn-clock-in-large" onClick={() => doClockIn()}>
-                    CLOCK IN
+                  <button className="btn-clock-in-large" onClick={() => doClockIn()} disabled={actionBusy}>
+                    {actionBusy ? "CLOCKING IN..." : "CLOCK IN"}
                   </button>
                 </div>
               </div>
@@ -1372,15 +1375,17 @@ export default function DashboardPage() {
                             <div className="ap-divider" />
 
                             <div style={{ marginTop: "auto" }}>
-                              <div className="label-sm">SESSION STATUS</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <div className="label-sm" style={{ margin: 0 }}>SESSION STATUS</div>
+                                {clockInTime && (
+                                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                                    Since {new Date(clockInTime).toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: true })}
+                                  </div>
+                                )}
+                              </div>
                               <div className="session-status-box" style={{ marginBottom: 10 }}>
                                 CLOCKED IN
                               </div>
-                              {clockInTime && (
-                                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: 20 }}>
-                                  Since {new Date(clockInTime).toLocaleTimeString("en-US", { timeZone: TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: true })}
-                                </div>
-                              )}
 
                               <button
                                 className="btn-ap-danger"
@@ -1454,12 +1459,12 @@ export default function DashboardPage() {
                           </div>
 
                           <div className="gantt-chart-container">
-                            <div className="grid-lines">
+                            <div className="grid-lines" style={selectedDayActivities.length === 0 ? { left: 20 } : undefined}>
                               {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24].map(h => (
                                 <div key={h} className="grid-line" style={{ left: `${(h / 24) * 100}%` }} />
                               ))}
                             </div>
-                            <div className="timeline-header">
+                            <div className="timeline-header" style={selectedDayActivities.length === 0 ? { marginLeft: 0 } : undefined}>
                               {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24].map(h => {
                                 const lab = h === 0 || h === 24 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
                                 return (
@@ -1468,7 +1473,7 @@ export default function DashboardPage() {
                               })}
                             </div>
 
-                            <div id="gantt-body">
+                            <div id="gantt-body" key={selectedTimelineDate}>
                               {selectedDayActivities.map((act: any, idx: number) => {
                                 if (!act.start_time || !act.end_time) return null;
 
@@ -1492,12 +1497,20 @@ export default function DashboardPage() {
                                   <div key={`${selectedTimelineDate}-${idx}`} className="gantt-row">
                                     <div className="gantt-label" title={act.activity_name}>{act.activity_name}</div>
                                     <div className="gantt-track">
-                                      <div className={`gantt-bar ${barClass}`} style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}>
-                                        <div className="gantt-tooltip">
-                                          <strong>{act.start_time} - {act.end_time}</strong>
-                                          {act.total_hours && <div style={{ marginTop: 4, opacity: 0.8 }}>{formatHoursMinutes(Number(act.total_hours))}</div>}
-                                        </div>
-                                      </div>
+                                      <div
+                                        className={`gantt-bar ${barClass}`}
+                                        style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}
+                                        onMouseEnter={(e) => {
+                                          const r = e.currentTarget.getBoundingClientRect();
+                                          setGanttTip({
+                                            x: r.left + r.width / 2,
+                                            y: r.top - 8,
+                                            text: `${act.start_time} - ${act.end_time}`,
+                                            sub: act.total_hours ? formatHoursMinutes(Number(act.total_hours)) : undefined,
+                                          });
+                                        }}
+                                        onMouseLeave={() => setGanttTip(null)}
+                                      />
                                     </div>
                                   </div>
                                 )
@@ -1902,7 +1915,7 @@ export default function DashboardPage() {
                               </div>
                             </div>
 
-                            <div className="graph-container">
+                            <div className="graph-container" key={analyticsWeekOffset}>
                               {(() => {
                                 const days = [];
                                 const today = new Date();
@@ -1967,11 +1980,11 @@ export default function DashboardPage() {
       {/* 🚨 MULTI-STEP SETTINGS MODAL */}
       {showSettingsModal && (
         <div className="modal-overlay">
-          <div className="modal-card" style={{ width: 480 }}>
+          <div className="modal-card" style={{ width: 600, position: 'relative' }}>
+            <button className="calendar-modal-close" onClick={closeSettingsModal} style={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}>×</button>
             <div className="modal-header header-normal">
               <span style={{ fontSize: "1.5rem" }}>⚙️</span>
               <span className="modal-title">ACCOUNT SETTINGS</span>
-              <button className="calendar-modal-close" onClick={closeSettingsModal}>×</button>
             </div>
 
             <div className="modal-body" style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -1989,18 +2002,18 @@ export default function DashboardPage() {
 
               {settingsStep === "menu" && (
                 <>
-                  <div style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
-                    <h4 style={{ marginBottom: 10, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Appearance</h4>
+                  <div style={{ paddingBottom: 20, borderBottom: '1px solid var(--border-subtle)' }}>
+                    <h4 style={{ marginBottom: 12, color: "var(--text-muted)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: 2, fontWeight: 600 }}>Appearance</h4>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>Dashboard Theme</span>
-                      <button className="btn-standard" onClick={toggleTheme} style={{ padding: "6px 12px", fontSize: "0.8rem" }}>
+                      <span style={{ fontSize: "0.9rem", color: "var(--text-main)" }}>Dashboard Theme</span>
+                      <button className="btn-standard" onClick={toggleTheme} style={{ padding: "6px 16px", fontSize: "0.8rem", flexShrink: 0 }}>
                         {lightMode ? "Switch to Dark Mode 🌙" : "Switch to Light Mode ☀️"}
                       </button>
                     </div>
                   </div>
 
-                  <div style={{ background: "rgba(255,255,255,0.03)", padding: 15, borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
-                    <h4 style={{ marginBottom: 15, color: "var(--text-main)", fontSize: "0.9rem", textTransform: "uppercase", letterSpacing: 1 }}>Security</h4>
+                  <div style={{ paddingBottom: 10 }}>
+                    <h4 style={{ marginBottom: 12, color: "var(--text-muted)", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: 2, fontWeight: 600 }}>Password</h4>
                     <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: 15 }}>
                       Change your password through a secure multi-step verification process. An OTP will be sent to your registered email.
                     </p>
@@ -2377,21 +2390,118 @@ export default function DashboardPage() {
       }
 
       {
-        activeSessionNotice && (
-          <div className="modal-overlay">
-            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
-              <div className="modal-body" style={{ padding: '30px 20px' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '15px', color: 'var(--color-urgent)' }}>⚠️</div>
-                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Active Session Detected</h3>
-                <p style={{ color: 'var(--text-muted)' }}>You are currently clocked in. Please clock out before logging out to ensure your time is recorded correctly.</p>
+        (activeSessionNotice || isClosingActiveSession) && (
+          <div className={`modal-overlay ${isClosingActiveSession ? "fade-out" : "fade-in"}`}>
+            <style>{`
+              @keyframes modalShake {
+                0%, 100% { transform: translateX(0); }
+                10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+                20%, 40%, 60%, 80% { transform: translateX(4px); }
+              }
+              @keyframes modalSlideOut {
+                0% { transform: translateY(0); opacity: 1; }
+                100% { transform: translateY(20px); opacity: 0; }
+              }
+              .fade-out {
+                animation: fadeOut 0.3s ease forwards;
+              }
+              @keyframes fadeOut {
+                0% { opacity: 1; }
+                100% { opacity: 0; }
+              }
+            `}</style>
+            <div
+              className="modal-card"
+              style={{
+                maxWidth: '420px',
+                padding: '0',
+                overflow: 'hidden',
+                position: 'relative',
+                animation: isClosingActiveSession ? 'modalSlideOut 0.3s cubic-bezier(.36,.07,.19,.97) both' : 'modalShake 0.4s cubic-bezier(.36,.07,.19,.97) both',
+                border: '1px solid rgba(251, 191, 36, 0.3)',
+                boxShadow: '0 10px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(251, 191, 36, 0.15)'
+              }}
+            >
+              <div style={{ position: 'absolute', top: '0', left: '0', transform: 'translate(-30%, -30%)', width: '250px', height: '150px', background: 'var(--color-warn)', filter: 'blur(70px)', opacity: 0.15, pointerEvents: 'none' }} />
+
+              <div className="modal-header" style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                gap: '12px',
+                padding: '24px 25px 20px',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                background: 'rgba(251, 191, 36, 0.03)',
+                position: 'relative',
+                zIndex: 1
+              }}>
+                <span style={{ fontSize: '1.5rem', filter: 'drop-shadow(0 0 8px rgba(251, 191, 36, 0.6))', transform: 'translateY(-2px)' }}>⚠️</span>
+                <h3 style={{
+                  color: 'var(--color-warn)',
+                  margin: 0,
+                  fontSize: '1.2rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.5px'
+                }}>ACTIVE SESSION DETECTED</h3>
               </div>
-              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'center', borderTop: 'none', paddingBottom: '30px', marginTop: '10px' }}>
-                <button className="btn-standard" style={{ padding: '10px 30px', fontSize: '1rem', flex: 'none' }} onClick={() => setActiveSessionNotice(false)}>Understood</button>
+
+              <div className="modal-body" style={{ padding: '30px 25px', textAlign: 'left', zIndex: 1, position: 'relative' }}>
+                <p style={{
+                  color: 'var(--text-muted)',
+                  fontSize: '0.95rem',
+                  lineHeight: '1.6',
+                  margin: '0',
+                  maxWidth: '360px'
+                }}>
+                  You are currently clocked in. Please <strong style={{ color: 'var(--color-warn)' }}>clock out</strong> before logging out to ensure your time is recorded correctly.
+                </p>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', borderTop: 'none', padding: '0 25px 25px', zIndex: 1, position: 'relative' }}>
+                <button
+                  className="btn-standard"
+                  style={{
+                    padding: '10px 32px',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    letterSpacing: '0.5px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)',
+                    background: 'linear-gradient(135deg, var(--accent-blue), #4f46e5)',
+                    border: 'none',
+                    color: 'white'
+                  }}
+                  onClick={closeActiveSessionModal}
+                >
+                  Understood
+                </button>
               </div>
             </div>
           </div>
         )
       }
+      {ganttTip && createPortal(
+        <div style={{
+          position: 'fixed',
+          left: ganttTip.x,
+          top: ganttTip.y,
+          transform: 'translate(-50%, -100%)',
+          background: 'var(--bg-deep)',
+          border: '1px solid var(--accent-cyan)',
+          padding: '8px 12px',
+          borderRadius: 6,
+          fontSize: '0.75rem',
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          boxShadow: '0 5px 15px rgba(0,0,0,0.5)',
+          zIndex: 9999,
+          color: 'var(--accent-cyan)',
+        }}>
+          <strong>{ganttTip.text}</strong>
+          {ganttTip.sub && <div style={{ marginTop: 4, opacity: 0.8 }}>{ganttTip.sub}</div>}
+        </div>,
+        document.body
+      )}
     </>
   );
 }

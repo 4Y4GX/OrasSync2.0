@@ -15,7 +15,7 @@ type CurrentActivity = {
   activity_name: string | null;
   activity_code: string | null;
   is_billable: boolean | null;
-  start_time_str?: string; 
+  start_time_str?: string;
 };
 
 type ActivityTrackerProps = {
@@ -30,6 +30,7 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
   const [selectedActivityId, setSelectedActivityId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [successFlash, setSuccessFlash] = useState(false);
   const [activityStartTime, setActivityStartTime] = useState<number | null>(null);
 
   useEffect(() => {
@@ -61,12 +62,12 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
     }
 
     try {
-      const ts = Date.now(); 
-      const res = await fetch(`/api/employee/activity/current?t=${ts}`, { 
+      const ts = Date.now();
+      const res = await fetch(`/api/employee/activity/current?t=${ts}`, {
         cache: "no-store",
         headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
       });
-      
+
       if (res.ok) {
         const data = await res.json();
         if (data.hasActiveActivity && data.currentActivity) {
@@ -75,7 +76,7 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
 
           if (data.currentActivity.start_time_str) {
             const [hours, minutes, seconds] = data.currentActivity.start_time_str.split(':').map(Number);
-            
+
             const now = new Date();
             const candidate = new Date(now);
             candidate.setHours(hours, minutes, seconds, 0);
@@ -113,9 +114,11 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
       });
 
       if (res.ok) {
-        setMessage("Activity started successfully");
-        setActivityStartTime(Date.now()); 
-        await loadCurrentActivity(); 
+        setMessage("");
+        setSuccessFlash(true);
+        setTimeout(() => setSuccessFlash(false), 2000);
+        setActivityStartTime(Date.now());
+        await loadCurrentActivity();
         onActivityChange?.();
       } else {
         const data = await res.json();
@@ -145,10 +148,12 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
       });
 
       if (res.ok) {
-        setMessage("Activity switched successfully");
-        setActivityStartTime(Date.now()); 
-        await loadCurrentActivity(); 
-        onActivityChange?.(); 
+        setMessage("");
+        setSuccessFlash(true);
+        setTimeout(() => setSuccessFlash(false), 2000);
+        setActivityStartTime(Date.now());
+        await loadCurrentActivity();
+        onActivityChange?.();
       } else {
         const data = await res.json();
         setMessage(data.message || "Failed to switch activity");
@@ -186,15 +191,15 @@ export default function ActivityTracker({ isClockedIn, onActivityChange, onActiv
       </select>
 
       <button
-        className="btn-ap-primary"
+        className={`btn-ap-primary${successFlash ? ' btn-ap-success' : ''}`}
         onClick={() => !currentActivity ? handleStartActivity() : handleSwitchActivity()}
-        disabled={loading || !selectedActivityId}
+        disabled={loading || !selectedActivityId || successFlash}
       >
-        {loading ? "PROCESSING..." : currentActivity ? "LOG CHANGE & UPDATE TIMER" : "START ACTIVITY"}
+        {successFlash ? "CHANGED SUCCESSFULLY ✓" : loading ? "PROCESSING..." : currentActivity ? "LOG CHANGE & UPDATE TIMER" : "START ACTIVITY"}
       </button>
 
-      {message && (
-        <div className={message.includes('success') ? 'inline-success' : 'inline-warn'}>
+      {message && !message.includes('success') && (
+        <div className="inline-warn">
           {message}
         </div>
       )}

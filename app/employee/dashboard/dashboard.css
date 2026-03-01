@@ -566,6 +566,10 @@ body.light-mode .menu-item:hover {
   color: #111827;
 }
 
+body.light-mode .menu-item.danger {
+  color: #dc2626;
+}
+
 body.light-mode .menu-item.danger:hover {
   background: #fef2f2;
   color: #dc2626;
@@ -612,8 +616,8 @@ body.light-mode .menu-item.danger:hover {
 .content-area {
   padding: 0 40px 30px 40px;
   width: 100%;
-  height: 100%;
-  overflow-y: auto;
+  flex: 1;
+  overflow-y: hidden;
   position: relative;
 }
 
@@ -1133,6 +1137,15 @@ body.light-mode .hero-date-display {
   transform: translateY(-1px);
 }
 
+.btn-clock-in-large:disabled {
+  background: #444;
+  color: #888;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+  filter: none;
+}
+
 
 
 
@@ -1405,10 +1418,17 @@ body.light-mode .hero-date-display {
   transform: none;
 }
 
+.btn-ap-primary.btn-ap-success {
+  background: #22c55e;
+  color: white;
+  cursor: default;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+}
+
 .btn-ap-danger {
   width: 100%;
   padding: 18px;
-  background: #f87171;
+  background: #dc2626;
   color: white;
   border: none;
   border-radius: 8px;
@@ -1679,7 +1699,7 @@ body.light-mode .cal-day.today .cal-date-num {
   display: flex;
   flex-direction: row;
   gap: 20px;
-  height: calc(100vh - 140px);
+  height: calc(100vh - 50px);
   min-height: 500px;
   overflow: hidden;
 }
@@ -1837,7 +1857,60 @@ body.light-mode .ts-submit-btn:hover {
   border-radius: 4px 4px 0 0;
   position: relative;
   z-index: 2;
-  transition: height 0.5s ease;
+  transition: background 0.4s ease;
+  animation: barGrow 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes barGrow {
+  0% {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+
+  60% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.bar-group {
+  transform-origin: bottom center;
+}
+
+.bar-group .bar {
+  transform-origin: bottom center;
+}
+
+.bar-group:nth-child(1) .bar {
+  animation-delay: 0s;
+}
+
+.bar-group:nth-child(2) .bar {
+  animation-delay: 0.06s;
+}
+
+.bar-group:nth-child(3) .bar {
+  animation-delay: 0.12s;
+}
+
+.bar-group:nth-child(4) .bar {
+  animation-delay: 0.18s;
+}
+
+.bar-group:nth-child(5) .bar {
+  animation-delay: 0.24s;
+}
+
+.bar-group:nth-child(6) .bar {
+  animation-delay: 0.30s;
+}
+
+.bar-group:nth-child(7) .bar {
+  animation-delay: 0.36s;
 }
 
 .bar-actual {
@@ -2072,13 +2145,128 @@ body.light-mode .timeline-today-btn {
   border-radius: var(--radius-round);
   padding: 20px;
   position: relative;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   flex: 1;
-  /* Expand to fill the left panel height */
   min-height: 200px;
   display: flex;
   flex-direction: column;
+}
+
+@keyframes ganttBarGrow {
+  0% {
+    transform: translateY(-50%) scaleX(0);
+    opacity: 0;
+  }
+
+  60% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(-50%) scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ganttRowSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+#gantt-body .gantt-row {
+  animation: ganttRowSlideIn 0.3s ease both;
+}
+
+#gantt-body .gantt-row:nth-child(1) {
+  animation-delay: 0s;
+}
+
+#gantt-body .gantt-row:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+#gantt-body .gantt-row:nth-child(3) {
+  animation-delay: 0.08s;
+}
+
+#gantt-body .gantt-row:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+#gantt-body .gantt-row:nth-child(5) {
+  animation-delay: 0.16s;
+}
+
+#gantt-body .gantt-row:nth-child(6) {
+  animation-delay: 0.20s;
+}
+
+#gantt-body .gantt-row:nth-child(7) {
+  animation-delay: 0.24s;
+}
+
+#gantt-body .gantt-row:nth-child(8) {
+  animation-delay: 0.28s;
+}
+
+#gantt-body .gantt-row:nth-child(9) {
+  animation-delay: 0.32s;
+}
+
+#gantt-body .gantt-row:nth-child(10) {
+  animation-delay: 0.36s;
+}
+
+#gantt-body .gantt-bar {
+  transform-origin: left center;
+  animation: ganttBarGrow 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+#gantt-body .gantt-row:nth-child(1) .gantt-bar {
+  animation-delay: 0.05s;
+}
+
+#gantt-body .gantt-row:nth-child(2) .gantt-bar {
+  animation-delay: 0.1s;
+}
+
+#gantt-body .gantt-row:nth-child(3) .gantt-bar {
+  animation-delay: 0.15s;
+}
+
+#gantt-body .gantt-row:nth-child(4) .gantt-bar {
+  animation-delay: 0.2s;
+}
+
+#gantt-body .gantt-row:nth-child(5) .gantt-bar {
+  animation-delay: 0.25s;
+}
+
+#gantt-body .gantt-row:nth-child(6) .gantt-bar {
+  animation-delay: 0.3s;
+}
+
+#gantt-body .gantt-row:nth-child(7) .gantt-bar {
+  animation-delay: 0.35s;
+}
+
+#gantt-body .gantt-row:nth-child(8) .gantt-bar {
+  animation-delay: 0.4s;
+}
+
+#gantt-body .gantt-row:nth-child(9) .gantt-bar {
+  animation-delay: 0.45s;
+}
+
+#gantt-body .gantt-row:nth-child(10) .gantt-bar {
+  animation-delay: 0.5s;
 }
 
 .gantt-chart-container::-webkit-scrollbar {
@@ -2103,6 +2291,8 @@ body.light-mode .timeline-today-btn {
   position: relative;
   height: 25px;
   margin-bottom: 10px;
+  margin-left: 177px;
+  margin-right: 10px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -2118,7 +2308,7 @@ body.light-mode .timeline-today-btn {
 .grid-lines {
   position: absolute;
   top: 45px;
-  left: 20px;
+  left: 197px;
   right: 20px;
   bottom: 20px;
   pointer-events: none;
@@ -2142,6 +2332,7 @@ body.light-mode .grid-line {
   display: flex;
   align-items: center;
   margin-bottom: 15px;
+  margin-right: 10px;
   position: relative;
   z-index: 1;
   height: 35px;
@@ -2169,6 +2360,8 @@ body.light-mode .grid-line {
   height: 100%;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 6px;
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 body.light-mode .gantt-track {
