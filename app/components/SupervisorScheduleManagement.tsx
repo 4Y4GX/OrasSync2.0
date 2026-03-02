@@ -907,7 +907,13 @@ export default function SupervisorScheduleManagement() {
                         body: JSON.stringify(updatePayload),
                       });
                     } else {
-                      // Create new schedule
+                      // Create new schedule - unselected days should explicitly be set to null
+                      allDays.forEach(day => {
+                        if (!selectedDays.includes(day)) {
+                          payload[`${day}_shift_id`] = null;
+                        }
+                      });
+
                       res = await fetch('/api/supervisor/schedules/create', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },

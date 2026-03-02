@@ -140,6 +140,8 @@ export default function DashboardPage() {
   const [activeSessionNotice, setActiveSessionNotice] = useState(false);
   const [isClosingActiveSession, setIsClosingActiveSession] = useState(false);
 
+  const [clockInError, setClockInError] = useState<string | null>(null);
+
   const closeActiveSessionModal = useCallback(() => {
     setIsClosingActiveSession(true);
     setTimeout(() => {
@@ -969,15 +971,37 @@ export default function DashboardPage() {
 
   const doClockIn = useCallback(async () => {
     if (actionBusy) return;
+
+    if (scheduleToday.hasSchedule && scheduleToday.shift) {
+      const shiftStart = new Date(scheduleToday.shift.start_time).getTime();
+      const shiftEnd = new Date(scheduleToday.shift.end_time).getTime();
+      const currentMs = now.getTime();
+
+      const earlyDiffMinutes = (shiftStart - currentMs) / 60000;
+      if (earlyDiffMinutes > 15) {
+        setClockInError("Employees can only clock-in 15 minutes earlier than actual shift.");
+        return;
+      }
+      if (currentMs > shiftEnd) {
+        setClockInError("You cannot clock in after your scheduled shift has ended.");
+        return;
+      }
+    }
+
     setActionBusy(true);
     setServerMsg("");
+    setClockInError(null);
 
     try {
       const res = await fetch("/api/employee/clock/in", { method: "POST" });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setServerMsg(data?.message ?? "Clock in failed");
+        if (data?.code === "TOO_EARLY" || data?.code === "TOO_LATE") {
+          setClockInError(data.message);
+        } else {
+          setServerMsg(data?.message ?? "Clock in failed");
+        }
         return;
       }
 
@@ -987,7 +1011,7 @@ export default function DashboardPage() {
     } finally {
       setActionBusy(false);
     }
-  }, [actionBusy, now]);
+  }, [actionBusy, now, scheduleToday]);
 
   const doClockOut = useCallback(
     async (earlyReason?: string) => {
@@ -2310,6 +2334,29 @@ export default function DashboardPage() {
       )}
 
       {/* MODALS */}
+      {
+        clockInError && (
+          <div className="modal-overlay">
+            <div className="modal-card">
+              <div className="modal-header header-urgent">
+                <span style={{ fontSize: "1.5rem" }}>⚠️</span>
+                <span className="modal-title" style={{ color: "var(--color-urgent)" }}>CLOCK-IN RESTRICTION</span>
+              </div>
+              <div className="modal-body">
+                <p className="modal-desc">
+                  {clockInError}
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-standard" onClick={() => setClockInError(null)}>
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
       {
         modalConfirm === "out" && (
           <div className="modal-overlay">

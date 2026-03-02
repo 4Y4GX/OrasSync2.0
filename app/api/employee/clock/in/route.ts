@@ -27,6 +27,35 @@ export async function POST() {
   const now = getNowInTimezone();
   const shiftDate = getTodayInTimezone();
 
+  // Validate early/late clock-in
+  if (isEmployee && scheduleToday.shift) {
+    const shiftStart = new Date(scheduleToday.shift.start_time);
+    const shiftEnd = new Date(scheduleToday.shift.end_time);
+
+    // If clock-in is >= 16 minutes early
+    const earlyDiffMinutes = (shiftStart.getTime() - now.getTime()) / 60000;
+    if (earlyDiffMinutes > 15) {
+      return NextResponse.json(
+        {
+          message: "Employees can only clock-in 15 minutes earlier than actual shift.",
+          code: "TOO_EARLY"
+        },
+        { status: 400 }
+      );
+    }
+
+    // If clock-in is after the shift ends
+    if (now.getTime() > shiftEnd.getTime()) {
+      return NextResponse.json(
+        {
+          message: "You cannot clock in after your scheduled shift has ended.",
+          code: "TOO_LATE"
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   try {
     const created = await prisma.d_tblclock_log.create({
       data: {
@@ -87,12 +116,12 @@ export async function POST() {
               const weekday = d.getDay();
               const shiftId =
                 weekday === 0 ? weekly.sunday_shift_id :
-                weekday === 1 ? weekly.monday_shift_id :
-                weekday === 2 ? weekly.tuesday_shift_id :
-                weekday === 3 ? weekly.wednesday_shift_id :
-                weekday === 4 ? weekly.thursday_shift_id :
-                weekday === 5 ? weekly.friday_shift_id :
-                weekly.saturday_shift_id;
+                  weekday === 1 ? weekly.monday_shift_id :
+                    weekday === 2 ? weekly.tuesday_shift_id :
+                      weekday === 3 ? weekly.wednesday_shift_id :
+                        weekday === 4 ? weekly.thursday_shift_id :
+                          weekday === 5 ? weekly.friday_shift_id :
+                            weekly.saturday_shift_id;
               if (shiftId) {
                 // Scheduled workday
                 const clock = await prisma.d_tblclock_log.findFirst({

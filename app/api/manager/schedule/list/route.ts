@@ -69,6 +69,7 @@ export async function GET() {
         user_id: emp.user_id,
         name: `${emp.first_name} ${emp.last_name}`,
         role_id: emp.role_id,
+        schedule_id: sched?.schedule_id || null,
         schedule: {
           monday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_monday_shift_idToD_tblshift_template),
           tuesday: getShiftData(sched?.D_tblshift_template_D_tblweekly_schedule_tuesday_shift_idToD_tblshift_template),

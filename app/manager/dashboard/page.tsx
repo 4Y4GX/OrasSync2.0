@@ -1132,17 +1132,14 @@ export default function ManagerDashboard() {
                         <div className="section-title" style={{ padding: 0, border: 'none', marginBottom: '20px' }}>Hours This Week</div>
                         <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', fontSize: '0.8rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '12px', height: '12px', background: 'var(--accent-cyan)', borderRadius: '2px' }}></div> Actual</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '12px', height: '12px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}></div> Target</div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'flex-end', flex: 1, gap: '15px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
                           {analyticsData.weeklyChart.map((data: any, idx: number) => {
-                            const targetHeight = data.target > 0 ? 100 : 0;
                             const actualHeight = data.target > 0 ? Math.min((data.actual / data.target) * 100, 100) : 0;
                             return (
                               <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, gap: '8px', height: '100%' }}>
                                 <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: '4px', height: '100%', width: '100%' }}>
-                                  <div title={`Target: ${data.target}h`} style={{ height: `${targetHeight}%`, width: '40%', background: 'rgba(255,255,255,0.1)', borderRadius: '4px 4px 0 0', minHeight: '5px' }}></div>
-                                  <div title={`Actual: ${data.actual.toFixed(1)}h`} style={{ height: `${actualHeight}%`, width: '40%', background: 'var(--accent-cyan)', borderRadius: '4px 4px 0 0', minHeight: '5px', opacity: data.actual === 0 ? 0.3 : 1 }}></div>
+                                  <div title={`Actual: ${data.actual.toFixed(1)}h`} style={{ height: `${actualHeight}%`, width: '80%', background: 'var(--accent-cyan)', borderRadius: '4px 4px 0 0', minHeight: '5px', opacity: data.actual === 0 ? 0.3 : 1 }}></div>
                                 </div>
                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{data.day}</span>
                               </div>
@@ -1152,29 +1149,6 @@ export default function ManagerDashboard() {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                          <div className="section-title" style={{ padding: 0, border: 'none', marginBottom: '15px' }}>Project Status</div>
-                          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '5px', borderBottom: '1px solid var(--border-subtle)' }}>
-                            {analyticsData.teams.map((team: any) => (
-                              <button key={team.team_name} onClick={() => setActiveProjectTab(team.team_name)} className="btn-view" style={{ background: activeProjectTab === team.team_name ? 'var(--accent-gold)' : 'transparent', color: activeProjectTab === team.team_name ? '#000' : 'var(--text-main)', border: 'none', padding: '8px 16px', fontWeight: activeProjectTab === team.team_name ? 700 : 400 }}>{team.team_name}</button>
-                            ))}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto', flex: 1 }}>
-                            {(() => {
-                              const currentTeam = analyticsData.teams.find((t: any) => t.team_name === activeProjectTab);
-                              if (!currentTeam || !currentTeam.projects || currentTeam.projects.length === 0) return <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '20px' }}>No Project</div>;
-                              return currentTeam.projects.map((project: any) => (
-                                <div key={project.id}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <span style={{ fontWeight: 600 }}>{project.name}</span><span style={{ color: 'var(--accent-gold)' }}>{project.hours.toFixed(1)}h logged</span>
-                                  </div>
-                                  <div style={{ height: '8px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px', overflow: 'hidden' }}><div style={{ height: '100%', width: `${project.progress}%`, background: 'var(--accent-gold)' }}></div></div>
-                                </div>
-                              ));
-                            })()}
-                          </div>
-                        </div>
-
                         <div className="glass-card" style={{ background: 'rgba(0, 210, 106, 0.05)', borderColor: 'rgba(0, 210, 106, 0.2)' }}>
                           <div className="section-title" style={{ padding: 0, border: 'none', marginBottom: '15px', color: 'var(--color-go)' }}>Generate Reports</div>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>Export historical hours and activity data.</p>
@@ -1946,28 +1920,34 @@ export default function ManagerDashboard() {
                       const selectedDays = Object.entries(assignForm.days).filter(([, v]) => v).map(([k]) => k);
                       const shiftId = Number(assignForm.shift_id);
 
+                      const empData = scheduleData.find((e: any) => e.user_id === assignForm.employee_id);
+                      const hasExistingSchedule = empData && empData.schedule_id;
+
                       const payload: Record<string, any> = {
                         user_id: assignForm.employee_id,
                       };
 
+                      if (hasExistingSchedule) {
+                        payload.schedule_id = empData.schedule_id;
+                      }
+
                       const allDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
                       allDays.forEach(day => {
-                        payload[`${day}_shift_id`] = selectedDays.includes(day) ? shiftId : null;
+                        // If selected, apply new shift.
+                        if (selectedDays.includes(day)) {
+                          payload[`${day}_shift_id`] = shiftId;
+                        } else if (!hasExistingSchedule) {
+                          // If creating new and this day isn't selected, it's explicitly null
+                          payload[`${day}_shift_id`] = null;
+                        }
+                        // If updating and not selected, we don't include it in payload so it stays the same
                       });
 
-                      // Check if employee already has a schedule (update) or doesn't (create)
-                      // The manager API doesn't return schedule_id in the list right now,
-                      // BUT we can just construct an update payload with all 7 days and try update
-                      // Wait, the manager `list` route returns `schedule` grouped by day. 
-                      // Let's just create a full body for update, then try create. But we don't know schedule_id.
-                      // Oh, the Manager API `update` route relies on `targetUserId` finding the active schedule internally if `schedule_id` isn't provided!
-                      // Wait, earlier I modified `api/manager/schedule/update` to require `schedule_id`, but let's change that there to look it up!
-                      // I will do that lookup on the frontend if I can, but `scheduleData` from manager list doesn't have `schedule_id`.
-                      // So I will make the backend look it up if `schedule_id` is missing but `monday_shift_id` is provided.
-                      // Actually, a simpler approach: `api/manager/schedule/create/route.ts` deactivates ALL existing active schedules for the user before creating a new one!
-                      // Therefore, we can ALWAYS just call `create` because it handles upserts perfectly (by overwriting).
+                      const endpoint = hasExistingSchedule
+                        ? '/api/manager/schedule/update'
+                        : '/api/manager/schedule/create';
 
-                      const res = await fetch('/api/manager/schedule/create', {
+                      const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),
