@@ -524,7 +524,7 @@ export default function ChangePasswordPage() {
       title={headerTitle}
       subtitle={headerSubtitle}
       expandedMode={step === 3 && !isExiting}
-      error={step === 1 && otpSent ? null : error}
+      error={step === 3 || (step === 1 && otpSent) ? null : error}
       message={message}
     >
 
@@ -787,7 +787,7 @@ export default function ChangePasswordPage() {
             <div className={styles.securityGrid}>
               <div className={styles.inputGroup}>
                 <label className={styles.label}>QUESTION 1</label>
-                <select className={`${styles.selectField} ${shakeError && (!q1 || q1 === q2 || q1 === q3) ? styles.shakeError : ""}`} value={q1} onChange={(e) => setQ1(e.target.value)}>
+                <select className={`${styles.selectField} ${shakeError && (!q1 || q1 === q2 || q1 === q3) ? styles.shakeError : ""}`} value={q1} onChange={(e) => { setQ1(e.target.value); if (error) setError(""); }}>
                   <option value="" disabled>
                     Select Question...
                   </option>
@@ -806,7 +806,7 @@ export default function ChangePasswordPage() {
                     placeholder="Answer"
                     className={`${styles.input} ${shakeError && (!a1 || a1 !== a1Confirm) ? styles.shakeError : ""}`}
                     value={a1}
-                    onChange={(e) => setA1(stripEmojis(e.target.value))}
+                    onChange={(e) => { setA1(stripEmojis(e.target.value)); if (error) setError(""); }}
                     style={{ borderColor: a1 && a1Confirm ? (a1 === a1Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
@@ -815,7 +815,7 @@ export default function ChangePasswordPage() {
                     placeholder="Confirm"
                     className={`${styles.input} ${shakeError && (!a1Confirm || a1 !== a1Confirm) ? styles.shakeError : ""}`}
                     value={a1Confirm}
-                    onChange={(e) => setA1Confirm(stripEmojis(e.target.value))}
+                    onChange={(e) => { setA1Confirm(stripEmojis(e.target.value)); if (error) setError(""); }}
                     style={{ borderColor: a1 && a1Confirm ? (a1 === a1Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
@@ -824,7 +824,7 @@ export default function ChangePasswordPage() {
 
               <div className={styles.inputGroup}>
                 <label className={styles.label}>QUESTION 2</label>
-                <select className={`${styles.selectField} ${shakeError && (!q2 || q2 === q1 || q2 === q3) ? styles.shakeError : ""}`} value={q2} onChange={(e) => setQ2(e.target.value)}>
+                <select className={`${styles.selectField} ${shakeError && (!q2 || q2 === q1 || q2 === q3) ? styles.shakeError : ""}`} value={q2} onChange={(e) => { setQ2(e.target.value); if (error) setError(""); }}>
                   <option value="" disabled>
                     Select Question...
                   </option>
@@ -843,7 +843,7 @@ export default function ChangePasswordPage() {
                     placeholder="Answer"
                     className={`${styles.input} ${shakeError && (!a2 || a2 !== a2Confirm) ? styles.shakeError : ""}`}
                     value={a2}
-                    onChange={(e) => setA2(stripEmojis(e.target.value))}
+                    onChange={(e) => { setA2(stripEmojis(e.target.value)); if (error) setError(""); }}
                     style={{ borderColor: a2 && a2Confirm ? (a2 === a2Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
@@ -852,7 +852,7 @@ export default function ChangePasswordPage() {
                     placeholder="Confirm"
                     className={`${styles.input} ${shakeError && (!a2Confirm || a2 !== a2Confirm) ? styles.shakeError : ""}`}
                     value={a2Confirm}
-                    onChange={(e) => setA2Confirm(stripEmojis(e.target.value))}
+                    onChange={(e) => { setA2Confirm(stripEmojis(e.target.value)); if (error) setError(""); }}
                     style={{ borderColor: a2 && a2Confirm ? (a2 === a2Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
@@ -861,7 +861,7 @@ export default function ChangePasswordPage() {
 
               <div className={styles.inputGroup}>
                 <label className={styles.label}>QUESTION 3</label>
-                <select className={`${styles.selectField} ${shakeError && (!q3 || q3 === q1 || q3 === q2) ? styles.shakeError : ""}`} value={q3} onChange={(e) => setQ3(e.target.value)}>
+                <select className={`${styles.selectField} ${shakeError && (!q3 || q3 === q1 || q3 === q2) ? styles.shakeError : ""}`} value={q3} onChange={(e) => { setQ3(e.target.value); if (error) setError(""); }}>
                   <option value="" disabled>
                     Select Question...
                   </option>
@@ -880,7 +880,7 @@ export default function ChangePasswordPage() {
                     placeholder="Answer"
                     className={`${styles.input} ${shakeError && (!a3 || a3 !== a3Confirm) ? styles.shakeError : ""}`}
                     value={a3}
-                    onChange={(e) => setA3(stripEmojis(e.target.value))}
+                    onChange={(e) => { setA3(stripEmojis(e.target.value)); if (error) setError(""); }}
                     style={{ borderColor: a3 && a3Confirm ? (a3 === a3Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />
@@ -889,7 +889,7 @@ export default function ChangePasswordPage() {
                     placeholder="Confirm"
                     className={`${styles.input} ${shakeError && (!a3Confirm || a3 !== a3Confirm) ? styles.shakeError : ""}`}
                     value={a3Confirm}
-                    onChange={(e) => setA3Confirm(stripEmojis(e.target.value))}
+                    onChange={(e) => { setA3Confirm(stripEmojis(e.target.value)); if (error) setError(""); }}
                     style={{ borderColor: a3 && a3Confirm ? (a3 === a3Confirm ? "#10b981" : "#ef4444") : undefined }}
                     required
                   />

@@ -812,10 +812,33 @@ export default function ManagerDashboard() {
                         {approvalTab === 'pending' && (
                           <>
                             {tsLoading ? (
-                              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-                                <div className="loading-spinner" style={{ margin: '0 auto 15px' }}></div>
-                                Loading approvals...
-                              </div>
+                              <>
+                                {Array(4).fill(0).map((_, i) => (
+                                  <div key={`pending-skeleton-${i}`} className="approval-card skeleton">
+                                    <div className="approval-header">
+                                      <div style={{ width: '100%' }}>
+                                        <div className="skeleton-box" style={{ width: '60%', height: '1.2rem', marginBottom: '8px' }} />
+                                        <div className="skeleton-box" style={{ width: '40%', height: '0.85rem' }} />
+                                      </div>
+                                    </div>
+                                    <div className="approval-stats" style={{ marginTop: '15px' }}>
+                                      <div className="stat-item">
+                                        <div className="skeleton-box" style={{ width: '80%', height: '0.75rem', marginBottom: '8px' }} />
+                                        <div className="skeleton-box" style={{ width: '50%', height: '1rem' }} />
+                                      </div>
+                                      <div className="stat-item">
+                                        <div className="skeleton-box" style={{ width: '80%', height: '0.75rem', marginBottom: '8px' }} />
+                                        <div className="skeleton-box" style={{ width: '50%', height: '1rem' }} />
+                                      </div>
+                                    </div>
+                                    <div className="approval-actions" style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                                      <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                                      <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                                      <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
                             ) : filteredTimesheets.length === 0 ? (
                               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                                 <div style={{ fontSize: '1.3rem', marginBottom: 6, opacity: 0.4 }}>⏳</div>
@@ -852,10 +875,33 @@ export default function ManagerDashboard() {
                         {approvalTab === 'awaiting_supervisor' && (
                           <>
                             {tsLoading ? (
-                              <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-                                <div className="loading-spinner" style={{ margin: '0 auto 15px' }}></div>
-                                Loading...
-                              </div>
+                              <>
+                                {Array(4).fill(0).map((_, i) => (
+                                  <div key={`awaiting-skeleton-${i}`} className="approval-card skeleton">
+                                    <div className="approval-header">
+                                      <div style={{ width: '100%' }}>
+                                        <div className="skeleton-box" style={{ width: '60%', height: '1.2rem', marginBottom: '8px' }} />
+                                        <div className="skeleton-box" style={{ width: '40%', height: '0.85rem' }} />
+                                      </div>
+                                    </div>
+                                    <div className="approval-stats" style={{ marginTop: '15px' }}>
+                                      <div className="stat-item">
+                                        <div className="skeleton-box" style={{ width: '80%', height: '0.75rem', marginBottom: '8px' }} />
+                                        <div className="skeleton-box" style={{ width: '50%', height: '1rem' }} />
+                                      </div>
+                                      <div className="stat-item">
+                                        <div className="skeleton-box" style={{ width: '80%', height: '0.75rem', marginBottom: '8px' }} />
+                                        <div className="skeleton-box" style={{ width: '50%', height: '1rem' }} />
+                                      </div>
+                                    </div>
+                                    <div className="approval-actions" style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                                      <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                                      <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                                      <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
                             ) : filteredTimesheets.length === 0 ? (
                               <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                                 <div style={{ fontSize: '1.3rem', marginBottom: 6, opacity: 0.4 }}>✅</div>

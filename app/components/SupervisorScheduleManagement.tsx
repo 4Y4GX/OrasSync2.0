@@ -427,10 +427,25 @@ export default function SupervisorScheduleManagement() {
                   <button onClick={() => setCalendarView('weekly')} style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', background: calendarView === 'weekly' ? 'var(--accent-primary)' : 'transparent', color: calendarView === 'weekly' ? '#fff' : 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}>Weekly</button>
                   <button onClick={() => setCalendarView('monthly')} style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', background: calendarView === 'monthly' ? 'var(--accent-primary)' : 'transparent', color: calendarView === 'monthly' ? '#fff' : 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}>Monthly</button>
                 </div>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() - 7) : newDate.setMonth(newDate.getMonth() - 1); setCurrentDate(newDate); }}>← Prev</button>
-                  <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => setCurrentDate(new Date())}>Today</button>
-                  <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() + 7) : newDate.setMonth(newDate.getMonth() + 1); setCurrentDate(newDate); }}>Next →</button>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    style={{ padding: '6px 12px', fontSize: '0.85rem', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text-main)', cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600 }}
+                    onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.background = 'var(--bg-panel)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
+                    onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() - 7) : newDate.setMonth(newDate.getMonth() - 1); setCurrentDate(newDate); }}
+                  >← Prev</button>
+                  <button
+                    style={{ padding: '6px 12px', fontSize: '0.85rem', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text-main)', cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600 }}
+                    onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.background = 'var(--bg-panel)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
+                    onClick={() => setCurrentDate(new Date())}
+                  >Today</button>
+                  <button
+                    style={{ padding: '6px 12px', fontSize: '0.85rem', background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '6px', color: 'var(--text-main)', cursor: 'pointer', transition: 'all 0.2s', fontWeight: 600 }}
+                    onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.background = 'var(--bg-panel)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
+                    onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() + 7) : newDate.setMonth(newDate.getMonth() + 1); setCurrentDate(newDate); }}
+                  >Next →</button>
                 </div>
               </div>
             </div>

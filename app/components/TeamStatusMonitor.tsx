@@ -34,6 +34,7 @@ type TeamMemberStatus = {
 export default function TeamStatusMonitor() {
   const [teamStatus, setTeamStatus] = useState<TeamMemberStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -56,6 +57,7 @@ export default function TeamStatusMonitor() {
   }, [autoRefresh]);
 
   const loadTeamStatus = async () => {
+    setRefreshing(true);
     try {
       const res = await fetch("/api/supervisor/team/status");
       if (res.ok) {
@@ -66,6 +68,7 @@ export default function TeamStatusMonitor() {
       console.error("Failed to load team status:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -140,11 +143,11 @@ export default function TeamStatusMonitor() {
             <button
               className="btn-refresh"
               onClick={loadTeamStatus}
-              disabled={loading}
+              disabled={refreshing}
               style={{ padding: "6px 12px", fontSize: "0.75rem" }}
             >
-              <RefreshCw size={12} className={loading ? "refresh-icon-spin" : ""} />
-              {loading ? "REFRESHING" : "REFRESH"}
+              <RefreshCw size={12} className={refreshing ? "refresh-icon-spin" : ""} />
+              {refreshing ? "REFRESHING" : "REFRESH"}
             </button>
           </div>
 

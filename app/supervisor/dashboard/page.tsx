@@ -49,6 +49,7 @@ export default function SupervisorDashboard() {
     }
   });
 
+  const [isProcessing, setIsProcessing] = useState<Record<string, 'approve' | 'reject' | null>>({});
   const [approvals, setApprovals] = useState<any[]>([]);
   const [managerRejected, setManagerRejected] = useState<any[]>([]);
   const [loadingApprovals, setLoadingApprovals] = useState(false);
@@ -147,6 +148,8 @@ export default function SupervisorDashboard() {
   };
 
   const handleApprovalAction = async (log_ids: number[], action: 'APPROVE' | 'REJECT', reason?: string) => {
+    const processKey = log_ids.join(',');
+    setIsProcessing(prev => ({ ...prev, [processKey]: action.toLowerCase() as 'approve' | 'reject' }));
     try {
       const res = await fetch('/api/supervisor/approvals/action', {
         method: 'POST',
@@ -154,11 +157,12 @@ export default function SupervisorDashboard() {
         body: JSON.stringify({ log_ids, action, rejection_reason: reason })
       });
       if (res.ok) {
-        loadApprovals();
-        loadStats();
+        await Promise.all([loadApprovals(), loadStats()]);
       }
     } catch (err) {
       console.error("Failed to process approval", err);
+    } finally {
+      setIsProcessing(prev => ({ ...prev, [processKey]: null }));
     }
   };
 
@@ -581,8 +585,7 @@ export default function SupervisorDashboard() {
                     <div className="hud-card">
                       <div className="hud-bg-icon">⚡</div>
                       <div className="hud-label">SESSION DURATION</div>
-                      <div className="hud-val">{sessionDuration}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '5px' }}>Productivity Target: {sessionDuration.substring(0, 5)} / 8h</div>
+                      <div className="hud-val">{sessionDuration.substring(0, 5)}</div>
                     </div>
                   </div>
 
@@ -660,9 +663,9 @@ export default function SupervisorDashboard() {
             )}
 
             {hasClockedIn && activeSection === 'approval' && (
-              <div className="section-view active fade-in">
-                <div className="section-animate">
-                  <div className="glass-card">
+              <div className="section-view active fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <div className="section-animate" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                     <div className="section-title" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
                       <span>Timesheet Approvals</span>
                     </div>
@@ -720,7 +723,7 @@ export default function SupervisorDashboard() {
                               No pending approvals found.
                             </div>
                           ) : approvals.map((timesheet, i) => (
-                            <div key={i} className="approval-card">
+                            <div key={i} className="approval-card" onClick={() => openDetailsModal(timesheet)} style={{ cursor: 'pointer' }}>
                               <div className="approval-header">
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
                                   <div>
@@ -732,9 +735,22 @@ export default function SupervisorDashboard() {
                                     <button
                                       className="btn-view-link"
                                       onClick={() => openDetailsModal(timesheet)}
-                                      style={{ marginTop: "5px", fontSize: "0.8rem" }}
+                                      style={{
+                                        marginTop: "8px",
+                                        fontSize: "0.75rem",
+                                        fontWeight: 600,
+                                        padding: "4px 12px",
+                                        background: "var(--bg-deep)",
+                                        border: "1px solid var(--border-subtle)",
+                                        borderRadius: "20px",
+                                        color: "var(--text-main)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        transition: "all 0.2s"
+                                      }}
                                     >
-                                      View Details &rarr;
+                                      View Details <span style={{ fontSize: "1rem" }}>→</span>
                                     </button>
                                   </div>
                                 </div>
@@ -750,8 +766,22 @@ export default function SupervisorDashboard() {
                                 </div>
                               </div>
                               <div className="approval-actions" style={{ marginTop: "15px" }}>
-                                <button className="btn-reject-outline" onClick={() => openRejectModal(timesheet)}>✗ Reject</button>
-                                <button className="btn-approve" onClick={() => handleApprovalAction(timesheet.log_ids, 'APPROVE')}>✓ Approve</button>
+                                <button
+                                  className="btn-reject-outline"
+                                  onClick={(e) => { e.stopPropagation(); openRejectModal(timesheet); }}
+                                  disabled={!!isProcessing[timesheet.log_ids.join(',')]}
+                                  style={{ opacity: isProcessing[timesheet.log_ids.join(',')] ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                >
+                                  {isProcessing[timesheet.log_ids.join(',')] === 'reject' ? <span className="spinner-small" style={{ borderColor: 'rgba(239,68,68,0.3)', borderTopColor: '#ef4444' }} /> : '✗'} Reject
+                                </button>
+                                <button
+                                  className="btn-approve"
+                                  onClick={(e) => { e.stopPropagation(); handleApprovalAction(timesheet.log_ids, 'APPROVE'); }}
+                                  disabled={!!isProcessing[timesheet.log_ids.join(',')]}
+                                  style={{ opacity: isProcessing[timesheet.log_ids.join(',')] ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: isProcessing[timesheet.log_ids.join(',')] === 'approve' ? '#16a34a' : '' }}
+                                >
+                                  {isProcessing[timesheet.log_ids.join(',')] === 'approve' ? <span className="spinner-small" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#ffffff' }} /> : '✓'} Approve
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -764,7 +794,7 @@ export default function SupervisorDashboard() {
                               No manager-rejected timesheets found.
                             </div>
                           ) : managerRejected.map((timesheet, i) => (
-                            <div key={i} className="approval-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                            <div key={i} className="approval-card" onClick={() => openDetailsModal(timesheet)} style={{ cursor: 'pointer', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
                               <div className="approval-header">
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
                                   <div>
@@ -776,9 +806,22 @@ export default function SupervisorDashboard() {
                                     <button
                                       className="btn-view-link"
                                       onClick={() => openDetailsModal(timesheet)}
-                                      style={{ marginTop: "5px", fontSize: "0.8rem" }}
+                                      style={{
+                                        marginTop: "8px",
+                                        fontSize: "0.75rem",
+                                        fontWeight: 600,
+                                        padding: "4px 12px",
+                                        background: "var(--bg-deep)",
+                                        border: "1px solid var(--border-subtle)",
+                                        borderRadius: "20px",
+                                        color: "var(--text-main)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        transition: "all 0.2s"
+                                      }}
                                     >
-                                      View Details &rarr;
+                                      View Details <span style={{ fontSize: "1rem" }}>→</span>
                                     </button>
                                   </div>
                                 </div>
@@ -807,8 +850,22 @@ export default function SupervisorDashboard() {
                                 </div>
                               </div>
                               <div className="approval-actions" style={{ marginTop: "15px" }}>
-                                <button className="btn-reject-outline" onClick={() => openRejectModal(timesheet)}>✗ Modify Rejection</button>
-                                <button className="btn-approve" onClick={() => handleApprovalAction(timesheet.log_ids, 'APPROVE')}>✓ Force Approve</button>
+                                <button
+                                  className="btn-reject-outline"
+                                  onClick={(e) => { e.stopPropagation(); openRejectModal(timesheet); }}
+                                  disabled={!!isProcessing[timesheet.log_ids.join(',')]}
+                                  style={{ opacity: isProcessing[timesheet.log_ids.join(',')] ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                >
+                                  {isProcessing[timesheet.log_ids.join(',')] === 'reject' ? <span className="spinner-small" style={{ borderColor: 'rgba(239,68,68,0.3)', borderTopColor: '#ef4444' }} /> : '✗'} Modify Rejection
+                                </button>
+                                <button
+                                  className="btn-approve"
+                                  onClick={(e) => { e.stopPropagation(); handleApprovalAction(timesheet.log_ids, 'APPROVE'); }}
+                                  disabled={!!isProcessing[timesheet.log_ids.join(',')]}
+                                  style={{ opacity: isProcessing[timesheet.log_ids.join(',')] ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: isProcessing[timesheet.log_ids.join(',')] === 'approve' ? '#16a34a' : '' }}
+                                >
+                                  {isProcessing[timesheet.log_ids.join(',')] === 'approve' ? <span className="spinner-small" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#ffffff' }} /> : '✓'} Force Approve
+                                </button>
                               </div>
                             </div>
                           ))}
@@ -1202,44 +1259,7 @@ export default function SupervisorDashboard() {
                     </label>
                   </div>
 
-                  {/* Lock Theme Row */}
-                  <div style={{ padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                      <div style={{
-                        width: '46px',
-                        height: '46px',
-                        borderRadius: '50%',
-                        background: 'var(--bg-deep)',
-                        border: '1px solid var(--border-subtle)',
-                        color: '#f59e0b',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '1.2rem'
-                      }}>
-                        🔒
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Lock Theme</div>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Prevent accidental switches between modes</div>
-                      </div>
-                    </div>
-                    <label className="toggle-switch">
-                      <input
-                        type="checkbox"
-                        onChange={(e) => {
-                          try {
-                            localStorage.setItem("orasync-theme-locked", e.target.checked ? "true" : "false");
-                            if (e.target.checked) {
-                              setMessage('Theme state locked.');
-                              setTimeout(() => setMessage(''), 3000);
-                            }
-                          } catch { }
-                        }}
-                      />
-                      <span className="slider"></span>
-                    </label>
-                  </div>
+
                 </div>
               </div>
 
@@ -1378,23 +1398,6 @@ export default function SupervisorDashboard() {
             </div>
 
             <div className="modal-body-improved" style={{ padding: '25px 30px', background: 'var(--bg-panel)' }}>
-              <div style={{
-                background: 'var(--bg-input)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '14px',
-                padding: '20px',
-                marginBottom: '20px',
-                textAlign: 'center'
-              }}>
-                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Session Duration</div>
-                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>{sessionDuration}</div>
-                {sessionStart && (
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                    Started at {new Date(sessionStart).toLocaleTimeString("en-US", { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: true })}
-                  </div>
-                )}
-              </div>
-
               <p style={{ color: 'var(--text-muted)', textAlign: 'center', margin: '0 0 25px 0', fontSize: '0.9rem', lineHeight: '1.6' }}>
                 Your supervisor session will be ended and your work hours will be recorded.
               </p>
@@ -1449,11 +1452,15 @@ export default function SupervisorDashboard() {
 
       {/* Change Password Modal */}
       {showCpModal && (
-        <div className="modal-overlay-improved" onClick={() => !cpLoading && setShowCpModal(false)}>
-          <div className="modal-card-improved" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
+        <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''}`} onClick={() => !cpLoading && setShowCpModal(false)}>
+          <div className="modal-card-improved" style={{ maxWidth: '480px', width: '90%', border: '1px solid var(--border-subtle)' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-improved" style={{ paddingBottom: '15px' }}>
-              <div className="modal-icon-wrapper" style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--accent-primary)' }}>
-                {cpStep === 4 ? <CheckCircle size={24} /> : '🔒'}
+              <div className="modal-icon-wrapper" style={{
+                background: cpStep === 4 ? 'rgba(34, 197, 94, 0.12)' : 'rgba(167,139,250,0.1)',
+                color: cpStep === 4 ? '#22c55e' : 'var(--accent-primary)',
+                border: `1px solid ${cpStep === 4 ? 'rgba(34, 197, 94, 0.3)' : 'rgba(167,139,250,0.3)'}`
+              }}>
+                {cpStep === 4 ? <CheckCircle size={28} /> : '🔒'}
               </div>
               <div className="modal-title-improved">
                 {cpStep === 1 ? "Secure Verification" : cpStep === 2 ? "Security Question" : cpStep === 3 ? "New Password" : "Password Updated"}
@@ -1461,36 +1468,103 @@ export default function SupervisorDashboard() {
               <div className="modal-subtitle">
                 {cpStep === 1 ? "Verify your identity via email OTP." : cpStep === 2 ? "Answer your security question." : cpStep === 3 ? "Set your new secure password." : "Redirecting to login..."}
               </div>
+              <button
+                onClick={() => !cpLoading && setShowCpModal(false)}
+                style={{ position: 'absolute', right: '20px', top: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="modal-body-improved" style={{ paddingTop: '10px' }}>
+            <div className="modal-body-improved" style={{ padding: '25px 30px', background: 'var(--bg-panel)' }}>
+              {/* Fancy Step Indicator */}
               {cpStep < 4 && (
-                <div className="cp-step-indicator">
-                  <div className={`cp-step ${cpStep >= 1 ? 'active' : ''} ${cpStep > 1 ? 'passed' : ''}`} />
-                  <div className={`cp-step ${cpStep >= 2 ? 'active' : ''} ${cpStep > 2 ? 'passed' : ''}`} />
-                  <div className={`cp-step ${cpStep >= 3 ? 'active' : ''}`} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0', marginBottom: '25px' }}>
+                  {[
+                    { num: 1, label: 'Verify' },
+                    { num: 2, label: 'Question' },
+                    { num: 3, label: 'Password' }
+                  ].map((s, idx) => (
+                    <div key={s.num} style={{ display: 'flex', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                        <div style={{
+                          width: '32px', height: '32px', borderRadius: '50%',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '0.8rem', fontWeight: 700,
+                          background: cpStep > s.num ? '#22c55e' : cpStep === s.num ? 'var(--accent-primary)' : 'var(--bg-input)',
+                          color: cpStep >= s.num ? 'white' : 'var(--text-muted)',
+                          border: `2px solid ${cpStep > s.num ? '#22c55e' : cpStep === s.num ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                          transition: 'all 0.3s'
+                        }}>
+                          {cpStep > s.num ? '✓' : s.num}
+                        </div>
+                        <span style={{
+                          fontSize: '0.65rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
+                          color: cpStep >= s.num ? 'var(--text-main)' : 'var(--text-muted)'
+                        }}>
+                          {s.label}
+                        </span>
+                      </div>
+                      {idx < 2 && (
+                        <div style={{
+                          width: '40px', height: '2px', margin: '0 8px', marginBottom: '22px',
+                          background: cpStep > s.num ? '#22c55e' : 'var(--border-subtle)',
+                          transition: 'background 0.3s'
+                        }} />
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {cpError && <div style={{ color: '#ff5b5b', fontSize: '0.85rem', fontWeight: 700, textAlign: 'center', marginBottom: '15px', textTransform: 'uppercase' }}>{cpError}</div>}
+              {cpError && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '12px', padding: '12px 16px', marginBottom: '20px',
+                  color: '#ef4444', fontSize: '0.85rem', fontWeight: 600, textAlign: 'center'
+                }}>
+                  {cpError}
+                </div>
+              )}
 
               {/* Step 1: OTP */}
               {cpStep === 1 && (
                 <div>
                   {!cpOtpSent ? (
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
+                      <div style={{
+                        background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                        borderRadius: '14px', padding: '20px', marginBottom: '20px'
+                      }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
+                          Verification will be sent to
+                        </div>
+                        <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                          {userProfile.email ? userProfile.email : "Loading email..."}
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: '1.6' }}>
                         We will send a 6-digit verification code to your registered email address.
-                        <br /><br />
-                        <strong style={{ color: 'var(--accent-primary)' }}>{userProfile.email ? userProfile.email : "Loading email..."}</strong>
                       </p>
-                      <button className="btn-improved btn-primary" onClick={handleSendOtp} disabled={cpLoading || !userProfile.email} style={{ width: '100%', justifyContent: 'center' }}>
-                        {cpLoading ? "Sending..." : "Send Verification Code"}
+                      <button
+                        onClick={handleSendOtp} disabled={cpLoading || !userProfile.email}
+                        style={{
+                          width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+                          background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                          color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+                          transition: 'all 0.2s', opacity: (cpLoading || !userProfile.email) ? 0.5 : 1
+                        }}
+                        onMouseOver={(e) => { if (!cpLoading) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(167, 139, 250, 0.4)'; } }}
+                        onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        {cpLoading ? "Sending..." : "📧 Send Verification Code"}
                       </button>
                     </div>
                   ) : (
                     <form onSubmit={handleVerifyOtp}>
-                      <div className="label-improved" style={{ textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1px' }}>ENTER 6-DIGIT CODE</div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '12px' }}>
+                        Enter 6-Digit Code
+                      </div>
                       <div className="cp-otp-grid">
                         {[0, 1, 2, 3, 4, 5].map((idx) => (
                           <input
@@ -1526,13 +1600,23 @@ export default function SupervisorDashboard() {
                           />
                         ))}
                       </div>
-                      <div className="cp-resend-wrapper">
-                        <div>Code expires in 90s</div>
-                        <div className={`cp-resend-btn ${cpCountdown === 0 ? 'active' : ''}`} onClick={() => cpCountdown === 0 && handleSendOtp()} style={{ opacity: cpCountdown === 0 ? 1 : 0.5 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0 20px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <span>Code expires in 90s</span>
+                        <span
+                          onClick={() => cpCountdown === 0 && handleSendOtp()}
+                          style={{ color: cpCountdown === 0 ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: cpCountdown === 0 ? 'pointer' : 'default', fontWeight: 600 }}
+                        >
                           {cpCountdown > 0 ? `Resend in ${cpCountdown}s` : 'Resend Code'}
-                        </div>
+                        </span>
                       </div>
-                      <button type="submit" className="btn-improved btn-primary" disabled={cpLoading || cpOtp.join("").length < 6} style={{ width: '100%', justifyContent: 'center' }}>
+                      <button type="submit" disabled={cpLoading || cpOtp.join("").length < 6}
+                        style={{
+                          width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+                          background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                          color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+                          transition: 'all 0.2s', opacity: (cpLoading || cpOtp.join("").length < 6) ? 0.5 : 1
+                        }}
+                      >
                         {cpLoading ? "Verifying..." : "Verify Code"}
                       </button>
                     </form>
@@ -1543,21 +1627,39 @@ export default function SupervisorDashboard() {
               {/* Step 2: Question */}
               {cpStep === 2 && (
                 <form onSubmit={handleVerifyQuestion}>
-                  <div className="form-group-improved">
-                    <label className="label-improved" style={{ color: 'var(--accent-orange)' }}>
+                  <div style={{
+                    background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                    borderRadius: '14px', padding: '20px', marginBottom: '20px', textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>
+                      Security Question
+                    </div>
+                    <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent-orange)' }}>
                       {(cpQuestion || "SECURITY CHECK").toUpperCase()}
-                    </label>
+                    </div>
+                  </div>
+                  <div className="form-group-improved">
                     <input
                       type="text"
                       className="input-improved"
-                      placeholder="Your Answer"
+                      style={{ padding: '14px', fontSize: '1rem', textAlign: 'center', letterSpacing: '1px' }}
+                      placeholder="Enter your answer"
                       value={cpAnswer}
                       onChange={(e) => setCpAnswer(removeEmojis(e.target.value))}
                       required
                       autoFocus
                     />
                   </div>
-                  <button type="submit" className="btn-improved btn-primary" disabled={cpLoading || !cpAnswer.trim()} style={{ width: '100%', justifyContent: 'center', marginTop: '15px' }}>
+                  <button type="submit" disabled={cpLoading || !cpAnswer.trim()}
+                    style={{
+                      width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+                      background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                      color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+                      transition: 'all 0.2s', marginTop: '15px', opacity: (cpLoading || !cpAnswer.trim()) ? 0.5 : 1
+                    }}
+                    onMouseOver={(e) => { if (!cpLoading && cpAnswer.trim()) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(167, 139, 250, 0.4)'; } }}
+                    onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
                     {cpLoading ? "Verifying..." : "Verify Answer"}
                   </button>
                 </form>
@@ -1567,12 +1669,12 @@ export default function SupervisorDashboard() {
               {cpStep === 3 && (
                 <form onSubmit={handleChangePasswordSubmit}>
                   <div className="form-group-improved">
-                    <label className="label-improved">NEW PASSWORD</label>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>NEW PASSWORD</label>
                     <div style={{ position: 'relative' }}>
                       <input
                         type={cpShowPass1 ? "text" : "password"}
                         className="input-improved"
-                        style={{ paddingRight: '40px' }}
+                        style={{ padding: '14px', paddingRight: '45px', fontSize: '1rem' }}
                         placeholder="15-20 characters"
                         value={cpNewPassword}
                         onChange={(e) => { setCpTouchedPw(true); setCpNewPassword(clampPasswordInput(e.target.value)); }}
@@ -1584,31 +1686,41 @@ export default function SupervisorDashboard() {
                         onPaste={(e) => e.preventDefault()}
                         onCopy={(e) => e.preventDefault()}
                       />
-                      <button type="button" className="cp-eye-btn" onClick={() => setCpShowPass1(!cpShowPass1)}>
+                      <button type="button" onClick={() => setCpShowPass1(!cpShowPass1)}
+                        style={{
+                          position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                          background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px'
+                        }}
+                      >
                         {cpShowPass1 ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
-                    {cpCapsOn1 && <div style={{ fontSize: '0.75rem', color: 'var(--accent-orange)', marginTop: '4px', fontWeight: 700 }}>CAPS LOCK IS ON</div>}
+                    {cpCapsOn1 && <div style={{ fontSize: '0.75rem', color: '#f59e0b', marginTop: '6px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}><span>⚠</span> CAPS LOCK IS ON</div>}
 
                     {(cpTouchedPw || cpTouchedConfirm) && cpNewPassword.length > 0 && (
-                      <div className="cp-password-feedback">
-                        <div className={`cp-feedback-item ${cpChecks.lengthOk ? 'ok' : 'missing'}`}>• 15–20 chars</div>
-                        <div className={`cp-feedback-item ${cpChecks.upperOk ? 'ok' : 'missing'}`}>• Uppercase</div>
-                        <div className={`cp-feedback-item ${cpChecks.lowerOk ? 'ok' : 'missing'}`}>• Lowercase</div>
-                        <div className={`cp-feedback-item ${cpChecks.numberOk ? 'ok' : 'missing'}`}>• Number</div>
-                        <div className={`cp-feedback-item ${cpChecks.symbolOk ? 'ok' : 'missing'}`}>• Symbol (! @ ? _ -)</div>
-                        <div className={`cp-feedback-item ${cpChecks.onlyAllowed ? 'ok' : 'error'}`}>• Permitted chars</div>
+                      <div style={{
+                        marginTop: '12px', padding: '12px', background: 'var(--bg-input)',
+                        border: '1px solid var(--border-subtle)', borderRadius: '8px',
+                        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px'
+                      }}>
+                        <div style={{ fontSize: '0.75rem', color: cpChecks.lengthOk ? '#22c55e' : 'var(--text-muted)' }}>{cpChecks.lengthOk ? '✓' : '•'} 15–20 chars</div>
+                        <div style={{ fontSize: '0.75rem', color: cpChecks.upperOk ? '#22c55e' : 'var(--text-muted)' }}>{cpChecks.upperOk ? '✓' : '•'} Uppercase</div>
+                        <div style={{ fontSize: '0.75rem', color: cpChecks.lowerOk ? '#22c55e' : 'var(--text-muted)' }}>{cpChecks.lowerOk ? '✓' : '•'} Lowercase</div>
+                        <div style={{ fontSize: '0.75rem', color: cpChecks.numberOk ? '#22c55e' : 'var(--text-muted)' }}>{cpChecks.numberOk ? '✓' : '•'} Number</div>
+                        <div style={{ fontSize: '0.75rem', color: cpChecks.symbolOk ? '#22c55e' : 'var(--text-muted)' }}>{cpChecks.symbolOk ? '✓' : '•'} Symbol (!@?_-)</div>
+                        <div style={{ fontSize: '0.75rem', color: cpChecks.onlyAllowed ? '#22c55e' : '#ef4444' }}>{cpChecks.onlyAllowed ? '✓' : '✗'} Permitted chars</div>
                       </div>
                     )}
                   </div>
 
-                  <div className="form-group-improved" style={{ marginTop: '15px' }}>
-                    <label className="label-improved">CONFIRM PASSWORD</label>
+                  <div className="form-group-improved" style={{ marginTop: '20px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>CONFIRM PASSWORD</label>
                     <div style={{ position: 'relative' }}>
                       <input
                         type={cpShowPass2 ? "text" : "password"}
                         className="input-improved"
-                        style={{ paddingRight: '40px' }}
+                        style={{ padding: '14px', paddingRight: '45px', fontSize: '1rem' }}
                         placeholder="Retype password"
                         value={cpConfirmPassword}
                         onChange={(e) => { setCpTouchedConfirm(true); setCpConfirmPassword(clampPasswordInput(e.target.value)); }}
@@ -1620,18 +1732,35 @@ export default function SupervisorDashboard() {
                         onPaste={(e) => e.preventDefault()}
                         onCopy={(e) => e.preventDefault()}
                       />
-                      <button type="button" className="cp-eye-btn" onClick={() => setCpShowPass2(!cpShowPass2)}>
+                      <button type="button" onClick={() => setCpShowPass2(!cpShowPass2)}
+                        style={{
+                          position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                          background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px'
+                        }}
+                      >
                         {cpShowPass2 ? <EyeOff size={18} /> : <Eye size={18} />}
                       </button>
                     </div>
-                    {cpCapsOn2 && <div style={{ fontSize: '0.75rem', color: 'var(--accent-orange)', marginTop: '4px', fontWeight: 700 }}>CAPS LOCK IS ON</div>}
+                    {cpCapsOn2 && <div style={{ fontSize: '0.75rem', color: '#f59e0b', marginTop: '6px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}><span>⚠</span> CAPS LOCK IS ON</div>}
 
                     {cpTouchedConfirm && cpConfirmPassword.length > 0 && cpNewPassword !== cpConfirmPassword && (
-                      <div style={{ fontSize: '0.8rem', color: '#ff5b5b', marginTop: '6px', fontWeight: 600 }}>PASSWORDS DO NOT MATCH</div>
+                      <div style={{ fontSize: '0.8rem', color: '#ef4444', marginTop: '8px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span>✗</span> PASSWORDS DO NOT MATCH
+                      </div>
                     )}
                   </div>
 
-                  <button type="submit" className="btn-improved btn-primary" disabled={cpLoading || !cpChecks.strongOk || cpNewPassword !== cpConfirmPassword} style={{ width: '100%', justifyContent: 'center', marginTop: '20px' }}>
+                  <button type="submit" disabled={cpLoading || !cpChecks.strongOk || cpNewPassword !== cpConfirmPassword}
+                    style={{
+                      width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+                      background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                      color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+                      transition: 'all 0.2s', marginTop: '25px', opacity: (cpLoading || !cpChecks.strongOk || cpNewPassword !== cpConfirmPassword) ? 0.5 : 1
+                    }}
+                    onMouseOver={(e) => { if (!cpLoading && cpChecks.strongOk && cpNewPassword === cpConfirmPassword) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(167, 139, 250, 0.4)'; } }}
+                    onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
                     {cpLoading ? "Updating..." : "Update Password"}
                   </button>
                 </form>
