@@ -908,59 +908,103 @@ export default function SupervisorDashboard() {
                     {/* Team Member Compliance Table */}
                     <div className="glass-card">
                       <div className="section-title">Team Member Compliance</div>
-                      <div className="compliance-info" style={{
-                        padding: '1rem', marginBottom: '1rem', background: 'rgba(167, 139, 250, 0.1)',
-                        border: '1px solid rgba(167, 139, 250, 0.3)', borderRadius: '8px', color: 'var(--text-main)', fontSize: '0.9rem'
+                      <div style={{
+                        padding: '14px 20px', marginBottom: '20px', background: 'rgba(167, 139, 250, 0.08)',
+                        border: '1px solid rgba(167, 139, 250, 0.2)', borderRadius: '14px', color: 'var(--text-muted)', fontSize: '0.85rem',
+                        display: 'flex', alignItems: 'center', gap: '10px'
                       }}>
-                        <strong>Daily Limit:</strong> 8 hours per day | <strong>Weekly Limit:</strong> 40 hours per week
+                        <span style={{ fontSize: '1.1rem' }}>📋</span>
+                        <span><strong style={{ color: 'var(--text-main)' }}>Daily Limit:</strong> 8 hours per day &nbsp;|&nbsp; <strong style={{ color: 'var(--text-main)' }}>Weekly Limit:</strong> 40 hours per week</span>
                       </div>
-                      <div className="table-container" style={{ maxHeight: '300px' }}>
-                        <table className="data-table">
-                          <thead>
-                            <tr>
-                              <th>Employee</th>
-                              <th>Today's Hours</th>
-                              <th>Daily Limit</th>
-                              <th>Status</th>
-                              <th>Weekly Total</th>
-                              <th>Weekly Limit</th>
-                              <th>Compliance</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {stats.complianceData && stats.complianceData.length > 0 ? (
-                              stats.complianceData.map((emp: any, i: number) => (
-                                <tr key={i}>
-                                  <td style={{ fontWeight: 600 }}>{emp.name}</td>
-                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{emp.todayHours} hrs</td>
-                                  <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>8.0 hrs</td>
-                                  <td>
-                                    <span className={`status-badge ${emp.isOverDaily ? 'warn' : 'ok'}`}>
-                                      {emp.isOverDaily ? '⚠ OVERTIME' : '✓ OK'}
-                                    </span>
-                                  </td>
-                                  <td style={{ fontFamily: 'var(--font-mono)' }}>{emp.weeklyHours} hrs</td>
-                                  <td style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>40.0 hrs</td>
-                                  <td>
-                                    <div className="compliance-bar">
-                                      <div
-                                        className={`compliance-fill ${emp.isOverWeekly ? 'over' : 'ok'}`}
-                                        style={{ width: `${Math.min((parseFloat(emp.weeklyHours) / 40) * 100, 100)}%` }}
-                                      />
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                                  No team members to display
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+
+                      {stats.complianceData && stats.complianceData.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {/* Table Header */}
+                          <div style={{
+                            display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
+                            padding: '10px 20px', fontSize: '0.7rem', fontWeight: 700,
+                            color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.5px'
+                          }}>
+                            <span>Employee</span>
+                            <span>Today</span>
+                            <span>Status</span>
+                            <span>Weekly</span>
+                            <span>Compliance</span>
+                          </div>
+
+                          {stats.complianceData.map((emp: any, i: number) => {
+                            const weeklyPercent = Math.min((parseFloat(emp.weeklyHours) / 40) * 100, 100);
+                            const initials = emp.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2);
+                            return (
+                              <div key={i} style={{
+                                display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
+                                alignItems: 'center', padding: '16px 20px',
+                                background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
+                                borderRadius: '14px', transition: 'all 0.2s',
+                              }}
+                                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.transform = 'translateX(4px)'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.transform = 'translateX(0)'; }}
+                              >
+                                {/* Employee */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <div style={{
+                                    width: '38px', height: '38px', borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    color: 'white', fontWeight: 700, fontSize: '0.75rem', flexShrink: 0
+                                  }}>
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>{emp.name}</div>
+                                  </div>
+                                </div>
+
+                                {/* Today */}
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                                  {emp.todayHours}<span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}> / 8h</span>
+                                </div>
+
+                                {/* Status */}
+                                <div>
+                                  <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                    padding: '5px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700,
+                                    background: emp.isOverDaily ? 'rgba(245, 158, 11, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                                    color: emp.isOverDaily ? '#f59e0b' : '#22c55e',
+                                    border: `1px solid ${emp.isOverDaily ? 'rgba(245, 158, 11, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
+                                  }}>
+                                    {emp.isOverDaily ? '⚠ OT' : '✓ OK'}
+                                  </span>
+                                </div>
+
+                                {/* Weekly */}
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--text-main)' }}>
+                                  {emp.weeklyHours}<span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}> / 40h</span>
+                                </div>
+
+                                {/* Compliance Bar */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div className="compliance-bar" style={{ flex: 1 }}>
+                                    <div
+                                      className={`compliance-fill ${emp.isOverWeekly ? 'over' : 'ok'}`}
+                                      style={{ width: `${weeklyPercent}%` }}
+                                    />
+                                  </div>
+                                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '35px', textAlign: 'right' }}>
+                                    {weeklyPercent.toFixed(0)}%
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '10px' }}>👥</div>
+                          No team members to display
+                        </div>
+                      )}
                     </div>
 
                     {/* Generate Reports Panel */}
