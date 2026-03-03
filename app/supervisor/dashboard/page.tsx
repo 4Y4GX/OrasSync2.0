@@ -30,6 +30,7 @@ export default function SupervisorDashboard() {
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [activeSessionNotice, setActiveSessionNotice] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
+  const [showClockOutModal, setShowClockOutModal] = useState(false);
 
   // UPDATED: Added new stat fields for Monthly data and Compliance array
   const [stats, setStats] = useState({
@@ -214,7 +215,7 @@ export default function SupervisorDashboard() {
   };
 
   const handleClockOut = async () => {
-    if (!confirm("End Supervisor Session?")) return;
+    setShowClockOutModal(false);
     try {
       const res = await fetch('/api/supervisor/clock/out', { method: 'POST' });
       if (res.ok) {
@@ -532,7 +533,7 @@ export default function SupervisorDashboard() {
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); setShowSettingsModal(true); setShowProfileMenu(false); }}>
                   <span>⚙️</span> Settings
                 </button>
-                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); handleLogout(); }}>
+                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); setLogoutModal(true); setShowProfileMenu(false); }}>
                   <span>🚪</span> Logout
                 </button>
               </div>
@@ -646,7 +647,7 @@ export default function SupervisorDashboard() {
 
                           <button
                             className="btn-ap-danger"
-                            onClick={handleClockOut}
+                            onClick={() => setShowClockOutModal(true)}
                           >
                             CLOCK OUT
                           </button>
@@ -1213,6 +1214,189 @@ export default function SupervisorDashboard() {
                   {message}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Confirmation Modal */}
+      {logoutModal && (
+        <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''}`} onClick={() => setLogoutModal(false)}>
+          <div className="modal-card-improved" style={{ maxWidth: '440px', width: '90%', border: '1px solid var(--border-subtle)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-improved">
+              <div className="modal-icon-wrapper" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}>🚪</div>
+              <div className="modal-title-improved">End Session</div>
+              <div className="modal-subtitle">Are you sure you want to log out?</div>
+              <button
+                onClick={() => setLogoutModal(false)}
+                className="btn-close-modal"
+                style={{ position: 'absolute', right: '20px', top: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body-improved" style={{ padding: '25px 30px', background: 'var(--bg-panel)' }}>
+              {hasClockedIn && (
+                <div style={{
+                  background: 'rgba(251, 191, 36, 0.1)',
+                  border: '1px solid rgba(251, 191, 36, 0.3)',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px'
+                }}>
+                  <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+                  <div>
+                    <div style={{ fontWeight: 700, color: 'var(--color-warn)', fontSize: '0.9rem' }}>Active Session Detected</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '3px' }}>You are currently clocked in. Please clock out before logging out to ensure your time is recorded correctly.</div>
+                  </div>
+                </div>
+              )}
+
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', margin: '0 0 25px 0', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                {hasClockedIn
+                  ? 'Logging out while clocked in is not allowed.'
+                  : 'Your session will be terminated and you will be redirected to the login page.'
+                }
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setLogoutModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-main)',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-deep)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!hasClockedIn) {
+                      handleLogout();
+                    }
+                  }}
+                  disabled={hasClockedIn}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: hasClockedIn ? '#6b7280' : '#ef4444',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: hasClockedIn ? 'not-allowed' : 'pointer',
+                    opacity: hasClockedIn ? 0.5 : 1,
+                    transition: 'all 0.2s',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}
+                  onMouseOver={(e) => { if (!hasClockedIn) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)'; } }}
+                  onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clock Out Confirmation Modal */}
+      {showClockOutModal && (
+        <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''}`} onClick={() => setShowClockOutModal(false)}>
+          <div className="modal-card-improved" style={{ maxWidth: '440px', width: '90%', border: '1px solid var(--border-subtle)' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-improved">
+              <div className="modal-icon-wrapper" style={{ background: 'rgba(251, 191, 36, 0.12)', color: '#fbbf24', border: '1px solid rgba(251, 191, 36, 0.3)' }}>⏱</div>
+              <div className="modal-title-improved">End Session</div>
+              <div className="modal-subtitle">Are you sure you want to clock out?</div>
+              <button
+                onClick={() => setShowClockOutModal(false)}
+                className="btn-close-modal"
+                style={{ position: 'absolute', right: '20px', top: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body-improved" style={{ padding: '25px 30px', background: 'var(--bg-panel)' }}>
+              <div style={{
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '14px',
+                padding: '20px',
+                marginBottom: '20px',
+                textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Session Duration</div>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>{sessionDuration}</div>
+                {sessionStart && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                    Started at {new Date(sessionStart).toLocaleTimeString("en-US", { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: true })}
+                  </div>
+                )}
+              </div>
+
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', margin: '0 0 25px 0', fontSize: '0.9rem', lineHeight: '1.6' }}>
+                Your supervisor session will be ended and your work hours will be recorded.
+              </p>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setShowClockOutModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-input)',
+                    color: 'var(--text-main)',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = 'var(--bg-deep)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleClockOut}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: '12px',
+                    border: 'none',
+                    background: '#ef4444',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  Clock Out
+                </button>
+              </div>
             </div>
           </div>
         </div>
