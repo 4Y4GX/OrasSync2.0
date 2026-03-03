@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import '../../styles/dashboard.css';
@@ -50,13 +50,23 @@ export default function SupervisorDashboard() {
 
   const [approvals, setApprovals] = useState<any[]>([]);
   const [managerRejected, setManagerRejected] = useState<any[]>([]);
+  const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [approvalTab, setApprovalTab] = useState<'pending' | 'manager_rejected'>('pending');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [isDetailsClosing, setIsDetailsClosing] = useState(false);
   const [selectedTimesheet, setSelectedTimesheet] = useState<any>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [weekOffset, setWeekOffset] = useState(0);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  const closeDetailsModal = () => {
+    setIsDetailsClosing(true);
+    setTimeout(() => {
+      setShowDetailsModal(false);
+      setIsDetailsClosing(false);
+    }, 280);
+  };
 
   useEffect(() => {
     if (activeSection === 'approval') {
@@ -68,7 +78,7 @@ export default function SupervisorDashboard() {
   useEffect(() => {
     const timer = setInterval(() => {
       const now = new Date();
-      setCurrentTime(now.toLocaleTimeString([], { hour12: true, hour: '2-digit', minute: '2-digit' }));
+      setCurrentTime(now.toLocaleTimeString("en-US", { hour12: true, hour: "2-digit", minute: "2-digit" }));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -120,6 +130,7 @@ export default function SupervisorDashboard() {
   }, []);
 
   const loadApprovals = async () => {
+    setLoadingApprovals(true);
     try {
       const [pendingRes, rejectedRes] = await Promise.all([
         fetch('/api/supervisor/approvals/list?filter=pending'),
@@ -129,6 +140,8 @@ export default function SupervisorDashboard() {
       if (rejectedRes.ok) setManagerRejected(await rejectedRes.json());
     } catch (err) {
       console.error("Failed to load approvals", err);
+    } finally {
+      setLoadingApprovals(false);
     }
   };
 
@@ -528,19 +541,7 @@ export default function SupervisorDashboard() {
         </aside>
 
         <main className="workspace-panel">
-          <div className="top-bar" style={{ position: 'absolute', top: 20, right: 30, padding: 0, zIndex: 10, display: 'flex', gap: '10px' }}>
-            <button
-              className="theme-btn"
-              onClick={handleRefreshNow}
-              title="Refresh Data"
-              style={{ width: 32, height: 32, fontSize: '1rem' }}
-            >
-              🔄
-            </button>
-            <button className="theme-btn" onClick={toggleTheme} title="Toggle Theme" style={{ width: 32, height: 32, fontSize: '1rem' }}>
-              {lightMode ? '☀' : '🌙'}
-            </button>
-          </div>
+
 
           <div className="content-area">
             {/* LANDING SCREEN */}
@@ -560,7 +561,7 @@ export default function SupervisorDashboard() {
                   <p style={{ color: 'var(--text-muted)', marginBottom: '30px', textAlign: 'center' }}>Supervisor access enabled. Click below to begin session.</p>
 
                   <button className="btn-clock-in-large" onClick={handleClockIn} disabled={isLoading}>
-                    {isLoading ? "STARTING..." : "CLOCK IN"}
+                    {isLoading ? "CLOCKING IN..." : "CLOCK IN"}
                   </button>
                 </div>
               </div>
@@ -570,7 +571,7 @@ export default function SupervisorDashboard() {
             {hasClockedIn && activeSection === 'team' && (
               <div className="section-view fade-in">
                 <div className="section-animate">
-                  <div className="hud-row" style={{ marginBottom: '20px' }}>
+                  <div className="hud-row hud-row-2" style={{ marginBottom: '20px' }}>
                     <div className="hud-card">
                       <div className="hud-bg-icon">⏱</div>
                       <div className="hud-label">CURRENT TIME</div>
@@ -582,15 +583,10 @@ export default function SupervisorDashboard() {
                       <div className="hud-val">{sessionDuration}</div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '5px' }}>Productivity Target: {sessionDuration.substring(0, 5)} / 8h</div>
                     </div>
-                    <div className="hud-card" style={{ display: 'flex', flexDirection: 'column', padding: '15px 25px', justifyContent: 'center' }}>
-                      <div className="hud-label" style={{ marginBottom: '5px' }}>MY STATUS</div>
-                      <div className="status-badge go" style={{ display: 'flex', marginBottom: '10px', width: '100%', justifyContent: 'center', padding: '10px', background: 'var(--bg-input)', borderRadius: '8px' }}>CLOCKED IN</div>
-                      <button className="btn-action btn-urgent" onClick={handleClockOut} style={{ borderRadius: '8px', padding: '10px' }}>Clock Out</button>
-                    </div>
                   </div>
 
-                  <div className="hud-row">
-                    <div className="hud-card">
+                  <div className="stats-bar">
+                    <div className="stats-item">
                       <div className="hud-bg-icon">👥</div>
                       <div className="hud-label">TEAM MEMBERS</div>
                       <div className="hud-val">{stats.totalMembers}</div>
@@ -598,7 +594,7 @@ export default function SupervisorDashboard() {
                         ACTIVE EMPLOYEES
                       </div>
                     </div>
-                    <div className="hud-card">
+                    <div className="stats-item">
                       <div className="hud-bg-icon">⚡</div>
                       <div className="hud-label">CURRENTLY WORKING</div>
                       <div className="hud-val">{stats.currentlyWorking}</div>
@@ -606,7 +602,7 @@ export default function SupervisorDashboard() {
                         Clocked In Today
                       </div>
                     </div>
-                    <div className="hud-card">
+                    <div className="stats-item">
                       <div className="hud-bg-icon">🔥</div>
                       <div className="hud-label">TOTAL HOURS TODAY</div>
                       <div className="hud-val warn">{stats.totalHours}</div>
@@ -614,7 +610,7 @@ export default function SupervisorDashboard() {
                         Team Hours
                       </div>
                     </div>
-                    <div className="hud-card">
+                    <div className="stats-item">
                       <div className="hud-bg-icon">💤</div>
                       <div className="hud-label">OFFLINE</div>
                       <div className="hud-val" style={{ color: 'var(--text-muted)' }}>{stats.offline}</div>
@@ -623,8 +619,41 @@ export default function SupervisorDashboard() {
                       </div>
                     </div>
                   </div>
+                  <div className="workspace-grid">
+                    <div className="logs-panel">
+                      <TeamStatusMonitor />
+                    </div>
 
-                  <TeamStatusMonitor />
+                    <div className="controls-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                        <div className="section-title" style={{ padding: 0, background: 'transparent', margin: '0 0 20px 0' }}>Action Panel</div>
+                        <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: "0.9rem" }}>
+                          Supervisor session active. Manage team status below.
+                        </p>
+
+                        <div style={{ marginTop: "auto" }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <div className="label-sm" style={{ margin: 0 }}>SESSION STATUS</div>
+                            {sessionStart && (
+                              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                                Since {new Date(sessionStart).toLocaleTimeString("en-US", { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: true })}
+                              </div>
+                            )}
+                          </div>
+                          <div className="session-status-box" style={{ marginBottom: 10 }}>
+                            CLOCKED IN
+                          </div>
+
+                          <button
+                            className="btn-ap-danger"
+                            onClick={handleClockOut}
+                          >
+                            CLOCK OUT
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -655,7 +684,34 @@ export default function SupervisorDashboard() {
                       ))}
                     </div>
                     <div className="approval-grid">
-                      {approvalTab === 'pending' && (
+                      {loadingApprovals && approvals.length === 0 && managerRejected.length === 0 ? (
+                        <>
+                          {Array(4).fill(0).map((_, i) => (
+                            <div key={`approval-skeleton-${i}`} className="approval-card skeleton">
+                              <div className="approval-header">
+                                <div style={{ width: '100%' }}>
+                                  <div className="skeleton-box" style={{ width: '60%', height: '1.2rem', marginBottom: '8px' }} />
+                                  <div className="skeleton-box" style={{ width: '40%', height: '0.85rem' }} />
+                                </div>
+                              </div>
+                              <div className="approval-stats" style={{ marginTop: '15px' }}>
+                                <div className="stat-item">
+                                  <div className="skeleton-box" style={{ width: '80%', height: '0.75rem', marginBottom: '8px' }} />
+                                  <div className="skeleton-box" style={{ width: '50%', height: '1rem' }} />
+                                </div>
+                                <div className="stat-item">
+                                  <div className="skeleton-box" style={{ width: '80%', height: '0.75rem', marginBottom: '8px' }} />
+                                  <div className="skeleton-box" style={{ width: '50%', height: '1rem' }} />
+                                </div>
+                              </div>
+                              <div className="approval-actions" style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                                <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                                <div className="skeleton-box" style={{ flex: 1, height: '36px', borderRadius: '6px' }} />
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      ) : approvalTab === 'pending' ? (
                         <>
                           {approvals.length === 0 ? (
                             <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
@@ -665,11 +721,22 @@ export default function SupervisorDashboard() {
                           ) : approvals.map((timesheet, i) => (
                             <div key={i} className="approval-card">
                               <div className="approval-header">
-                                <div>
-                                  <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{timesheet.employee}</div>
-                                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {timesheet.date}</div>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{timesheet.employee}</div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {timesheet.date}</div>
+                                  </div>
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px" }}>
+                                    <div className="approval-badge pending">PENDING</div>
+                                    <button
+                                      className="btn-view-link"
+                                      onClick={() => openDetailsModal(timesheet)}
+                                      style={{ marginTop: "5px", fontSize: "0.8rem" }}
+                                    >
+                                      View Details &rarr;
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="approval-badge pending">PENDING</div>
                               </div>
                               <div className="approval-stats">
                                 <div className="stat-item">
@@ -681,16 +748,14 @@ export default function SupervisorDashboard() {
                                   <span className="stat-value">{timesheet.activities}</span>
                                 </div>
                               </div>
-                              <div className="approval-actions">
-                                <button className="btn-view" onClick={() => openDetailsModal(timesheet)}>View Details</button>
+                              <div className="approval-actions" style={{ marginTop: "15px" }}>
+                                <button className="btn-reject-outline" onClick={() => openRejectModal(timesheet)}>✗ Reject</button>
                                 <button className="btn-approve" onClick={() => handleApprovalAction(timesheet.log_ids, 'APPROVE')}>✓ Approve</button>
-                                <button className="btn-reject" onClick={() => openRejectModal(timesheet)}>✗ Reject</button>
                               </div>
                             </div>
                           ))}
                         </>
-                      )}
-                      {approvalTab === 'manager_rejected' && (
+                      ) : (
                         <>
                           {managerRejected.length === 0 ? (
                             <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
@@ -700,11 +765,22 @@ export default function SupervisorDashboard() {
                           ) : managerRejected.map((timesheet, i) => (
                             <div key={i} className="approval-card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
                               <div className="approval-header">
-                                <div>
-                                  <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{timesheet.employee}</div>
-                                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {timesheet.date}</div>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+                                  <div>
+                                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{timesheet.employee}</div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {timesheet.date}</div>
+                                  </div>
+                                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px" }}>
+                                    <div className="approval-badge rejected">REJECTED</div>
+                                    <button
+                                      className="btn-view-link"
+                                      onClick={() => openDetailsModal(timesheet)}
+                                      style={{ marginTop: "5px", fontSize: "0.8rem" }}
+                                    >
+                                      View Details &rarr;
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="approval-badge rejected">REJECTED</div>
                               </div>
                               {timesheet.rejection_reason && (
                                 <div style={{
@@ -729,8 +805,9 @@ export default function SupervisorDashboard() {
                                   <span className="stat-value">{timesheet.activities}</span>
                                 </div>
                               </div>
-                              <div className="approval-actions">
-                                <button className="btn-view" onClick={() => openDetailsModal(timesheet)}>View Details</button>
+                              <div className="approval-actions" style={{ marginTop: "15px" }}>
+                                <button className="btn-reject-outline" onClick={() => openRejectModal(timesheet)}>✗ Modify Rejection</button>
+                                <button className="btn-approve" onClick={() => handleApprovalAction(timesheet.log_ids, 'APPROVE')}>✓ Force Approve</button>
                               </div>
                             </div>
                           ))}
@@ -961,100 +1038,186 @@ export default function SupervisorDashboard() {
 
       {/* Settings Modal */}
       {showSettingsModal && (
-        <div className="modal-overlay-improved" onClick={() => setShowSettingsModal(false)}>
-          <div className="modal-card-improved" style={{ maxWidth: '600px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+        <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''}`} onClick={() => setShowSettingsModal(false)}>
+          <div className="modal-card-improved" style={{ maxWidth: '600px', width: '90%', border: '1px solid var(--border-subtle)' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-improved">
-              <div className="modal-icon-wrapper" style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--accent-primary)' }}>⚙️</div>
+              <div className="modal-icon-wrapper" style={{ background: 'rgba(167,139,250,0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(167,139,250,0.3)' }}>⚙️</div>
               <div className="modal-title-improved">Dashboard Settings</div>
               <div className="modal-subtitle">Manage your profile and application appearance</div>
               <button
                 onClick={() => setShowSettingsModal(false)}
+                className="btn-close-modal"
                 style={{ position: 'absolute', right: '20px', top: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}
               >
                 ✕
               </button>
             </div>
 
-            <div className="modal-body-improved" style={{ maxHeight: '70vh', overflowY: 'auto', padding: '20px' }}>
+            <div className="modal-body-improved" style={{ maxHeight: '70vh', overflowY: 'auto', padding: '30px', background: 'var(--bg-panel)' }}>
 
-              {/* Profile Settings Card */}
-              <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
-                <div className="section-title">Profile Settings</div>
-
-                <div className="settings-section">
-                  <div className="settings-header">
+              {/* Security Section */}
+              <div style={{ marginBottom: '30px' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '1px', paddingLeft: '4px' }}>Security Settings</div>
+                <div style={{
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '20px',
+                  padding: '24px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{
+                      width: '52px',
+                      height: '52px',
+                      borderRadius: '50%',
+                      background: 'var(--bg-deep)',
+                      border: '1px solid var(--border-subtle)',
+                      color: '#f59e0b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '1.4rem'
+                    }}>
+                      🔑
+                    </div>
                     <div>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Change Password</h4>
-                      <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Update your account password</p>
+                      <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '1.05rem' }}>Change Password</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>Update your account access credentials</div>
                     </div>
-                    <button
-                      className="btn-settings-action"
-                      onClick={() => {
-                        setShowSettingsModal(false);
-                        resetCpState();
-                        setShowCpModal(true);
-                      }}
-                    >
-                      🔑 Change Password
-                    </button>
+                  </div>
+                  <button
+                    style={{
+                      background: '#22c55e',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 24px',
+                      borderRadius: '10px',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}
+                    onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(34, 197, 94, 0.3)'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      resetCpState();
+                      setShowCpModal(true);
+                    }}
+                  >
+                    Update
+                  </button>
+                </div>
+              </div>
+
+              {/* Appearance Section */}
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '1px', paddingLeft: '4px' }}>Appearance</div>
+                <div style={{
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '20px',
+                  padding: '4px 0',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+                }}>
+                  {/* Theme Mode Row */}
+                  <div style={{ padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                      <div style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '50%',
+                        background: 'var(--bg-deep)',
+                        border: '1px solid var(--border-subtle)',
+                        color: '#f59e0b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '1.2rem'
+                      }}>
+                        ☀️
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Theme Mode</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Toggle between light and dark visual themes</div>
+                      </div>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={!lightMode}
+                        onChange={toggleTheme}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+
+                  {/* Lock Theme Row */}
+                  <div style={{ padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                      <div style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '50%',
+                        background: 'var(--bg-deep)',
+                        border: '1px solid var(--border-subtle)',
+                        color: '#f59e0b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '1.2rem'
+                      }}>
+                        🔒
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>Lock Theme</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Prevent accidental switches between modes</div>
+                      </div>
+                    </div>
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        onChange={(e) => {
+                          try {
+                            localStorage.setItem("orasync-theme-locked", e.target.checked ? "true" : "false");
+                            if (e.target.checked) {
+                              setMessage('Theme state locked.');
+                              setTimeout(() => setMessage(''), 3000);
+                            }
+                          } catch { }
+                        }}
+                      />
+                      <span className="slider"></span>
+                    </label>
                   </div>
                 </div>
               </div>
 
-              {/* Appearance Settings Card */}
-              <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
-                <div className="section-title">Appearance</div>
-
-                <div className="settings-row">
-                  <div>
-                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Theme Mode</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      Switch between light and dark theme
-                    </div>
-                  </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      checked={!lightMode}
-                      onChange={toggleTheme}
-                    />
-                    <span className="slider"></span>
-                  </label>
+              {message && (
+                <div className="fade-in" style={{
+                  marginTop: '1.5rem',
+                  color: 'var(--accent-primary)',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  background: 'rgba(167, 139, 250, 0.08)',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(167, 139, 250, 0.2)',
+                  fontSize: '0.9rem'
+                }}>
+                  {message}
                 </div>
-
-                <div className="settings-row">
-                  <div>
-                    <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>Lock Theme</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      Prevent theme from changing accidentally
-                    </div>
-                  </div>
-                  <label className="toggle-switch">
-                    <input
-                      type="checkbox"
-                      onChange={(e) => {
-                        try {
-                          localStorage.setItem("orasync-theme-locked", e.target.checked ? "true" : "false");
-                          if (e.target.checked) {
-                            setMessage('Theme locked. Unlock to change theme.');
-                            setTimeout(() => setMessage(''), 3000);
-                          }
-                        } catch { }
-                      }}
-                    />
-                    <span className="slider"></span>
-                  </label>
-                </div>
-                {message && (
-                  <div style={{ marginTop: '1rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
-                    {message}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
 
       {/* Change Password Modal */}
       {showCpModal && (
@@ -1314,79 +1477,238 @@ export default function SupervisorDashboard() {
         </div>
       )}
 
-      {/* View Details Modal */}
-      {showDetailsModal && selectedTimesheet && (
-        <div className="modal-overlay-improved" onClick={() => setShowDetailsModal(false)}>
-          <div className="modal-card-improved details-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-improved">
-              <div className="modal-icon-wrapper view-icon">👁</div>
-              <div className="modal-title-improved">Timesheet Details</div>
-              <div className="modal-subtitle">Complete breakdown of work activities</div>
-            </div>
-            <div className="modal-body-improved">
-              <div className="details-grid">
-                <div className="detail-card-improved">
-                  <div className="detail-icon">👤</div>
-                  <div className="detail-content">
-                    <div className="detail-label-improved">Employee</div>
-                    <div className="detail-value-improved">{selectedTimesheet.employee}</div>
-                  </div>
+      {/* View Details Modal (Split-Pane Timeline Layout) */}
+      {showDetailsModal && selectedTimesheet && (() => {
+        const billableCount = selectedTimesheet.details?.filter((d: any) => d.is_billable).length || 0;
+        const totalCount = selectedTimesheet.details?.length || 0;
+        const initials = selectedTimesheet.employee?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+        return (
+          <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''} ${isDetailsClosing ? 'modal-closing' : ''}`} onClick={closeDetailsModal} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className={`modal-card-improved details-modal ${isDetailsClosing ? 'modal-card-closing' : ''}`} onClick={(e) => e.stopPropagation()} style={{
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              width: '1020px',
+              maxWidth: '95vw',
+              height: '660px',
+              maxHeight: '90vh',
+              boxShadow: 'var(--shadow-card)',
+              borderRadius: '16px'
+            }}>
+
+              {/* TOP STATUS BAR */}
+              <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '5px 12px',
+                  background: 'rgba(251, 191, 36, 0.1)',
+                  color: 'var(--color-warn)',
+                  borderRadius: '20px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase' as const,
+                  border: '1px solid rgba(251, 191, 36, 0.2)'
+                }}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-warn)', boxShadow: '0 0 6px var(--color-warn)', animation: 'pulse 2s ease-in-out infinite' }} /> Pending Approval
                 </div>
-                <div className="detail-card-improved">
-                  <div className="detail-icon">📅</div>
-                  <div className="detail-content">
-                    <div className="detail-label-improved">Date</div>
-                    <div className="detail-value-improved">{selectedTimesheet.date}</div>
-                  </div>
-                </div>
-                <div className="detail-card-improved">
-                  <div className="detail-icon">⏱</div>
-                  <div className="detail-content">
-                    <div className="detail-label-improved">Total Hours</div>
-                    <div className="detail-value-improved">{selectedTimesheet.hours.toFixed(2)} hrs</div>
-                  </div>
-                </div>
-                <div className="detail-card-improved">
-                  <div className="detail-icon">📋</div>
-                  <div className="detail-content">
-                    <div className="detail-label-improved">Activities</div>
-                    <div className="detail-value-improved">{selectedTimesheet.activities}</div>
-                  </div>
-                </div>
+                <button
+                  onClick={closeDetailsModal}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', padding: '6px', borderRadius: '50%', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--bg-input)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
+                >
+                  ✕
+                </button>
               </div>
-              {selectedTimesheet.details && selectedTimesheet.details.length > 0 && (
-                <div className="activity-breakdown">
-                  <h4 className="breakdown-title">Activity Breakdown</h4>
-                  <div className="activity-list-improved">
-                    {selectedTimesheet.details.map((detail: any, idx: number) => (
-                      <div key={idx} className="activity-item-improved">
-                        <div className="activity-header">
-                          <div className="activity-name">{detail.activity_name}</div>
-                          {detail.is_billable && (
-                            <span className="badge-billable">💰 Billable</span>
-                          )}
-                        </div>
-                        <div className="activity-time">
-                          <span className="time-badge">📅 {detail.log_date}</span>
-                          <span className="time-badge">🕐 {detail.start_time}</span>
-                          <span className="time-arrow">→</span>
-                          <span className="time-badge">🕐 {detail.end_time}</span>
-                          <span className="duration-badge">{detail.hours} hrs</span>
+
+              {/* Two-pane row container */}
+              <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+                {/* LEFT PANE with accent bar */}
+                <div style={{
+                  width: '300px',
+                  minWidth: '300px',
+                  background: 'var(--bg-deep)',
+                  backgroundImage: 'linear-gradient(180deg, rgba(167,139,250,0.08) 0%, transparent 40%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative'
+                }}>
+                  {/* Right-edge separator glow */}
+                  <div style={{ position: 'absolute', right: '-1px', top: 0, bottom: 0, width: '1px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), var(--border-subtle))', opacity: 0.5, zIndex: 2 }} />
+                  <div style={{ position: 'absolute', right: '-4px', top: 0, bottom: 0, width: '8px', background: 'linear-gradient(90deg, rgba(167,139,250,0.08), transparent)', pointerEvents: 'none', zIndex: 1 }} />
+                  {/* Accent edge line */}
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), transparent)', borderRadius: '0 2px 2px 0' }} />
+
+                  <div style={{ padding: '35px 28px 35px 32px', flex: 1, overflowY: 'auto' }}>
+                    {/* Profile Section */}
+                    <div style={{ textAlign: 'center', marginBottom: '28px', paddingBottom: '22px', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div style={{
+                        width: 56, height: 56, borderRadius: '50%',
+                        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-highlight))',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.1rem', fontWeight: 800, color: 'white', letterSpacing: '1px',
+                        margin: '0 auto 14px',
+                        boxShadow: '0 0 24px var(--shadow-glow)'
+                      }}>{initials}</div>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.3px' }}>{selectedTimesheet.employee}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', letterSpacing: '0.5px' }}>Timesheet Report</div>
+                    </div>
+
+                    {/* Stats */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
+                        <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 6 }}>Date Logged</div>
+                        <div style={{ fontWeight: 600, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
+                          <span style={{ opacity: 0.6, fontSize: '0.9rem' }}>📅</span> {selectedTimesheet.date}
                         </div>
                       </div>
-                    ))}
+
+                      <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
+                        <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 6 }}>Total Hours</div>
+                        <div style={{ fontWeight: 700, fontSize: '1.8rem', color: 'var(--accent-cyan)', lineHeight: 1 }}>
+                          {Number(selectedTimesheet.hours).toFixed(2)} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>hrs</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <div style={{ flex: 1, background: 'var(--bg-input)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 4 }}>Activities</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--text-main)' }}>{totalCount}</div>
+                        </div>
+                        <div style={{ flex: 1, background: 'rgba(74, 222, 128, 0.04)', borderRadius: '10px', padding: '12px 14px', border: '1px solid rgba(74, 222, 128, 0.08)' }}>
+                          <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--color-go)', marginBottom: 4 }}>Billable</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--color-go)' }}>{billableCount}</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
+
+                {/* RIGHT PANE */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-panel)', minWidth: 0 }}>
+
+                  {/* Header */}
+                  <div style={{ padding: '24px 32px 18px', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Activity Timeline</h3>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'var(--bg-input)', padding: '3px 10px', borderRadius: '12px', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{totalCount} entries</div>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '3px' }}>Chronological breakdown of {selectedTimesheet.date}</div>
+                  </div>
+
+                  {/* Scrollable Timeline with mask fade */}
+                  <div style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '28px 32px',
+                    maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
+                    WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)'
+                  }}>
+                    {selectedTimesheet.details && selectedTimesheet.details.length > 0 ? (
+                      <div style={{ position: 'relative', paddingLeft: '28px' }}>
+                        {/* Vertical Timeline Line */}
+                        <div style={{ position: 'absolute', left: '6px', top: '10px', bottom: '10px', width: '2px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), var(--border-subtle))', borderRadius: '2px', opacity: 0.4 }} />
+
+                        {selectedTimesheet.details.map((detail: any, idx: number) => (
+                          <div key={idx} style={{
+                            position: 'relative',
+                            marginBottom: idx === selectedTimesheet.details.length - 1 ? 0 : '16px',
+                            opacity: 0,
+                            animation: `cardSlideIn 0.35s ease-out ${idx * 0.06}s both`
+                          }}>
+
+                            {/* Timeline Dot */}
+                            <div style={{
+                              position: 'absolute',
+                              left: '-28px',
+                              top: '16px',
+                              width: '10px',
+                              height: '10px',
+                              borderRadius: '50%',
+                              background: detail.is_billable
+                                ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-cyan))'
+                                : 'var(--bg-panel)',
+                              border: detail.is_billable
+                                ? '2px solid var(--accent-highlight)'
+                                : '2px solid var(--border-subtle)',
+                              boxShadow: detail.is_billable
+                                ? '0 0 8px rgba(167, 139, 250, 0.6), 0 0 3px rgba(167, 139, 250, 0.3)'
+                                : '0 0 4px rgba(0,0,0,0.3)',
+                              zIndex: 2
+                            }} />
+
+                            {/* Content Card with left accent border */}
+                            <div style={{
+                              background: 'var(--bg-input)',
+                              border: '1px solid var(--border-subtle)',
+                              borderLeft: `3px solid ${detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                              borderRadius: '10px',
+                              padding: '14px 16px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              transition: 'all 0.2s',
+                              gap: '16px'
+                            }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.borderLeftColor = detail.is_billable ? 'var(--accent-highlight)' : 'var(--accent-primary)' }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.borderLeftColor = detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)' }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>{detail.activity_name}</span>
+                                  {detail.is_billable && (
+                                    <span style={{ fontSize: '0.6rem', color: 'var(--color-go)', fontWeight: 700, background: 'rgba(74, 222, 128, 0.1)', padding: '2px 7px', borderRadius: '10px', border: '1px solid rgba(74, 222, 128, 0.15)' }}>BILLABLE</span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+                                  <span>{detail.start_time}</span>
+                                  <span style={{ opacity: 0.4 }}>→</span>
+                                  <span>{detail.end_time}</span>
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
+                                  {detail.hours || '00:00'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', opacity: 0.5 }}>
+                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📭</div>
+                        <div>No detailed activities found for this session.</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Close two-pane row container */}
+              </div>
+
+              {/* ACTION FOOTER */}
+              <div style={{ padding: '14px 28px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginRight: 'auto' }}>Review carefully before approving.</span>
+                <button className="btn-reject-outline" onClick={() => { closeDetailsModal(); setTimeout(() => openRejectModal(selectedTimesheet), 280); }} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', flex: 'none' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; e.currentTarget.style.borderColor = '#ef4444' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--color-urgent)' }}
+                >
+                  ✗ Reject
+                </button>
+                <button className="btn-approve" onClick={() => { closeDetailsModal(); setTimeout(() => handleApprovalAction(selectedTimesheet.log_ids, 'APPROVE'), 280); }} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                  ✓ Approve
+                </button>
+              </div>
             </div>
-            <div className="modal-actions-improved">
-              <button className="btn-improved btn-primary" onClick={() => setShowDetailsModal(false)}>
-                <span>✓</span> Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div >
+        );
+      })()}
 
       <style jsx>{`
         .profile-dropdown {
@@ -1603,8 +1925,12 @@ export default function SupervisorDashboard() {
           padding: 20px;
         }
 
+        .modal-overlay-improved.modal-closing {
+          animation: fadeOut 0.3s forwards;
+        }
+
         .modal-card-improved {
-          background: #232136;
+          background: var(--bg-main);
           border: 1px solid var(--border-subtle);
           border-radius: 20px;
           box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -1616,19 +1942,29 @@ export default function SupervisorDashboard() {
           position: relative;
         }
 
+        .modal-card-improved.modal-card-closing {
+          animation: scaleOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
         .modal-card-improved.rejection-modal {
           max-width: 550px;
         }
 
         .modal-card-improved.details-modal {
           max-width: 750px;
-          background: #232136;
+          background: var(--bg-main);
         }
 
         .modal-header-improved {
           padding: 30px 30px 20px 30px;
           border-bottom: 1px solid var(--border-subtle);
           text-align: center;
+          background: #1a1a1a;
+          border-radius: 20px 20px 0 0;
+        }
+
+        .light-mode .modal-header-improved {
+          background: #f8fafc;
         }
 
         .modal-icon-wrapper {
@@ -1641,6 +1977,16 @@ export default function SupervisorDashboard() {
           border-radius: 50%;
           font-size: 2rem;
           animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes fadeOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+
+        @keyframes scaleOut {
+          from { opacity: 1; transform: scale(1) translateY(0); }
+          to { opacity: 0; transform: scale(0.95) translateY(10px); }
         }
 
         @keyframes bounceIn {

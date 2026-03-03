@@ -1282,6 +1282,12 @@ body.light-mode .modal-btn {
   color: #0b0e11;
 }
 
+body.light-mode .modal-btn.ok {
+  background: var(--color-go, #16a34a);
+  border-color: var(--color-go, #16a34a);
+  color: #ffffff;
+}
+
 .modal-btn.danger {
   border-color: rgba(255, 107, 107, 0.35);
   background: rgba(255, 107, 107, 0.92);

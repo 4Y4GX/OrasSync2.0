@@ -55,6 +55,16 @@ export default function SupervisorScheduleManagement() {
   const [calendarView, setCalendarView] = useState<'weekly' | 'monthly'>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [isClosingModal, setIsClosingModal] = useState(false);
+
+  const handleCloseDayModal = () => {
+    setIsClosingModal(true);
+    setTimeout(() => {
+      setExpandedDay(null);
+      setEditShiftModal({ show: false, empId: '', empName: '', day: '', currentShift: '', newShiftId: '', scheduleId: null });
+      setIsClosingModal(false);
+    }, 250);
+  };
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [scheduleData, setScheduleData] = useState<any[]>([]);
@@ -71,6 +81,7 @@ export default function SupervisorScheduleManagement() {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [futureActivities, setFutureActivities] = useState<FutureActivity[]>([]);
   const [futureLoading, setFutureLoading] = useState(true);
+  const [scheduleTab, setScheduleTab] = useState<'schedule' | 'activities'>('schedule');
 
   const [activityFormData, setActivityFormData] = useState({
     employee_id: '',
@@ -95,6 +106,15 @@ export default function SupervisorScheduleManagement() {
     show: false, success: false, message: '',
   });
   const [assignSaving, setAssignSaving] = useState(false);
+  const [isClosingAssignModal, setIsClosingAssignModal] = useState(false);
+
+  const handleCloseAssignModal = () => {
+    setIsClosingAssignModal(true);
+    setTimeout(() => {
+      setShowAssignModal(false);
+      setIsClosingAssignModal(false);
+    }, 250);
+  };
 
   const fetchScheduleData = async () => {
     setSchedLoading(true);
@@ -287,259 +307,462 @@ export default function SupervisorScheduleManagement() {
         </div>
       )}
 
-      {/* Future Activities Panel */}
-      <div className="glass-card">
-        <div className="section-title">
-          <span>📅 Future Activities</span>
+      {/* Single Combined Schedule Container */}
+      <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+
+        {/* Tab Bar */}
+        <div className="detail-log-tabs" style={{ marginBottom: 20, display: 'flex', gap: '2px', borderBottom: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
+          <button
+            className={`detail-log-tab ${scheduleTab === 'schedule' ? 'active' : ''}`}
+            onClick={() => setScheduleTab('schedule')}
+            style={scheduleTab === 'schedule' ? { '--tab-color': 'var(--accent-primary)', borderBottomColor: 'var(--accent-primary)' } as React.CSSProperties : undefined}
+          >
+            📋 Team Schedule
+            <span className="detail-log-tab-count" style={scheduleTab === 'schedule' ? { background: 'var(--accent-primary)', color: '#fff' } : undefined}>
+              {scheduleData.length}
+            </span>
+          </button>
+          <button
+            className={`detail-log-tab ${scheduleTab === 'activities' ? 'active' : ''}`}
+            onClick={() => setScheduleTab('activities')}
+            style={scheduleTab === 'activities' ? { '--tab-color': 'var(--accent-primary)', borderBottomColor: 'var(--accent-primary)' } as React.CSSProperties : undefined}
+          >
+            📅 Future Activities
+            <span className="detail-log-tab-count" style={scheduleTab === 'activities' ? { background: 'var(--accent-primary)', color: '#fff' } : undefined}>
+              {futureActivities.length}
+            </span>
+          </button>
         </div>
 
-        {futureLoading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading activities...</div>
-        ) : futureActivities.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-            No future activities scheduled.
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-            {futureActivities.map((activity) => (
-              <div key={activity.fts_id} className="activity-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.75rem' }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.25rem' }}>{activity.employee_name}</div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{activity.shift_date}</div>
+        {/* Future Activities Content */}
+        {scheduleTab === 'activities' && (
+          <div style={{ flex: '0 0 auto', maxHeight: '350px', overflowY: 'auto' }}>
+            {futureLoading ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                {Array(3).fill(0).map((_, i) => (
+                  <div key={`future-skeleton-${i}`} className="activity-card skeleton">
+                    <div style={{ marginBottom: "1rem" }}>
+                      <div className="skeleton-box" style={{ width: "60%", height: "1.1rem", marginBottom: "6px" }} />
+                      <div className="skeleton-box" style={{ width: "40%", height: "0.85rem" }} />
+                    </div>
+                    <div className="skeleton-box" style={{ width: "100%", height: "2.5rem", borderRadius: "6px", marginBottom: "0.75rem" }} />
+                    <div className="skeleton-box" style={{ width: "100%", height: "1.2rem" }} />
                   </div>
-                  <button
-                    onClick={() => handleDeleteActivity(activity.fts_id)}
-                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}
-                    title="Remove activity"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div style={{
-                  padding: '0.5rem 0.75rem',
-                  background: 'rgba(167, 139, 250, 0.1)',
-                  border: '1px solid rgba(167, 139, 250, 0.3)',
-                  borderRadius: '6px',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  marginBottom: '0.75rem',
-                  display: 'flex',
-                  justifyContent: 'space-between'
-                }}>
-                  <span>{activity.activity_name || activity.activity_type || `Activity #${activity.activity_id}`}</span>
-                  {activity.is_billable && <span style={{ color: '#22c55e' }}>💰</span>}
-                </div>
-                {activity.start_time && activity.end_time && (
-                  <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', display: 'flex', gap: '10px' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)' }}>🕐 {activity.start_time} - {activity.end_time}</span>
-                  </div>
-                )}
-                {activity.notes && (
-                  <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '8px' }}>{activity.notes}</div>
-                )}
+                ))}
               </div>
-            ))}
+            ) : futureActivities.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                No future activities scheduled.
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                {futureActivities.map((activity, index) => (
+                  <div
+                    key={activity.fts_id}
+                    className="activity-card"
+                    style={{
+                      animation: 'var(--animation-entrance)',
+                      animationDelay: `${index * 0.05}s`
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.75rem' }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.25rem' }}>{activity.employee_name}</div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{activity.shift_date}</div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteActivity(activity.fts_id)}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}
+                        title="Remove activity"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div style={{
+                      padding: '0.5rem 0.75rem',
+                      background: 'rgba(167, 139, 250, 0.1)',
+                      border: '1px solid rgba(167, 139, 250, 0.3)',
+                      borderRadius: '6px',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      marginBottom: '0.75rem',
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}>
+                      <span>{activity.activity_name || activity.activity_type || `Activity #${activity.activity_id}`}</span>
+                      {activity.is_billable && <span style={{ color: '#22c55e' }}>💰</span>}
+                    </div>
+                    {activity.start_time && activity.end_time && (
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', display: 'flex', gap: '10px' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)' }}>🕐 {activity.start_time} - {activity.end_time}</span>
+                      </div>
+                    )}
+                    {activity.notes && (
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '8px' }}>{activity.notes}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Team Schedule Content */}
+        {scheduleTab === 'schedule' && (
+          <>
+            <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <span style={{ marginRight: '10px' }}>Team Schedule</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 400 }}>
+                  {calendarView === 'weekly' ? (() => { const d = new Date(currentDate); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); const mf = (dt: Date) => dt.toLocaleDateString('en-US', { month: 'short' }); return mon.getMonth() === sun.getMonth() ? `${mf(mon)} ${mon.getDate()}-${sun.getDate()}` : `${mf(mon)} ${mon.getDate()}-${mf(sun)} ${sun.getDate()}`; })() : `Month of ${currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <button
+                  onClick={() => { setAssignForm({ employee_id: '', shift_id: '', days: { monday: false, tuesday: false, wednesday: false, thursday: false, friday: false, saturday: false, sunday: false } }); setShowAssignModal(true); }}
+                  style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--accent-primary)', background: 'rgba(167, 139, 250, 0.1)', color: 'var(--accent-primary)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
+                >+ Assign Schedule</button>
+                <div style={{ background: 'var(--bg-input)', borderRadius: '8px', display: 'flex', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+                  <button onClick={() => setCalendarView('weekly')} style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', background: calendarView === 'weekly' ? 'var(--accent-primary)' : 'transparent', color: calendarView === 'weekly' ? '#fff' : 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}>Weekly</button>
+                  <button onClick={() => setCalendarView('monthly')} style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', background: calendarView === 'monthly' ? 'var(--accent-primary)' : 'transparent', color: calendarView === 'monthly' ? '#fff' : 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}>Monthly</button>
+                </div>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() - 7) : newDate.setMonth(newDate.getMonth() - 1); setCurrentDate(newDate); }}>← Prev</button>
+                  <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => setCurrentDate(new Date())}>Today</button>
+                  <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() + 7) : newDate.setMonth(newDate.getMonth() + 1); setCurrentDate(newDate); }}>Next →</button>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+              {calendarView === 'weekly' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', height: '100%' }}>
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
+                    const dayKeyMap: Record<string, string> = { 'Mon': 'monday', 'Tue': 'tuesday', 'Wed': 'wednesday', 'Thu': 'thursday', 'Fri': 'friday', 'Sat': 'saturday', 'Sun': 'sunday' };
+                    const dbDayKey = dayKeyMap[day];
+                    const shiftsForDay = scheduleData.filter(emp => emp.schedule && emp.schedule[dbDayKey] !== null);
+
+                    return (
+                      <div key={day} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '15px', minHeight: '150px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                        <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', marginBottom: '10px', textAlign: 'center', fontWeight: 600, color: 'var(--accent-primary)' }}>{day}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                          {schedLoading ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              {Array(3).fill(0).map((_, i) => (
+                                <div key={`weekly-skeleton-${i}`} className="shift-chip-card skeleton" style={{ padding: '10px', margin: 0 }}>
+                                  <div className="skeleton-box" style={{ width: "70%", height: "0.9rem", marginBottom: "6px" }} />
+                                  <div className="skeleton-box" style={{ width: "50%", height: "0.75rem", marginBottom: "4px" }} />
+                                  <div className="skeleton-box" style={{ width: "40%", height: "0.7rem" }} />
+                                </div>
+                              ))}
+                            </div>
+                          ) : shiftsForDay.length === 0 ? (
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>No shifts.</div>
+                          ) : (
+                            shiftsForDay.map((emp, index) => (
+                              <div
+                                key={emp.user_id} className="shift-chip-card"
+                                style={{
+                                  padding: '6px 8px',
+                                  margin: 0,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  border: '1px solid transparent',
+                                  animation: 'var(--animation-entrance)',
+                                  animationDelay: `${index * 0.05}s`,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  flex: 'none',
+                                  height: 'max-content',
+                                  gap: '2px'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'transparent'; }}
+                                onClick={() => setEditShiftModal({
+                                  show: true,
+                                  empId: emp.user_id,
+                                  empName: emp.name,
+                                  day: day,
+                                  currentShift: emp.schedule[dbDayKey].shift_name,
+                                  newShiftId: "",
+                                  scheduleId: emp.schedule_id
+                                })}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100px' }} title={emp.name}>{emp.name}</div>
+                                  <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{emp.schedule[dbDayKey].time.split(' - ')[0]}</div>
+                                </div>
+                                <div style={{ color: 'var(--accent-primary)', fontSize: '0.75rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp.schedule[dbDayKey].shift_name}</div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                (() => {
+                  const year = currentDate.getFullYear();
+                  const month = currentDate.getMonth();
+                  const firstDay = new Date(year, month, 1);
+                  const lastDay = new Date(year, month + 1, 0);
+                  const startOffset = (firstDay.getDay() + 6) % 7;
+                  const totalDays = lastDay.getDate();
+                  const totalCells = Math.ceil((startOffset + totalDays) / 7) * 7;
+                  const today = new Date();
+                  const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+                  const cells: { date: Date; inMonth: boolean; dayKey: string; dateStr: string }[] = [];
+                  for (let i = 0; i < totalCells; i++) {
+                    const diff = i - startOffset;
+                    const d = new Date(year, month, diff + 1);
+                    cells.push({ date: d, inMonth: diff >= 0 && diff < totalDays, dayKey: dayNameMap[d.getDay()], dateStr: d.toISOString().split('T')[0] });
+                  }
+
+                  const weeks: typeof cells[] = [];
+                  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+                          <div key={d} style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.8rem', color: 'var(--accent-primary)', letterSpacing: '1px', textTransform: 'uppercase', padding: '8px 0' }}>{d}</div>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                        {weeks.map((week, wi) => (
+                          <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', flex: 1 }}>
+                            {week.map((cell, ci) => {
+                              const isToday = cell.inMonth && cell.date.toDateString() === today.toDateString();
+                              const empCount = scheduleData.filter((emp: any) => emp.schedule && emp.schedule[cell.dayKey] !== null).length;
+                              return (
+                                <div
+                                  key={ci}
+                                  onClick={() => cell.inMonth && empCount > 0 && setExpandedDay(cell.dateStr)}
+                                  style={{
+                                    background: isToday ? 'rgba(167, 139, 250, 0.1)' : cell.inMonth ? 'var(--bg-input)' : 'rgba(0,0,0,0.15)',
+                                    border: isToday ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                                    borderRadius: '8px', padding: '10px',
+                                    cursor: cell.inMonth && empCount > 0 ? 'pointer' : 'default',
+                                    opacity: cell.inMonth ? 1 : 0.35, transition: 'all 0.2s',
+                                    display: 'flex', flexDirection: 'column', minHeight: '80px',
+                                    animation: 'var(--animation-entrance)',
+                                    animationDelay: `${(wi * 7 + ci) * 0.02}s`
+                                  }}
+                                  onMouseOver={(e) => { if (cell.inMonth && empCount > 0) { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.boxShadow = '0 0 12px rgba(167,139,250,0.2)'; } }}
+                                  onMouseOut={(e) => { e.currentTarget.style.borderColor = isToday ? 'var(--accent-primary)' : 'var(--border-subtle)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                    <span style={{ fontWeight: 700, fontSize: '1rem', color: isToday ? 'var(--accent-primary)' : cell.inMonth ? 'var(--text-main)' : 'var(--text-muted)' }}>{cell.date.getDate()}</span>
+                                    {isToday && <span style={{ fontSize: '0.6rem', background: 'var(--accent-primary)', color: 'var(--bg-deep)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, letterSpacing: '0.5px' }}>TODAY</span>}
+                                  </div>
+                                  {cell.inMonth && empCount > 0 && (
+                                    <div style={{ marginTop: 'auto', fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <span>👥</span> {empCount} scheduled
+                                    </div>
+                                  )}
+                                  {cell.inMonth && empCount === 0 && schedLoading && (
+                                    <div style={{ marginTop: 'auto' }}>
+                                      <div className="skeleton-box" style={{ width: "80%", height: "0.8rem" }} />
+                                    </div>
+                                  )}
+                                  {cell.inMonth && empCount === 0 && !schedLoading && (
+                                    <div style={{ marginTop: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)' }}>No shifts</div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </>
         )}
       </div>
 
-      {/* Team Schedule Panel */}
-      <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div>
-            <span style={{ marginRight: '10px' }}>Team Schedule</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 400 }}>
-              {calendarView === 'weekly' ? (() => { const d = new Date(currentDate); const day = d.getDay() || 7; const mon = new Date(d); mon.setDate(d.getDate() - day + 1); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); const mf = (dt: Date) => dt.toLocaleDateString('en-US', { month: 'short' }); return mon.getMonth() === sun.getMonth() ? `${mf(mon)} ${mon.getDate()}-${sun.getDate()}` : `${mf(mon)} ${mon.getDate()}-${mf(sun)} ${sun.getDate()}`; })() : `Month of ${currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-            <button
-              onClick={() => { setAssignForm({ employee_id: '', shift_id: '', days: { monday: false, tuesday: false, wednesday: false, thursday: false, friday: false, saturday: false, sunday: false } }); setShowAssignModal(true); }}
-              style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--accent-primary)', background: 'rgba(167, 139, 250, 0.1)', color: 'var(--accent-primary)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap' }}
-            >+ Assign Schedule</button>
-            <div style={{ background: 'var(--bg-input)', borderRadius: '8px', display: 'flex', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
-              <button onClick={() => setCalendarView('weekly')} style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', background: calendarView === 'weekly' ? 'var(--accent-primary)' : 'transparent', color: calendarView === 'weekly' ? '#fff' : 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}>Weekly</button>
-              <button onClick={() => setCalendarView('monthly')} style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', background: calendarView === 'monthly' ? 'var(--accent-primary)' : 'transparent', color: calendarView === 'monthly' ? '#fff' : 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}>Monthly</button>
-            </div>
-            <div style={{ display: 'flex', gap: '5px' }}>
-              <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() - 7) : newDate.setMonth(newDate.getMonth() - 1); setCurrentDate(newDate); }}>← Prev</button>
-              <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => setCurrentDate(new Date())}>Today</button>
-              <button className="btn-view" style={{ padding: '6px 12px', fontSize: '0.85rem' }} onClick={() => { const newDate = new Date(currentDate); calendarView === 'weekly' ? newDate.setDate(newDate.getDate() + 7) : newDate.setMonth(newDate.getMonth() + 1); setCurrentDate(newDate); }}>Next →</button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: '600px' }}>
-          {calendarView === 'weekly' ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', height: '100%' }}>
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
-                const dayKeyMap: Record<string, string> = { 'Mon': 'monday', 'Tue': 'tuesday', 'Wed': 'wednesday', 'Thu': 'thursday', 'Fri': 'friday', 'Sat': 'saturday', 'Sun': 'sunday' };
-                const dbDayKey = dayKeyMap[day];
-                const shiftsForDay = scheduleData.filter(emp => emp.schedule && emp.schedule[dbDayKey] !== null);
-
-                return (
-                  <div key={day} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '15px', minHeight: '300px' }}>
-                    <div style={{ borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', marginBottom: '10px', textAlign: 'center', fontWeight: 600, color: 'var(--accent-primary)' }}>{day}</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {schedLoading ? (
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>Loading...</div>
-                      ) : shiftsForDay.length === 0 ? (
-                        <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center' }}>No shifts.</div>
-                      ) : (
-                        shiftsForDay.map(emp => (
-                          <div
-                            key={emp.user_id} className="glass-card"
-                            style={{ padding: '10px', margin: 0, cursor: 'pointer', transition: 'all 0.2s', border: '1px solid transparent' }}
-                            onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'transparent'; }}
-                            onClick={() => setEditShiftModal({
-                              show: true,
-                              empId: emp.user_id,
-                              empName: emp.name,
-                              day: day,
-                              currentShift: emp.schedule[dbDayKey].shift_name,
-                              newShiftId: "",
-                              scheduleId: emp.schedule_id
-                            })}
-                          >
-                            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{emp.name}</div>
-                            <div style={{ color: 'var(--accent-primary)', fontSize: '0.75rem', marginTop: '4px' }}>{emp.schedule[dbDayKey].shift_name}</div>
-                            <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{emp.schedule[dbDayKey].time}</div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            (() => {
-              const year = currentDate.getFullYear();
-              const month = currentDate.getMonth();
-              const firstDay = new Date(year, month, 1);
-              const lastDay = new Date(year, month + 1, 0);
-              const startOffset = (firstDay.getDay() + 6) % 7;
-              const totalDays = lastDay.getDate();
-              const totalCells = Math.ceil((startOffset + totalDays) / 7) * 7;
-              const today = new Date();
-              const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-              const cells: { date: Date; inMonth: boolean; dayKey: string; dateStr: string }[] = [];
-              for (let i = 0; i < totalCells; i++) {
-                const diff = i - startOffset;
-                const d = new Date(year, month, diff + 1);
-                cells.push({ date: d, inMonth: diff >= 0 && diff < totalDays, dayKey: dayNameMap[d.getDay()], dateStr: d.toISOString().split('T')[0] });
-              }
-
-              const weeks: typeof cells[] = [];
-              for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
-                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-                      <div key={d} style={{ textAlign: 'center', fontWeight: 700, fontSize: '0.8rem', color: 'var(--accent-primary)', letterSpacing: '1px', textTransform: 'uppercase', padding: '8px 0' }}>{d}</div>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-                    {weeks.map((week, wi) => (
-                      <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', flex: 1 }}>
-                        {week.map((cell, ci) => {
-                          const isToday = cell.inMonth && cell.date.toDateString() === today.toDateString();
-                          const empCount = scheduleData.filter((emp: any) => emp.schedule && emp.schedule[cell.dayKey] !== null).length;
-                          return (
-                            <div
-                              key={ci}
-                              onClick={() => cell.inMonth && empCount > 0 && setExpandedDay(cell.dateStr)}
-                              style={{
-                                background: isToday ? 'rgba(167, 139, 250, 0.1)' : cell.inMonth ? 'var(--bg-input)' : 'rgba(0,0,0,0.15)',
-                                border: isToday ? '2px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
-                                borderRadius: '8px', padding: '10px',
-                                cursor: cell.inMonth && empCount > 0 ? 'pointer' : 'default',
-                                opacity: cell.inMonth ? 1 : 0.35, transition: 'all 0.2s',
-                                display: 'flex', flexDirection: 'column', minHeight: '80px',
-                              }}
-                              onMouseOver={(e) => { if (cell.inMonth && empCount > 0) { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.boxShadow = '0 0 12px rgba(167,139,250,0.2)'; } }}
-                              onMouseOut={(e) => { e.currentTarget.style.borderColor = isToday ? 'var(--accent-primary)' : 'var(--border-subtle)'; e.currentTarget.style.boxShadow = 'none'; }}
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                <span style={{ fontWeight: 700, fontSize: '1rem', color: isToday ? 'var(--accent-primary)' : cell.inMonth ? 'var(--text-main)' : 'var(--text-muted)' }}>{cell.date.getDate()}</span>
-                                {isToday && <span style={{ fontSize: '0.6rem', background: 'var(--accent-primary)', color: '#000', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, letterSpacing: '0.5px' }}>TODAY</span>}
-                              </div>
-                              {cell.inMonth && empCount > 0 && (
-                                <div style={{ marginTop: 'auto', fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <span>👥</span> {empCount} scheduled
-                                </div>
-                              )}
-                              {cell.inMonth && empCount === 0 && !schedLoading && (
-                                <div style={{ marginTop: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)' }}>No shifts</div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()
-          )}
-        </div>
-      </div>
-
-      {/* --- EXPANDED DAY MODAL --- */}
+      {/* --- SPLIT LAYOUT DAY + EDIT MODAL --- */}
       {expandedDay && (() => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
         const dayNameMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const expandDate = new Date(expandedDay + 'T00:00:00');
         const dayKey = dayNameMap[expandDate.getDay()];
         const expandedShifts = scheduleData.filter((emp: any) => emp.schedule && emp.schedule[dayKey] !== null);
+        const dayShortMap: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
 
         return (
-          <div className="modal-overlay" style={{ zIndex: 9999 }} onClick={(e) => { if (e.target === e.currentTarget) setExpandedDay(null); }}>
-            <div className="modal-card" style={{ maxWidth: '550px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <span style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent-primary)' }}>
-                    {expandDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                  </span>
-                  <span style={{ background: 'var(--bg-input)', padding: '3px 10px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', border: '1px solid var(--border-subtle)' }}>
-                    {expandedShifts.length} employees
-                  </span>
-                </div>
-                <span onClick={() => setExpandedDay(null)} style={{ cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-muted)' }}>✕</span>
-              </div>
-              <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', padding: '20px 25px' }}>
-                {expandedShifts.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '30px 0' }}>No employees scheduled for this day.</div>
-                ) : expandedShifts.map((emp: any) => (
-                  <div
-                    key={emp.user_id}
-                    style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '15px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
-                    onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.background = 'rgba(167,139,250,0.06)'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--bg-input)'; }}
-                    onClick={() => {
-                      const dayShortMap: Record<string, string> = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
-                      setExpandedDay(null);
-                      setEditShiftModal({ show: true, empId: emp.user_id, empName: emp.name, day: dayShortMap[dayKey], currentShift: emp.schedule[dayKey].shift_name, newShiftId: '', scheduleId: emp.schedule_id });
-                    }}
-                  >
+          <div className="modal-overlay" style={{ zIndex: 9999, transition: 'opacity 0.25s ease', opacity: isClosingModal ? 0 : 1 }} onClick={(e) => { if (e.target === e.currentTarget) handleCloseDayModal(); }}>
+            <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{
+              width: editShiftModal.show ? '800px' : '450px',
+              maxWidth: '95vw',
+              maxHeight: '85vh',
+              minHeight: '600px',
+              display: 'flex',
+              flexDirection: 'row',
+              padding: 0,
+              background: 'var(--bg-panel)',
+              overflow: 'hidden',
+              transition: 'width 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease',
+              transform: isClosingModal ? 'scale(0.96) translateY(10px)' : 'scale(1) translateY(0)',
+              opacity: isClosingModal ? 0 : 1
+            }}>
+
+              {/* LEFT PANEL — Employee List */}
+              <div style={{
+                width: '450px',
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                borderRight: editShiftModal.show ? '1px solid var(--border-subtle)' : 'none',
+                background: 'var(--bg-deep)',
+                transition: 'border-right 0.35s ease'
+              }}>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <span style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--accent-primary)' }}>
+                      {expandDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                    </span>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-main)' }}>{emp.name}</div>
-                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>{emp.schedule[dayKey].shift_name}</div>
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: 600, textAlign: 'right' }}>
-                      {emp.schedule[dayKey].time || ''}
+                      <span style={{ background: 'rgba(167,139,250,0.15)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-primary)', border: '1px solid rgba(167,139,250,0.25)' }}>
+                        {expandedShifts.length}
+                      </span>
                     </div>
                   </div>
-                ))}
+                  <span onClick={() => handleCloseDayModal()} style={{ cursor: 'pointer', fontSize: '1.3rem', color: 'var(--text-muted)', transition: 'color 0.2s', alignSelf: 'flex-start' }}
+                    onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; }}
+                    onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                  >✕</span>
+                </div>
+
+                {/* Employee List */}
+                <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', padding: '24px 28px' }}>
+                  {expandedShifts.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '30px 0', fontSize: '0.9rem' }}>No employees scheduled.</div>
+                  ) : expandedShifts.map((emp: any, idx: number) => {
+                    const isSelected = editShiftModal.show && editShiftModal.empId === emp.user_id;
+                    return (
+                      <div
+                        key={emp.user_id}
+                        style={{
+                          background: isSelected ? 'var(--bg-panel)' : 'var(--bg-input)',
+                          border: isSelected ? '1px solid var(--accent-primary)' : '1px solid var(--border-subtle)',
+                          borderRadius: '8px',
+                          padding: '16px 20px',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          animation: 'splitItemIn 0.3s ease both',
+                          animationDelay: `${idx * 0.04}s`
+                        }}
+                        onMouseOver={(e) => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.background = 'var(--bg-panel)'; } }}
+                        onMouseOut={(e) => { if (!isSelected) { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.background = 'var(--bg-input)'; } }}
+                        onClick={() => {
+                          setEditShiftModal({ show: true, empId: emp.user_id, empName: emp.name, day: dayShortMap[dayKey], currentShift: emp.schedule[dayKey].shift_name, newShiftId: '', scheduleId: emp.schedule_id });
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-main)', display: 'flex', flexDirection: 'column', lineHeight: '1.2' }}>
+                            <span>{emp.name.split(' ')[0]}</span>
+                            <span>{emp.name.split(' ').slice(1).join(' ')}</span>
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>{emp.schedule[dayKey].shift_name}</div>
+                        </div>
+                        <div style={{
+                          fontFamily: 'var(--font-mono)', fontSize: '0.75rem',
+                          color: 'var(--accent-primary)', fontWeight: 700,
+                          background: 'rgba(167,139,250,0.1)', padding: '8px 12px',
+                          borderRadius: '6px', border: '1px solid rgba(167,139,250,0.2)',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {emp.schedule[dayKey].time || ''}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+
               </div>
-              <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '15px 25px' }}>
-                <button className="btn-view" style={{ width: '100%', padding: '12px', fontSize: '0.95rem' }} onClick={() => setExpandedDay(null)}>Close</button>
+
+              {/* RIGHT PANEL — Edit Shift Form */}
+              <div style={{
+                width: '350px',
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                background: 'var(--bg-panel)',
+                overflow: 'hidden'
+              }}>
+                {editShiftModal.show && (
+                  <>
+                    {/* Edit Header */}
+                    <div style={{ padding: '24px 32px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>EDIT SHIFT</div>
+                    </div>
+
+                    {/* Edit Form */}
+                    <div style={{ flex: 1, padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto' }}>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0, lineHeight: '1.5' }}>
+                        Updating schedule for<br />
+                        <strong style={{ color: 'var(--text-main)' }}>{editShiftModal.empName}</strong> on <strong style={{ color: 'var(--accent-primary)' }}>{editShiftModal.day}</strong>.
+                      </p>
+
+                      <div style={{
+                        background: 'var(--bg-input)', padding: '16px 20px', borderRadius: '8px',
+                        border: '1px solid var(--border-subtle)'
+                      }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', fontWeight: 700 }}>CURRENT SHIFT</div>
+                        <div style={{ color: 'var(--accent-primary)', fontWeight: 800, fontSize: '1.15rem' }}>{editShiftModal.currentShift}</div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>ASSIGN NEW SHIFT</label>
+                        <select
+                          className="select custom-select"
+                          value={editShiftModal.newShiftId}
+                          onChange={(e) => setEditShiftModal({ ...editShiftModal, newShiftId: e.target.value })}
+                          style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '12px 16px' }}
+                        >
+                          <option value="">-- Select a Shift --</option>
+                          <option value="OFF">Day Off (No Shift)</option>
+                          {shiftTemplates.map(shift => (
+                            <option key={shift.shift_id} value={shift.shift_id}>
+                              {shift.shift_name} ({shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Edit Actions */}
+                    <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '20px 32px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                      <button style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem', cursor: 'pointer' }}
+                        onClick={() => setEditShiftModal({ show: false, empId: '', empName: '', day: '', currentShift: '', newShiftId: '', scheduleId: null })}
+                      >Cancel</button>
+                      <button
+                        className="modal-btn ok"
+                        style={{
+                          flex: 1.5, padding: '14px', fontSize: '1rem', borderRadius: '8px',
+                          border: 'none', cursor: 'pointer', fontWeight: 800,
+                          transition: 'all 0.2s',
+                          letterSpacing: '0.5px'
+                        }}
+                        onClick={() => {
+                          if (!editShiftModal.newShiftId) { alert("Please select a new shift."); return; }
+                          setSaveShiftConfirmModal(true);
+                        }}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? "Saving..." : "Save\nChanges"}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -556,7 +779,6 @@ export default function SupervisorScheduleManagement() {
             <div style={{ marginTop: "1rem" }}>
               <div style={{ marginBottom: "1rem" }}>
                 <label className="label-sm">Employee *</label>
-                {/* ADDED class custom-select */}
                 <select
                   className="select custom-select"
                   value={activityFormData.employee_id}
@@ -608,7 +830,6 @@ export default function SupervisorScheduleManagement() {
 
               <div style={{ marginBottom: "1rem" }}>
                 <label className="label-sm">Activity Type *</label>
-                {/* ADDED class custom-select */}
                 <select
                   className="select custom-select"
                   value={activityFormData.activity_type}
@@ -644,61 +865,6 @@ export default function SupervisorScheduleManagement() {
         </div>
       )}
 
-      {/* 2. EDIT SHIFT MODAL */}
-      {editShiftModal.show && (
-        <div className="modal-overlay" onClick={() => setEditShiftModal({ ...editShiftModal, show: false })}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-            <div className="modal-title" style={{ color: 'var(--accent-primary)' }}>Edit Shift</div>
-
-            <div style={{ marginTop: '1rem' }}>
-              <p style={{ color: 'var(--text-muted)', marginBottom: '15px', fontSize: '0.9rem' }}>
-                Updating schedule for <strong style={{ color: 'var(--text-main)' }}>{editShiftModal.empName}</strong> on <strong>{editShiftModal.day}</strong>.
-              </p>
-
-              <div style={{ background: 'var(--bg-input)', padding: '10px', borderRadius: '8px', marginBottom: '15px' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Current Shift</div>
-                <div style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{editShiftModal.currentShift}</div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <label className="label-sm">Assign New Shift</label>
-                {/* ADDED class custom-select */}
-                <select
-                  className="select custom-select"
-                  value={editShiftModal.newShiftId}
-                  onChange={(e) => setEditShiftModal({ ...editShiftModal, newShiftId: e.target.value })}
-                >
-                  <option value="">-- Select a Shift --</option>
-                  <option value="OFF">Day Off (No Shift)</option>
-                  {shiftTemplates.map(shift => (
-                    <option key={shift.shift_id} value={shift.shift_id}>
-                      {shift.shift_name} ({shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="modal-actions" style={{ marginTop: "1.5rem" }}>
-              <button className="modal-btn ghost" onClick={() => setEditShiftModal({ ...editShiftModal, show: false })}>Cancel</button>
-              <button
-                className="modal-btn ok"
-                onClick={() => {
-                  if (!editShiftModal.newShiftId) {
-                    alert("Please select a new shift from the dropdown.");
-                    return;
-                  }
-                  setSaveShiftConfirmModal(true);
-                }}
-                disabled={isSaving}
-              >
-                {isSaving ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 3. SHIFT SAVE CONFIRMATION MODAL */}
       {saveShiftConfirmModal && (
         <div className="modal-overlay" style={{ zIndex: 99999 }} onClick={() => setSaveShiftConfirmModal(false)}>
@@ -722,8 +888,14 @@ export default function SupervisorScheduleManagement() {
 
       {/* 4. ASSIGN SCHEDULE MODAL */}
       {showAssignModal && (
-        <div className="modal-overlay" onClick={() => setShowAssignModal(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+        <div className="modal-overlay" style={{ zIndex: 9999, transition: 'opacity 0.25s ease', opacity: isClosingAssignModal ? 0 : 1 }} onClick={() => handleCloseAssignModal()}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{
+            maxWidth: '520px',
+            animation: 'var(--animation-entrance)',
+            transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease',
+            transform: isClosingAssignModal ? 'scale(0.96) translateY(10px)' : 'scale(1) translateY(0)',
+            opacity: isClosingAssignModal ? 0 : 1
+          }}>
             <div className="modal-title" style={{ color: 'var(--accent-primary)' }}>Assign Schedule</div>
             <div style={{ marginTop: '1rem' }}>
               <div style={{ marginBottom: '1rem' }}>
@@ -767,7 +939,7 @@ export default function SupervisorScheduleManagement() {
                       style={{
                         display: 'flex', alignItems: 'center', gap: '8px',
                         padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
-                        background: assignForm.days[day] ? 'rgba(167, 139, 250, 0.15)' : 'var(--bg-input)',
+                        background: assignForm.days[day] ? 'var(--sq-outline)' : 'var(--bg-input)',
                         border: `1px solid ${assignForm.days[day] ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
                         transition: 'all 0.2s', fontSize: '0.85rem', fontWeight: 600,
                         color: assignForm.days[day] ? 'var(--accent-primary)' : 'var(--text-muted)',
@@ -777,7 +949,7 @@ export default function SupervisorScheduleManagement() {
                         type="checkbox"
                         checked={assignForm.days[day]}
                         onChange={(e) => setAssignForm({ ...assignForm, days: { ...assignForm.days, [day]: e.target.checked } })}
-                        style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--accent-primary)' }}
                       />
                       {day.charAt(0).toUpperCase() + day.slice(1, 3)}
                     </label>
@@ -786,10 +958,10 @@ export default function SupervisorScheduleManagement() {
                     style={{
                       display: 'flex', alignItems: 'center', gap: '8px',
                       padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
-                      background: Object.values(assignForm.days).every(v => v) ? 'rgba(74, 222, 128, 0.15)' : 'var(--bg-input)',
-                      border: `1px solid ${Object.values(assignForm.days).every(v => v) ? '#4ade80' : 'var(--border-subtle)'}`,
+                      background: Object.values(assignForm.days).every(v => v) ? 'var(--sq-outline)' : 'var(--bg-input)',
+                      border: `1px solid ${Object.values(assignForm.days).every(v => v) ? 'var(--color-go)' : 'var(--border-subtle)'}`,
                       transition: 'all 0.2s', fontSize: '0.85rem', fontWeight: 700,
-                      color: Object.values(assignForm.days).every(v => v) ? '#4ade80' : 'var(--text-muted)',
+                      color: Object.values(assignForm.days).every(v => v) ? 'var(--color-go)' : 'var(--text-muted)',
                     }}
                   >
                     <input
@@ -799,7 +971,7 @@ export default function SupervisorScheduleManagement() {
                         const allChecked = e.target.checked;
                         setAssignForm({ ...assignForm, days: { monday: allChecked, tuesday: allChecked, wednesday: allChecked, thursday: allChecked, friday: allChecked, saturday: allChecked, sunday: allChecked } });
                       }}
-                      style={{ accentColor: '#4ade80', width: '16px', height: '16px' }}
+                      style={{ width: '16px', height: '16px', accentColor: 'var(--color-go)' }}
                     />
                     All
                   </label>
@@ -807,7 +979,7 @@ export default function SupervisorScheduleManagement() {
               </div>
             </div>
             <div className="modal-actions" style={{ marginTop: '1rem' }}>
-              <button className="modal-btn ghost" onClick={() => setShowAssignModal(false)}>Cancel</button>
+              <button className="modal-btn ghost" onClick={() => handleCloseAssignModal()}>Cancel</button>
               <button
                 className="modal-btn ok"
                 onClick={() => {
@@ -1019,6 +1191,24 @@ export default function SupervisorScheduleManagement() {
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @keyframes splitItemIn {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes splitPanelIn {
+          from { opacity: 0; transform: translateX(30px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        .shift-chip-card {
+          background: var(--bg-input);
+          border: 1px solid var(--border-subtle);
+          border-radius: 8px;
+          transition: all 0.2s ease;
+        }
+        .shift-chip-card:hover {
+          border-color: var(--accent-primary);
+          box-shadow: 0 4px 12px rgba(167, 139, 250, 0.15);
         }
       `}</style>
     </div>
