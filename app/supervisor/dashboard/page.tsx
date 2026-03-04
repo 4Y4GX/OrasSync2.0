@@ -593,35 +593,11 @@ export default function SupervisorDashboard() {
 
                   <div className="stats-bar">
                     <div className="stats-item">
-                      <div className="hud-bg-icon">👥</div>
-                      <div className="hud-label">TEAM MEMBERS</div>
-                      <div className="hud-val">{stats.totalMembers}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 5, textTransform: 'uppercase', letterSpacing: 2 }}>
-                        ACTIVE EMPLOYEES
-                      </div>
-                    </div>
-                    <div className="stats-item">
-                      <div className="hud-bg-icon">⚡</div>
-                      <div className="hud-label">CURRENTLY WORKING</div>
-                      <div className="hud-val">{stats.currentlyWorking}</div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 5 }}>
-                        Clocked In Today
-                      </div>
-                    </div>
-                    <div className="stats-item">
                       <div className="hud-bg-icon">🔥</div>
                       <div className="hud-label">TOTAL HOURS TODAY</div>
                       <div className="hud-val warn">{stats.totalHours}</div>
                       <div className="status-badge warn" style={{ marginTop: 5, alignSelf: 'flex-start', fontSize: '0.7rem' }}>
                         Team Hours
-                      </div>
-                    </div>
-                    <div className="stats-item">
-                      <div className="hud-bg-icon">💤</div>
-                      <div className="hud-label">OFFLINE</div>
-                      <div className="hud-val" style={{ color: 'var(--text-muted)' }}>{stats.offline}</div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 5, textTransform: 'uppercase', letterSpacing: 2 }}>
-                        NOT CLOCKED IN
                       </div>
                     </div>
                   </div>
@@ -633,9 +609,24 @@ export default function SupervisorDashboard() {
                     <div className="controls-panel" style={{ display: 'flex', flexDirection: 'column' }}>
                       <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                         <div className="section-title" style={{ padding: 0, background: 'transparent', margin: '0 0 20px 0' }}>Action Panel</div>
-                        <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: "0.9rem" }}>
+                        <p style={{ color: "var(--text-muted)", marginBottom: 16, fontSize: "0.9rem" }}>
                           Supervisor session active. Manage team status below.
                         </p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginBottom: 20, borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Team Members</span>
+                            <span style={{ fontSize: '1rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>{stats.totalMembers}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Currently Working</span>
+                            <span style={{ fontSize: '1rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#22c55e' }}>{stats.currentlyWorking}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px' }}>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Offline</span>
+                            <span style={{ fontSize: '1rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{stats.offline}</span>
+                          </div>
+                        </div>
 
                         <div style={{ marginTop: "auto" }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
