@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import ActivityTracker from "@/app/components/ActivityTracker";
 import AnalyticsDashboard from "@/app/components/AnalyticsDashboard";
 import Calendar from "@/app/components/calendar";
+import AutoLogout from "@/app/components/AutoLogout";
 import "./dashboard.css";
 
 type ScheduleToday = {
@@ -1090,41 +1091,7 @@ export default function DashboardPage() {
     void doClockOut(reason.trim());
   };
 
-  useEffect(() => {
-    if (inactivityTimerRef.current) {
-      window.clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
-    }
 
-    if (loading) return;
-    if (isClockedIn) return;
-
-    const reset = () => {
-      if (inactivityTimerRef.current) window.clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = window.setTimeout(() => {
-        void doLogout();
-      }, INACTIVITY_LIMIT_MS);
-    };
-
-    reset();
-
-    const events: Array<keyof WindowEventMap> = [
-      "mousemove",
-      "mousedown",
-      "keydown",
-      "touchstart",
-      "scroll",
-      "click",
-    ];
-    const handler = () => reset();
-    events.forEach((e) => window.addEventListener(e, handler, { passive: true }));
-
-    return () => {
-      events.forEach((e) => window.removeEventListener(e, handler));
-      if (inactivityTimerRef.current) window.clearTimeout(inactivityTimerRef.current);
-      inactivityTimerRef.current = null;
-    };
-  }, [isClockedIn, loading, doLogout]);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -1318,6 +1285,7 @@ export default function DashboardPage() {
         </aside>
 
         <main className="workspace-panel">
+          <AutoLogout />
 
 
           <div className="content-area" style={{ paddingTop: 25 }}>

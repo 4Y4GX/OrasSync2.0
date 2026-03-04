@@ -25,12 +25,13 @@ export async function middleware(req: NextRequest) {
   const isManagerArea = pathname.startsWith("/manager");
   const isAdminArea = pathname.startsWith("/admin");
   const isLoginArea = pathname === "/login" || pathname === "/";
+  const isAuthArea = pathname.startsWith("/auth");
 
-  if (!isEmployeeArea && !isAnalystArea && !isSupervisorArea && !isManagerArea && !isAdminArea && !isLoginArea) return NextResponse.next();
+  if (!isEmployeeArea && !isAnalystArea && !isSupervisorArea && !isManagerArea && !isAdminArea && !isLoginArea && !isAuthArea) return NextResponse.next();
 
   const token = req.cookies.get("timea_session")?.value;
   if (!token) {
-    if (isLoginArea) return NextResponse.next();
+    if (isLoginArea || isAuthArea) return NextResponse.next();
 
     const url = req.nextUrl.clone();
     url.pathname = "/login";
@@ -54,7 +55,7 @@ export async function middleware(req: NextRequest) {
       }
     };
 
-    if (isLoginArea) {
+    if (isLoginArea || isAuthArea) {
       const url = req.nextUrl.clone();
       url.pathname = getDashboardForRole(roleId);
       return NextResponse.redirect(url);
@@ -72,8 +73,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // Allow Supervisors (4) and Managers (5) to access Employee areas (like sentiment)
-    if (isEmployeeArea && roleId !== ROLE_EMPLOYEE && roleId !== ROLE_SUPERVISOR && roleId !== ROLE_MANAGER) {
+    if (isEmployeeArea && roleId !== ROLE_EMPLOYEE) {
       const url = req.nextUrl.clone();
       url.pathname = getDashboardForRole(roleId);
       return NextResponse.redirect(url);
@@ -95,12 +95,12 @@ export async function middleware(req: NextRequest) {
   } catch {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
-    const res = isLoginArea ? NextResponse.next() : NextResponse.redirect(url);
+    const res = (isLoginArea || isAuthArea) ? NextResponse.next() : NextResponse.redirect(url);
     res.cookies.delete("timea_session");
     return res;
   }
 }
 
 export const config = {
-  matcher: ["/employee/:path*", "/analyst/:path*", "/admin/:path*", "/supervisor/:path*", "/manager/:path*", "/login", "/"],
+  matcher: ["/employee/:path*", "/analyst/:path*", "/admin/:path*", "/supervisor/:path*", "/manager/:path*", "/auth/:path*", "/login", "/"],
 };

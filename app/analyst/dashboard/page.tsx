@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import styles from './Analyst.module.css';
+import AutoLogout from '@/app/components/AutoLogout';
 
 // Type definitions
 interface UserProfile {
@@ -665,6 +666,7 @@ export default function AnalystDashboard() {
     return (
         <div className={`${styles.analystPortal} ${lightMode ? styles.lightMode : ''}`}>
             <div className={styles['split-layout']}>
+                <AutoLogout />
                 {/* SIDEBAR */}
                 <aside className={styles['info-panel']}>
                     <div className={`${styles['bg-decor']} ${styles['sq-top-left']} ${styles['bg-sq-outline']}`}></div>

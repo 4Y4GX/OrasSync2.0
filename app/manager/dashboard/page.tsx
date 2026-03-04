@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import '../../employee/dashboard/dashboard.css';
+import AutoLogout from '@/app/components/AutoLogout';
 
 // --- PASSWORD VALIDATION LOGIC ---
 const STRONG_PASS_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@?_\-])[A-Za-z\d!@?_\-]{15,20}$/;
@@ -56,6 +57,9 @@ export default function ManagerDashboard() {
   const [logoutModal, setLogoutModal] = useState(false);
   const [activeSessionNotice, setActiveSessionNotice] = useState(false);
   const [saveShiftConfirmModal, setSaveShiftConfirmModal] = useState(false);
+  const [showClockOutModal, setShowClockOutModal] = useState(false);
+  const [clockOutLoading, setClockOutLoading] = useState(false);
+  const [showPostClockOutModal, setShowPostClockOutModal] = useState(false);
 
   // Settings & Auth States
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -126,29 +130,6 @@ export default function ManagerDashboard() {
 
   const [currentUser, setCurrentUser] = useState({ name: 'Loading...', initials: '...', position: '...', email: '', user_id: '' });
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    const handleTimeoutLogout = async () => {
-      try { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; } catch (error) { }
-    };
-    const resetTimer = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => { alert("Session expired due to inactivity."); handleTimeoutLogout(); }, 30 * 60 * 1000);
-    };
-    window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('keypress', resetTimer);
-    window.addEventListener('click', resetTimer);
-    window.addEventListener('scroll', resetTimer);
-    resetTimer();
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener('mousemove', resetTimer);
-      window.removeEventListener('keypress', resetTimer);
-      window.removeEventListener('click', resetTimer);
-      window.removeEventListener('scroll', resetTimer);
-    };
-  }, []);
 
   const executeLogout = async () => {
     try { await fetch('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; } catch (error) { }
@@ -321,9 +302,18 @@ export default function ManagerDashboard() {
   };
 
   useEffect(() => {
-    if (activeSection === 'timesheets') fetchPendingTimesheets();
-    else if (activeSection === 'analytics') fetchAnalyticsData();
-  }, [activeSection, analyticsDate]);
+    if (hasClockedIn) {
+      fetchPendingTimesheets();
+      if (activeSection === 'analytics') fetchAnalyticsData();
+
+      const interval = setInterval(() => {
+        fetchPendingTimesheets();
+        if (activeSection === 'analytics') fetchAnalyticsData();
+      }, 30000);
+
+      return () => clearInterval(interval);
+    }
+  }, [hasClockedIn, activeSection, analyticsDate]);
 
   const executeApproveTimesheet = async () => {
     setIsLoading(true);
@@ -360,13 +350,19 @@ export default function ManagerDashboard() {
   };
 
   const handleClockOut = async () => {
-    if (!confirm("End Management Session?")) return;
-    setIsLoading(true);
+    setClockOutLoading(true);
     try {
       const res = await fetch('/api/manager/clock/out', { method: 'POST' });
-      if (res.ok) { setHasClockedIn(false); setSessionStart(null); setSessionDuration('00:00:00'); window.location.reload(); }
-      else { alert("Failed to end session."); }
-    } catch (e) { alert("Connection error."); } finally { setIsLoading(false); }
+      if (res.ok) {
+        setHasClockedIn(false);
+        setSessionStart(null);
+        setSessionDuration('00:00:00');
+        setShowClockOutModal(false);
+        setShowPostClockOutModal(true);
+      } else {
+        alert("Failed to end session.");
+      }
+    } catch (e) { alert("Connection error."); } finally { setClockOutLoading(false); }
   };
 
   const executeSaveShiftEdit = async () => {
@@ -568,6 +564,7 @@ export default function ManagerDashboard() {
       <div className="tech-mesh" />
 
       <div className="split-layout manager-dashboard">
+        <AutoLogout />
         <aside className="info-panel">
           <div className="bg-decor bg-sq-outline sq-top-left" />
           <div className="bg-decor bg-sq-outline sq-mid-left" />
@@ -586,6 +583,14 @@ export default function ManagerDashboard() {
           </ul>
 
           <div style={{ marginTop: 'auto' }}></div>
+
+          <div className="widget-box">
+            <div className="label-sm">Pending Approvals</div>
+            <div className="status-badge warn">
+              <span className="dot" />
+              <span style={{ marginLeft: 8 }}>{pendingTimesheets.length} PENDING</span>
+            </div>
+          </div>
 
           <div ref={profileMenuWrapRef} style={{ position: "relative" }}>
             {showProfileMenu && (
@@ -756,7 +761,7 @@ export default function ManagerDashboard() {
                       <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-subtle)' }}>
                         <div className="hud-label" style={{ marginBottom: '5px' }}>MY STATUS</div>
                         <div className="status-badge go" style={{ display: 'flex', marginBottom: '10px', width: '100%', justifyContent: 'center', padding: '10px', background: 'var(--bg-input)', borderRadius: '8px' }}>CLOCKED IN</div>
-                        <button className="btn-action btn-urgent" onClick={handleClockOut} style={{ borderRadius: '8px' }}>Clock Out</button>
+                        <button className="btn-action btn-urgent" onClick={() => setShowClockOutModal(true)} style={{ borderRadius: '8px' }}>Clock Out</button>
                       </div>
                     </div>
                   </div>
@@ -972,7 +977,7 @@ export default function ManagerDashboard() {
 
                 <div className="table-container" style={{ padding: '20px', paddingBottom: '30px', background: 'var(--bg-deep)', borderRadius: '0 0 12px 12px', borderBottom: '1px solid var(--border-subtle)', borderLeft: '1px solid var(--border-subtle)', borderRight: '1px solid var(--border-subtle)', flex: 1, overflowY: 'auto' }}>
                   {calendarView === 'weekly' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '15px', height: '100%' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '15px' }}>
                       {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
                         const dayKeyMap: Record<string, string> = { 'Mon': 'monday', 'Tue': 'tuesday', 'Wed': 'wednesday', 'Thu': 'thursday', 'Fri': 'friday', 'Sat': 'saturday', 'Sun': 'sunday' };
                         const dbDayKey = dayKeyMap[day];
@@ -990,14 +995,14 @@ export default function ManagerDashboard() {
                                 shiftsForDay.map(emp => (
                                   <div
                                     key={emp.user_id} className="glass-card fade-in-up"
-                                    style={{ padding: '15px', margin: 0, cursor: 'pointer', transition: 'all 0.2s', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)', borderRadius: '8px' }}
+                                    style={{ padding: '10px', margin: 0, cursor: 'pointer', transition: 'all 0.2s', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)', borderRadius: '8px' }}
                                     onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = 'var(--accent-blue)'; e.currentTarget.style.boxShadow = 'var(--shadow-glow)'; }}
                                     onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.boxShadow = 'var(--shadow-card)'; }}
                                     onClick={() => setEditShiftModal({ show: true, empId: emp.user_id, empName: emp.name, day: day, currentShift: emp.schedule[dbDayKey].shift_name, newShiftId: "" })}
                                   >
-                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-main)' }}>{emp.name}</div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>{emp.schedule[dbDayKey].shift_name}</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--accent-magenta)', marginTop: '4px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-main)' }}>{emp.name}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>{emp.schedule[dbDayKey].shift_name}</div>
+                                    <div style={{ fontSize: '0.7rem', color: 'var(--accent-magenta)', marginTop: '2px', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                                       {emp.schedule[dbDayKey].time || ''}
                                     </div>
                                   </div>
@@ -1582,6 +1587,51 @@ export default function ManagerDashboard() {
               <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
                 <button className="btn-view" style={{ padding: '14px', fontSize: '1rem' }} onClick={() => setLogoutModal(false)}>Cancel</button>
                 <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeLogout}>Yes, Log Out</button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* CLOCK OUT MODAL */}
+      {
+        showClockOutModal && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+              <div className="modal-body" style={{ padding: '30px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>⏱️</div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>End Management Session</h3>
+                <p style={{ color: 'var(--text-muted)' }}>Are you sure you want to clock out? Your session time will stop recording.</p>
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-action btn-standard" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => setShowClockOutModal(false)} disabled={clockOutLoading}>Cancel</button>
+                <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={handleClockOut} disabled={clockOutLoading}>
+                  {clockOutLoading ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                      Loading...
+                    </span>
+                  ) : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* POST-CLOCK OUT LOGOUT MODAL */}
+      {
+        showPostClockOutModal && (
+          <div className="modal-overlay" style={{ zIndex: 9999 }}>
+            <div className="modal-card" style={{ maxWidth: '400px', textAlign: 'center' }}>
+              <div className="modal-body" style={{ padding: '30px 20px' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '15px' }}>✅</div>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '10px' }}>Clock Out Successful</h3>
+                <p style={{ color: 'var(--text-muted)' }}>You have successfully ended your management session. Would you like to log out of the application?</p>
+              </div>
+              <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
+                <button className="btn-action btn-standard" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => setShowPostClockOutModal(false)}>No</button>
+                <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={executeLogout}>Log-out</button>
               </div>
             </div>
           </div>

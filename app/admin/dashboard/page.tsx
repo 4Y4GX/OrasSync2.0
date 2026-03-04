@@ -6,6 +6,7 @@ import '../../styles/admin.css';
 import AdminUserManagement from '../../components/AdminUserManagement';
 import ExcelImportExport from '../../components/ExcelImportExport';
 import AnalyticsView from '../../components/AnalyticsView';
+import AutoLogout from '@/app/components/AutoLogout';
 
 const THEME_KEY = 'orasync_theme';
 
@@ -272,6 +273,7 @@ export default function AdminDashboard() {
 
   return (
     <div className={`dashboard-container admin-theme ${lightMode ? 'light-mode' : ''}`}>
+      <AutoLogout />
       <div className="tech-mesh"></div>
 
       <aside className="info-panel" style={{ display: 'flex', flexDirection: 'column' }}>

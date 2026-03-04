@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import '../../styles/dashboard.css';
 import '../../styles/supervisor.css';
+import AutoLogout from '@/app/components/AutoLogout';
 import SupervisorScheduleManagement from '@/app/components/SupervisorScheduleManagement';
 import TeamStatusMonitor from '@/app/components/TeamStatusMonitor';
 import { Eye, EyeOff, CheckCircle } from 'lucide-react';
@@ -548,6 +549,7 @@ export default function SupervisorDashboard() {
         </aside>
 
         <main className="workspace-panel">
+          <AutoLogout />
 
 
           <div className="content-area">
