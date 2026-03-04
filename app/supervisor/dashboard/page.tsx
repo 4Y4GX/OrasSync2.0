@@ -580,21 +580,18 @@ export default function SupervisorDashboard() {
             {hasClockedIn && activeSection === 'team' && (
               <div className="section-view fade-in">
                 <div className="section-animate">
-                  <div className="hud-row hud-row-2" style={{ marginBottom: '20px' }}>
-                    <div className="hud-card">
+                  <div className="hud-row" style={{ marginBottom: '20px', display: 'flex', gap: '20px' }}>
+                    <div className="hud-card" style={{ flex: 1 }}>
                       <div className="hud-bg-icon">⏱</div>
                       <div className="hud-label">CURRENT TIME</div>
                       <div className="hud-val" style={{ color: 'var(--accent-cyan)' }}>{currentTime}</div>
                     </div>
-                    <div className="hud-card">
+                    <div className="hud-card" style={{ flex: 1 }}>
                       <div className="hud-bg-icon">⚡</div>
                       <div className="hud-label">SESSION DURATION</div>
                       <div className="hud-val">{sessionDuration.substring(0, 5)}</div>
                     </div>
-                  </div>
-
-                  <div className="stats-bar">
-                    <div className="stats-item">
+                    <div className="hud-card" style={{ flex: 1 }}>
                       <div className="hud-bg-icon">🔥</div>
                       <div className="hud-label">TOTAL HOURS TODAY</div>
                       <div className="hud-val warn">{stats.totalHours}</div>
@@ -616,15 +613,15 @@ export default function SupervisorDashboard() {
                         </p>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginBottom: 20, borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Team Members</span>
                             <span style={{ fontSize: '1rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-main)' }}>{stats.totalMembers}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Currently Working</span>
                             <span style={{ fontSize: '1rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: '#22c55e' }}>{stats.currentlyWorking}</span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 14px' }}>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Offline</span>
                             <span style={{ fontSize: '1rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{stats.offline}</span>
                           </div>
@@ -882,7 +879,7 @@ export default function SupervisorDashboard() {
 
             {/* --- COMPLETELY REBUILT ANALYTICS SECTION --- */}
             {hasClockedIn && activeSection === 'analytics' && (
-              <div className="section-view active fade-in">
+              <div className="section-view active fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div className="section-animate">
 
                   {/* Top Analytics Panels */}
@@ -917,49 +914,73 @@ export default function SupervisorDashboard() {
                     </div>
                   </div>
 
-                  {/* Team Performance Graph */}
-                  <div className="glass-card" style={{ marginBottom: '1.5rem' }}>
-                    <div className="section-title">
-                      <span>Team Performance Overview</span>
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button className="week-nav-btn" onClick={() => setWeekOffset(weekOffset - 1)} title="Previous Week">← Prev Week</button>
-                        <button className="week-nav-btn" onClick={() => setWeekOffset(0)} disabled={weekOffset === 0} title="Current Week">Current Week</button>
-                        <button className="week-nav-btn" onClick={() => setWeekOffset(weekOffset + 1)} disabled={weekOffset >= 0} title="Next Week">Next Week →</button>
+                  {/* 2-Column Layout for Graph & Compliance */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '1.5rem', flex: 1 }}>
+
+                    {/* Team Performance Graph */}
+                    <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ display: 'flex', alignItems: 'center' }}>
+                          Team Performance Overview
+                          {(() => {
+                            const curr = new Date();
+                            curr.setDate(curr.getDate() + (weekOffset * 7));
+                            const firstDay = new Date(curr);
+                            firstDay.setDate(curr.getDate() - curr.getDay() + (curr.getDay() === 0 ? -6 : 1));
+                            const lastDay = new Date(firstDay);
+                            lastDay.setDate(firstDay.getDate() + 6);
+
+                            const startOfYear = new Date(firstDay.getFullYear(), 0, 1);
+                            const days = Math.floor((firstDay.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+                            const weekNumber = Math.ceil((firstDay.getDay() + 1 + days) / 7);
+
+                            const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+                            return (
+                              <span className="week-badge">
+                                📅 <span style={{ opacity: 0.9, fontWeight: 600 }}>{firstDay.toLocaleDateString('en-US', options)} - {lastDay.toLocaleDateString('en-US', options)}</span>
+                              </span>
+                            );
+                          })()}
+                        </span>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <button className="week-nav-btn" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => setWeekOffset(weekOffset - 1)} title="Previous Week">← Prev</button>
+                          <button className="week-nav-btn" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => setWeekOffset(0)} disabled={weekOffset === 0} title="Current Week">Current</button>
+                          <button className="week-nav-btn" style={{ padding: '4px 8px', fontSize: '0.75rem' }} onClick={() => setWeekOffset(weekOffset + 1)} disabled={weekOffset >= 0} title="Next Week">Next →</button>
+                        </div>
+                      </div>
+                      <div className="graph-container" style={{ flex: 1, minHeight: '300px' }}>
+                        {!stats.graphData || stats.graphData.length === 0 ? (
+                          <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Loading graph data...</div>
+                        ) : stats.graphData.map((day: any, i: number) => (
+                          <div key={`${day.day}-${i}`} className="bar-group">
+                            <div
+                              className="bar bar-actual supervisor-bar"
+                              style={{
+                                height: `${Math.max(day.percentage, 5)}%`,
+                                minHeight: day.percentage > 0 ? '10px' : '0px'
+                              }}
+                              title={`${day.day}: ${day.hours} hours (${day.percentage.toFixed(1)}%)`}
+                            >
+                              {Number(day.hours) > 0 && (
+                                <div style={{
+                                  position: 'absolute', top: '-25px', left: '50%', transform: 'translateX(-50%)',
+                                  fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-primary)', whiteSpace: 'nowrap'
+                                }}>
+                                  {day.hours}h
+                                </div>
+                              )}
+                            </div>
+                            <div className="bar-label">{day.day}</div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                    <div className="graph-container">
-                      {!stats.graphData || stats.graphData.length === 0 ? (
-                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Loading graph data...</div>
-                      ) : stats.graphData.map((day: any, i: number) => (
-                        <div key={`${day.day}-${i}`} className="bar-group">
-                          <div
-                            className="bar bar-actual supervisor-bar"
-                            style={{
-                              height: `${Math.max(day.percentage, 5)}%`,
-                              minHeight: day.percentage > 0 ? '10px' : '0px'
-                            }}
-                            title={`${day.day}: ${day.hours} hours (${day.percentage.toFixed(1)}%)`}
-                          >
-                            {Number(day.hours) > 0 && (
-                              <div style={{
-                                position: 'absolute', top: '-25px', left: '50%', transform: 'translateX(-50%)',
-                                fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-primary)', whiteSpace: 'nowrap'
-                              }}>
-                                {day.hours}h
-                              </div>
-                            )}
-                          </div>
-                          <div className="bar-label">{day.day}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
 
                     {/* Team Member Compliance Table */}
-                    <div className="glass-card">
-                      <div className="section-title">Team Member Compliance</div>
+                    <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div className="section-title">
+                        <span>Team Member Compliance</span>
+                      </div>
                       <div style={{
                         padding: '14px 20px', marginBottom: '20px', background: 'rgba(167, 139, 250, 0.08)',
                         border: '1px solid rgba(167, 139, 250, 0.2)', borderRadius: '14px', color: 'var(--text-muted)', fontSize: '0.85rem',
@@ -970,12 +991,12 @@ export default function SupervisorDashboard() {
                       </div>
 
                       {stats.complianceData && stats.complianceData.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: '5px' }}>
                           {/* Table Header */}
                           <div style={{
-                            display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
-                            padding: '10px 20px', fontSize: '0.7rem', fontWeight: 700,
-                            color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1.5px'
+                            display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)',
+                            padding: '10px 15px', fontSize: '0.65rem', fontWeight: 700, gap: '5px',
+                            color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px'
                           }}>
                             <span>Employee</span>
                             <span>Today</span>
@@ -989,39 +1010,39 @@ export default function SupervisorDashboard() {
                             const initials = emp.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2);
                             return (
                               <div key={i} style={{
-                                display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
-                                alignItems: 'center', padding: '16px 20px',
+                                display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)',
+                                alignItems: 'center', padding: '12px 15px',
                                 background: 'var(--bg-input)', border: '1px solid var(--border-subtle)',
-                                borderRadius: '14px', transition: 'all 0.2s',
+                                borderRadius: '12px', transition: 'all 0.2s', gap: '5px'
                               }}
-                                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.transform = 'translateX(4px)'; }}
+                                onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.transform = 'translateX(2px)'; }}
                                 onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.transform = 'translateX(0)'; }}
                               >
                                 {/* Employee */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
                                   <div style={{
-                                    width: '38px', height: '38px', borderRadius: '50%',
+                                    width: '32px', height: '32px', borderRadius: '50%',
                                     background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: 'white', fontWeight: 700, fontSize: '0.75rem', flexShrink: 0
+                                    color: 'white', fontWeight: 700, fontSize: '0.7rem', flexShrink: 0
                                   }}>
                                     {initials}
                                   </div>
-                                  <div>
-                                    <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>{emp.name}</div>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{emp.name}</div>
                                   </div>
                                 </div>
 
                                 {/* Today */}
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                                  {emp.todayHours}<span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}> / 8h</span>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-main)' }}>
+                                  {emp.todayHours}<span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>/8h</span>
                                 </div>
 
                                 {/* Status */}
                                 <div>
                                   <span style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: '5px',
-                                    padding: '5px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 700,
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                    padding: '4px 8px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700,
                                     background: emp.isOverDaily ? 'rgba(245, 158, 11, 0.15)' : 'rgba(34, 197, 94, 0.15)',
                                     color: emp.isOverDaily ? '#f59e0b' : '#22c55e',
                                     border: `1px solid ${emp.isOverDaily ? 'rgba(245, 158, 11, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
@@ -1031,19 +1052,19 @@ export default function SupervisorDashboard() {
                                 </div>
 
                                 {/* Weekly */}
-                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', color: 'var(--text-main)' }}>
-                                  {emp.weeklyHours}<span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}> / 40h</span>
+                                <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-main)' }}>
+                                  {emp.weeklyHours}<span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>/40h</span>
                                 </div>
 
                                 {/* Compliance Bar */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                  <div className="compliance-bar" style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div className="compliance-bar" style={{ flex: 1, minWidth: '40px' }}>
                                     <div
                                       className={`compliance-fill ${emp.isOverWeekly ? 'over' : 'ok'}`}
                                       style={{ width: `${weeklyPercent}%` }}
                                     />
                                   </div>
-                                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', minWidth: '35px', textAlign: 'right' }}>
+                                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: 'var(--text-muted)', minWidth: '25px', textAlign: 'right' }}>
                                     {weeklyPercent.toFixed(0)}%
                                   </span>
                                 </div>
@@ -1057,29 +1078,26 @@ export default function SupervisorDashboard() {
                           No team members to display
                         </div>
                       )}
-                    </div>
-
-                    {/* Generate Reports Panel */}
-                    <div className="glass-card" style={{ background: 'rgba(167, 139, 250, 0.05)', borderColor: 'rgba(167, 139, 250, 0.2)' }}>
-                      <div className="section-title" style={{ padding: 0, border: 'none', marginBottom: '15px', color: 'var(--accent-primary)' }}>Generate Reports</div>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '15px' }}>Export historical hours and activity data for your team.</p>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <select id="reportTarget" className="input-rounded" style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid var(--border-subtle)' }}>
-                          <option value="all" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>All Direct Reports</option>
-                          {stats.complianceData && stats.complianceData.map((emp: any, i: number) => (
-                            <option key={`report-${i}`} value={emp.user_id || emp.name} style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>{emp.name}</option>
-                          ))}
-                        </select>
-
-                        <select id="reportFormat" className="input-rounded" style={{ width: '100%', padding: '10px', backgroundColor: '#1e1e1e', color: '#ffffff', border: '1px solid var(--border-subtle)' }}>
-                          <option value="csv" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>CSV Format</option>
-                          <option value="json" style={{ backgroundColor: '#1e1e1e', color: '#ffffff' }}>JSON Format</option>
-                        </select>
-
+                      {/* Generate Reports Area */}
+                      <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Generate Report:</span>
+                          <div style={{ display: 'flex', gap: '8px', background: 'rgba(255, 255, 255, 0.02)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                            <select id="reportTarget" className="input-rounded" style={{ padding: '8px 14px', backgroundColor: 'var(--bg-input, #1e1e1e)', color: 'var(--text-main, #ffffff)', border: 'none', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer', outline: 'none', width: 'auto' }}>
+                              <option value="all" style={{ backgroundColor: 'var(--bg-panel, #121212)', color: 'var(--text-main, #ffffff)' }}>All Direct Reports</option>
+                              {stats.complianceData && stats.complianceData.map((emp: any, i: number) => (
+                                <option key={`report-${i}`} value={emp.user_id || emp.name} style={{ backgroundColor: 'var(--bg-panel, #121212)', color: 'var(--text-main, #ffffff)' }}>{emp.name}</option>
+                              ))}
+                            </select>
+                            <select id="reportFormat" className="input-rounded" style={{ padding: '8px 14px', backgroundColor: 'var(--bg-input, #1e1e1e)', color: 'var(--text-main, #ffffff)', border: 'none', fontSize: '0.8rem', borderRadius: '6px', cursor: 'pointer', outline: 'none', width: 'auto' }}>
+                              <option value="csv" style={{ backgroundColor: 'var(--bg-panel, #121212)', color: 'var(--text-main, #ffffff)' }}>CSV Format</option>
+                              <option value="json" style={{ backgroundColor: 'var(--bg-panel, #121212)', color: 'var(--text-main, #ffffff)' }}>JSON Format</option>
+                            </select>
+                          </div>
+                        </div>
                         <button
                           className="btn-improved btn-primary"
-                          style={{ width: '100%', padding: '12px', marginTop: '10px', justifyContent: 'center' }}
+                          style={{ padding: '8px 20px', fontSize: '0.8rem' }}
                           onClick={async () => {
                             const target = (document.getElementById('reportTarget') as HTMLSelectElement).value;
                             const format = (document.getElementById('reportFormat') as HTMLSelectElement).value;

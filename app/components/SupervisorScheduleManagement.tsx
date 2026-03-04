@@ -533,7 +533,10 @@ export default function SupervisorScheduleManagement() {
                   for (let i = 0; i < totalCells; i++) {
                     const diff = i - startOffset;
                     const d = new Date(year, month, diff + 1);
-                    cells.push({ date: d, inMonth: diff >= 0 && diff < totalDays, dayKey: dayNameMap[d.getDay()], dateStr: d.toISOString().split('T')[0] });
+                    const localMonth = String(d.getMonth() + 1).padStart(2, '0');
+                    const localDate = String(d.getDate()).padStart(2, '0');
+                    const localDateStr = `${d.getFullYear()}-${localMonth}-${localDate}`;
+                    cells.push({ date: d, inMonth: diff >= 0 && diff < totalDays, dayKey: dayNameMap[d.getDay()], dateStr: localDateStr });
                   }
 
                   const weeks: typeof cells[] = [];

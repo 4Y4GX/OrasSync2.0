@@ -679,19 +679,19 @@ export default function ManagerDashboard() {
             {/* ACTIVE DEPARTMENT VIEW */}
             {hasClockedIn && activeSection === 'department' && (
               <div className="fade-in" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div className="hud-row">
-                  <div className="hud-card">
+                <div className="hud-row" style={{ display: 'flex', gap: '20px' }}>
+                  <div className="hud-card" style={{ flex: 1 }}>
                     <div className="hud-bg-icon">⏱</div>
                     <div className="hud-label">CURRENT TIME</div>
                     <div className="hud-val" style={{ color: 'var(--accent-cyan)' }}>{currentTime}</div>
                   </div>
-                  <div className="hud-card">
+                  <div className="hud-card" style={{ flex: 1 }}>
                     <div className="hud-bg-icon">⚡</div>
                     <div className="hud-label">SESSION DURATION</div>
                     <div className="hud-val">{sessionDuration}</div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '5px' }}>Productivity Target: {sessionDuration.substring(0, 5)} / 8h</div>
                   </div>
-                  <div className="hud-card" style={{ borderColor: 'var(--accent-gold)' }}>
+                  <div className="hud-card" style={{ borderColor: 'var(--accent-gold)', flex: 1 }}>
                     <div className="hud-bg-icon">🏢</div>
                     <div className="hud-label">DEPT. COVERAGE</div>
                     <div className="hud-val" style={{ color: 'var(--accent-gold)' }}>

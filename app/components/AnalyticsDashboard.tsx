@@ -60,7 +60,7 @@ export default function AnalyticsDashboard() {
   };
 
   if (loading) {
-    return <div style={{ textAlign: "center", padding: "3rem" }}>Loading analytics...</div>;
+    return null;
   }
 
   if (!data) {
@@ -77,8 +77,8 @@ export default function AnalyticsDashboard() {
 
   const maxDailyHours = Math.max(...dailyEntries.map(([, hours]) => hours), 1);
 
-  const billablePercentage = data.summary.totalHours > 0 
-    ? (data.summary.billableHours / data.summary.totalHours) * 100 
+  const billablePercentage = data.summary.totalHours > 0
+    ? (data.summary.billableHours / data.summary.totalHours) * 100
     : 0;
 
   return (
@@ -139,7 +139,7 @@ export default function AnalyticsDashboard() {
                 const height = (hours / maxDailyHours) * 100;
                 const dateObj = new Date(date);
                 const dayLabel = dateObj.toLocaleDateString("en-US", { weekday: "short" });
-                
+
                 return (
                   <div
                     key={date}

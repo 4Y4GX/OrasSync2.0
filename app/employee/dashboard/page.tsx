@@ -1313,8 +1313,8 @@ export default function DashboardPage() {
                 <div className="section-animate">
                   {activeSection === 'dashboard' && (
                     <>
-                      <div className="hud-row">
-                        <div className="hud-card">
+                      <div className="hud-row" style={{ display: 'flex', gap: '20px' }}>
+                        <div className="hud-card" style={{ flex: 1 }}>
                           <div className="hud-bg-icon">⏱</div>
                           <div className="hud-label">CURRENT TIME</div>
                           <div className="hud-val accent-cyan">
@@ -1324,7 +1324,7 @@ export default function DashboardPage() {
                             {formatDateLine(now)}
                           </div>
                         </div>
-                        <div className="hud-card">
+                        <div className="hud-card" style={{ flex: 1 }}>
                           <div className="hud-bg-icon">⚡</div>
                           <div className="hud-label">SESSION DURATION</div>
                           <div className="hud-val">
@@ -1334,7 +1334,7 @@ export default function DashboardPage() {
                             Target: {targetHours}
                           </div>
                         </div>
-                        <div className="hud-card" style={{ borderColor: "var(--accent-blue)" }}>
+                        <div className="hud-card" style={{ borderColor: "var(--accent-blue)", flex: 1 }}>
                           <div className="hud-bg-icon">🔥</div>
                           <div className="hud-label">ACTIVITY DURATION</div>
                           <div className="hud-val warn">
@@ -1878,9 +1878,14 @@ export default function DashboardPage() {
                   {activeSection === 'analytics' && (
                     <div className="section-view fade-in">
                       {analyticsLoading ? (
-                        <div className="analytics-loading">
-                          <div className="spinner"></div>
-                          <span style={{ fontSize: "0.9rem", letterSpacing: 1, opacity: 0.7 }}>FETCHING DATA...</span>
+                        <div className="analytics-content-enter" style={{ height: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
+                          <div className="stats-row">
+                            {[1, 2, 3].map((_, i) => (
+                              <div key={i} className="stat-box" style={{ animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", background: "var(--bg-card)", opacity: 0.5, minHeight: 120 }}></div>
+                            ))}
+                          </div>
+                          <div className="glass-card" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: 25, animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", opacity: 0.5 }}>
+                          </div>
                         </div>
                       ) : (
                         <div className="analytics-content-enter" style={{ height: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -1959,7 +1964,29 @@ export default function DashboardPage() {
                               </div>
                             </div>
 
-                            <div className="graph-container" key={analyticsWeekOffset}>
+                            <div className="graph-container" key={analyticsWeekOffset} style={{ paddingLeft: 85 }}>
+                              {/* Y-Axis & Grid Background */}
+                              {(() => {
+                                const MAX_SCALE = 12;
+                                return (
+                                  <div style={{ position: "absolute", left: 15, right: 30, top: 30, bottom: 30, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: "10px", pointerEvents: "none", zIndex: 0 }}>
+                                    <div style={{ height: "100%", position: "relative", width: "100%" }}>
+                                      {[12, 9, 6, 3, 0].map((h, index) => {
+                                        const isTarget = h === 9;
+                                        return (
+                                          <div key={h} style={{ position: "absolute", bottom: `${(h / MAX_SCALE) * 100}%`, left: 0, right: 0, height: 1, borderTop: isTarget ? "2px dashed rgba(34,197,94,0.3)" : (h === 0 ? "1px solid rgba(255,255,255,0.2)" : "1px dashed rgba(255,255,255,0.1)") }}>
+                                            <span style={{ position: "absolute", top: -8, left: 0, fontSize: "0.75rem", color: isTarget ? "var(--color-go)" : "var(--text-muted)", fontWeight: 700 }}>
+                                              {isTarget ? `TARGET (9H)` : `${h}h`}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    <div className="bar-label" style={{ visibility: "hidden" }}>DAY</div>
+                                  </div>
+                                );
+                              })()}
+
                               {(() => {
                                 const days = [];
                                 const today = new Date();
@@ -1979,7 +2006,6 @@ export default function DashboardPage() {
                                   const hours = analyticsData?.dailyHours?.[dateKey] || 0;
 
                                   const actualHeight = Math.min((hours / MAX_SCALE) * 100, 100);
-                                  const targetHeight = (TARGET_HOURS / MAX_SCALE) * 100;
 
                                   let barColor = "var(--bg-card)";
                                   if (hours > 0) {
@@ -1991,8 +2017,6 @@ export default function DashboardPage() {
 
                                   days.push(
                                     <div key={dateKey} className="bar-group">
-                                      <div className="bar-target" style={{ height: `${targetHeight}%` }} />
-
                                       <div className="bar" style={{ height: `${actualHeight}%`, background: barColor, zIndex: 2, opacity: 0.9 }} />
 
                                       <div className="bar-label">{dayName}</div>

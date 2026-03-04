@@ -59,7 +59,7 @@ export default function TeamStatusMonitor() {
   const loadTeamStatus = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch("/api/supervisor/team/status");
+      const res = await fetch(`/api/supervisor/team/status?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setTeamStatus(data.teamStatus || []);

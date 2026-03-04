@@ -3344,3 +3344,15 @@ body.light-mode .cpw-resend-btn:hover:not(:disabled) {
   background: rgba(99, 102, 241, 0.06);
   border-color: var(--accent-blue);
 }
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
