@@ -70,11 +70,7 @@ export default function SupervisorDashboard() {
     }, 280);
   };
 
-  useEffect(() => {
-    if (activeSection === 'approval') {
-      loadApprovals();
-    }
-  }, [activeSection]);
+
 
   // Handle Tick
   useEffect(() => {
@@ -474,16 +470,22 @@ export default function SupervisorDashboard() {
   };
 
   useEffect(() => {
-    loadStats(weekOffset);
-    const interval = setInterval(() => loadStats(weekOffset), 30000);
-    return () => clearInterval(interval);
-  }, [weekOffset]);
+    // Only start polling once the user has checked in (or we verified they are clocked in)
+    if (hasClockedIn) {
+      loadStats(weekOffset);
+      loadApprovals();
+
+      const interval = setInterval(() => {
+        loadStats(weekOffset);
+        loadApprovals();
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [weekOffset, hasClockedIn]);
 
   const handleRefreshNow = () => {
     loadStats(weekOffset);
-    if (activeSection === 'approval') {
-      loadApprovals();
-    }
+    loadApprovals();
   };
 
   return (
