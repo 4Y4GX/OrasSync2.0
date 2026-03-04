@@ -101,18 +101,6 @@ model D_tblearly_reasonlog {
   @@index([user_id], map: "fk_early_user")
 }
 
-model D_tblotp_log {
-  otp_id      Int        @id @default(autoincrement())
-  user_id     String?    @db.VarChar(30)
-  otp_code    String?    @db.VarChar(10)
-  created_at  DateTime?  @default(now()) @db.Timestamp(0)
-  attempts    Int?       @default(0)
-  is_verified Boolean?   @default(false)
-  D_tbluser   D_tbluser? @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_otp_user")
-
-  @@index([user_id], map: "fk_otp_user")
-}
-
 model D_tblposition {
   pos_id     Int         @id @default(autoincrement())
   pos_name   String?     @unique(map: "pos_name") @db.VarChar(50)
@@ -237,7 +225,7 @@ model D_tbluser {
   D_tblearly_reasonlog                                                                         D_tblearly_reasonlog[]
   D_tblfuture_schedule                                                                         D_tblfuture_schedule[]
   D_tblot_request                                                                              D_tblot_request[]
-  D_tblotp_log                                                                                 D_tblotp_log[]
+  D_tblotp_firsttimelog                                                                        D_tblotp_firsttimelog[]
   D_tblsentiment_log                                                                           D_tblsentiment_log[]
   D_tbltime_log_D_tbltime_log_supervisor_id_at_logToD_tbluser                                  D_tbltime_log[]                  @relation("D_tbltime_log_supervisor_id_at_logToD_tbluser")
   D_tbltime_log_D_tbltime_log_user_idToD_tbluser                                               D_tbltime_log[]                  @relation("D_tbltime_log_user_idToD_tbluser")
@@ -363,6 +351,27 @@ model D_tblot_request {
   D_tbluser  D_tbluser? @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_ot_user")
 
   @@index([user_id], map: "fk_ot_user")
+}
+
+model D_tblotp_firsttimelog {
+  otp_id      Int        @id @default(autoincrement())
+  user_id     String?    @db.VarChar(30)
+  otp_code    String?    @db.VarChar(10)
+  created_at  DateTime?  @default(now()) @db.Timestamp(0)
+  attempts    Int?       @default(0)
+  is_verified Boolean?   @default(false)
+  D_tbluser   D_tbluser? @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_otp_user")
+
+  @@index([user_id], map: "fk_otp_user")
+}
+
+model D_tblotp_forgotpasswordlog {
+  otp_id      Int       @id @default(autoincrement())
+  user_id     String?   @db.VarChar(30)
+  otp_code    String?   @db.VarChar(10)
+  created_at  DateTime? @default(now()) @db.Timestamp(0)
+  attempts    Int?      @default(0)
+  is_verified Boolean?  @default(false)
 }
 
 enum D_tblaccount_recovery_incident_incident_type {

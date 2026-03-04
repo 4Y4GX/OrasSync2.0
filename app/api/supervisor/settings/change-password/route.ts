@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
     // Gate 1: Check for a recently verified OTP (last 15 minutes)
     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
-    const verifiedOtp = await prisma.d_tblotp_log.findFirst({
+    const verifiedOtp = await prisma.d_tblotp_forgotpasswordlog.findFirst({
       where: {
         user_id: userId,
         is_verified: true,
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     });
 
     // Consume the OTP so it can't be used again
-    await prisma.d_tblotp_log.update({
+    await prisma.d_tblotp_forgotpasswordlog.update({
       where: { otp_id: verifiedOtp.otp_id },
       data: { is_verified: false }, // marking false to consume it
     });

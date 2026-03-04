@@ -19,7 +19,7 @@ export async function POST(request: Request) {
         }
 
         // Get latest OTP for this user
-        const latestLog = await prisma.d_tblotp_log.findFirst({
+        const latestLog = await prisma.d_tblotp_forgotpasswordlog.findFirst({
             where: { user_id: userId },
             orderBy: { created_at: "desc" },
         });
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
         if (latestLog.otp_code !== otp) {
             const nextAttempts = attempts + 1;
             try {
-                await prisma.d_tblotp_log.update({
+                await prisma.d_tblotp_forgotpasswordlog.update({
                     where: { otp_id: latestLog.otp_id },
                     data: { attempts: nextAttempts },
                 });
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
         }
 
         // OTP is correct — mark as verified
-        await prisma.d_tblotp_log.update({
+        await prisma.d_tblotp_forgotpasswordlog.update({
             where: { otp_id: latestLog.otp_id },
             data: { is_verified: true },
         });

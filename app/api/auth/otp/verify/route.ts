@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       select: { is_disabled: true },
     });
 
-    const latestLog = await prisma.d_tblotp_log.findFirst({
+    const latestLog = await prisma.d_tblotp_forgotpasswordlog.findFirst({
       where: { user_id: userId },
       orderBy: { created_at: "desc" },
     });
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
       if (auth?.is_disabled) {
         const { start, end } = todayRange();
 
-        const exhaustedCountToday = await prisma.d_tblotp_log.count({
+        const exhaustedCountToday = await prisma.d_tblotp_forgotpasswordlog.count({
           where: {
             user_id: userId,
             created_at: { gte: start, lte: end },
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       const nextAttempts = attempts + 1;
 
       try {
-        await prisma.d_tblotp_log.update({
+        await prisma.d_tblotp_forgotpasswordlog.update({
           where: { otp_id: latestLog.otp_id },
           data: { attempts: nextAttempts },
         });
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       if (nextAttempts >= maxAttemptsPerOtp && auth?.is_disabled) {
         const { start, end } = todayRange();
 
-        const exhaustedCountToday = await prisma.d_tblotp_log.count({
+        const exhaustedCountToday = await prisma.d_tblotp_forgotpasswordlog.count({
           where: {
             user_id: userId,
             created_at: { gte: start, lte: end },
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
       }
     }
 
-    await prisma.d_tblotp_log.update({
+    await prisma.d_tblotp_forgotpasswordlog.update({
       where: { otp_id: latestLog.otp_id },
       data: { is_verified: true },
     });

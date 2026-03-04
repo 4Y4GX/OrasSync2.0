@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     console.log(`[AUTH] Recovery OTP for ${raw}: ${otpCode}`);
 
-    await prisma.d_tblotp_log.create({
+    await prisma.d_tblotp_forgotpasswordlog.create({
       data: {
         user_id: userId,
         otp_code: otpCode,

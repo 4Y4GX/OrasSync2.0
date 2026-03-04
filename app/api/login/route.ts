@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { signSession, sessionCookieOptions } from "@/lib/auth";
 import { verifyPassword, hashPassword, isBcryptHash } from "@/lib/password";
-import { checkOtpDailyLimit } from "@/lib/otpLimit";
 
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -124,19 +123,10 @@ export async function POST(req: Request) {
     if (!otp) {
       // First pass: Credentials are valid, but no OTP provided. Generate one.
 
-      // Daily OTP limit check (5/day)
-      const { allowed } = await checkOtpDailyLimit(userProfile.user_id);
-      if (!allowed) {
-        return NextResponse.json(
-          { message: "OTP_LIMIT_REACHED" },
-          { status: 429 }
-        );
-      }
-
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
       console.log(`[AUTH] Login OTP for ${email}: ${otpCode}`);
 
-      await prisma.d_tblotp_log.create({
+      await prisma.d_tblotp_firsttimelog.create({
         data: {
           user_id: userProfile.user_id,
           otp_code: otpCode,
@@ -152,7 +142,7 @@ export async function POST(req: Request) {
     }
 
     // Second pass: OTP was provided, verify it.
-    const latestLog = await prisma.d_tblotp_log.findFirst({
+    const latestLog = await prisma.d_tblotp_firsttimelog.findFirst({
       where: { user_id: userProfile.user_id },
       orderBy: { created_at: "desc" },
     });
@@ -175,7 +165,7 @@ export async function POST(req: Request) {
 
     if (latestLog.otp_code !== otp) {
       const nextAttempts = otpAttempts + 1;
-      await prisma.d_tblotp_log.update({
+      await prisma.d_tblotp_firsttimelog.update({
         where: { otp_id: latestLog.otp_id },
         data: { attempts: nextAttempts },
       });
@@ -183,7 +173,7 @@ export async function POST(req: Request) {
     }
 
     // OTP Valid - Mark as verified
-    await prisma.d_tblotp_log.update({
+    await prisma.d_tblotp_firsttimelog.update({
       where: { otp_id: latestLog.otp_id },
       data: { is_verified: true },
     });

@@ -24,11 +24,14 @@ export async function middleware(req: NextRequest) {
   const isSupervisorArea = pathname.startsWith("/supervisor");
   const isManagerArea = pathname.startsWith("/manager");
   const isAdminArea = pathname.startsWith("/admin");
+  const isLoginArea = pathname === "/login" || pathname === "/";
 
-  if (!isEmployeeArea && !isAnalystArea && !isSupervisorArea && !isManagerArea && !isAdminArea) return NextResponse.next();
+  if (!isEmployeeArea && !isAnalystArea && !isSupervisorArea && !isManagerArea && !isAdminArea && !isLoginArea) return NextResponse.next();
 
   const token = req.cookies.get("timea_session")?.value;
   if (!token) {
+    if (isLoginArea) return NextResponse.next();
+
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
@@ -50,6 +53,12 @@ export async function middleware(req: NextRequest) {
         default: return "/login";
       }
     };
+
+    if (isLoginArea) {
+      const url = req.nextUrl.clone();
+      url.pathname = getDashboardForRole(roleId);
+      return NextResponse.redirect(url);
+    }
 
     if (isAdminArea && roleId !== ROLE_ADMIN) {
       const url = req.nextUrl.clone();
@@ -86,10 +95,12 @@ export async function middleware(req: NextRequest) {
   } catch {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    const res = isLoginArea ? NextResponse.next() : NextResponse.redirect(url);
+    res.cookies.delete("timea_session");
+    return res;
   }
 }
 
 export const config = {
-  matcher: ["/employee/:path*", "/analyst/:path*", "/admin/:path*", "/supervisor/:path*", "/manager/:path*"],
+  matcher: ["/employee/:path*", "/analyst/:path*", "/admin/:path*", "/supervisor/:path*", "/manager/:path*", "/login", "/"],
 };

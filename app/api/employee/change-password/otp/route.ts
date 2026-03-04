@@ -36,7 +36,7 @@ export async function POST() {
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         console.log(`[EMPLOYEE-CHANGE-PW] OTP for ${user.email ?? userId}: ${otpCode}`);
 
-        await prisma.d_tblotp_log.create({
+        await prisma.d_tblotp_forgotpasswordlog.create({
             data: {
                 user_id: userId,
                 otp_code: otpCode,
