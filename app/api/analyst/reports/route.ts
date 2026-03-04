@@ -22,26 +22,40 @@ export async function GET(request: Request) {
     const deptId = searchParams.get("dept_id");
     const period = searchParams.get("period") || "week";
     const format = searchParams.get("format") || "json"; // json, csv
+    const offset = parseInt(searchParams.get("offset") || "0"); // 0 = current, -1 = previous, etc.
 
-    // Calculate date range
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    // Calculate date range based on period + offset
+    const now = new Date();
     let startDate: Date;
+    let endDate: Date;
 
     if (period === "week") {
-      startDate = new Date(today);
-      const dayOfWeek = today.getDay();
-      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      startDate.setDate(today.getDate() - diff);
-      startDate.setHours(0, 0, 0, 0);
+      const dayOfWeek = now.getDay();
+      const mondayDiff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - mondayDiff);
+      monday.setHours(0, 0, 0, 0);
+
+      startDate = new Date(monday);
+      startDate.setDate(monday.getDate() + offset * 7);
+
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
     } else if (period === "month") {
-      startDate = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+      startDate = new Date(now.getFullYear(), now.getMonth() + offset, 1, 0, 0, 0, 0);
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
     } else if (period === "quarter") {
-      const quarter = Math.floor(today.getMonth() / 3);
-      startDate = new Date(today.getFullYear(), quarter * 3, 1, 0, 0, 0, 0);
+      const quarter = Math.floor(now.getMonth() / 3);
+      startDate = new Date(now.getFullYear(), quarter * 3 + offset * 3, 1, 0, 0, 0, 0);
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 3, 0, 23, 59, 59, 999);
     } else {
-      startDate = new Date(today.getFullYear(), 0, 1, 0, 0, 0, 0);
+      const targetYear = now.getFullYear() + offset;
+      startDate = new Date(targetYear, 0, 1, 0, 0, 0, 0);
+      endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
     }
+
+    const today = endDate;
 
     let reportData: any[] = [];
     let headers: string[] = [];

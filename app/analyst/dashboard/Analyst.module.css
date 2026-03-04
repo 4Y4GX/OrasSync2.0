@@ -563,6 +563,24 @@
             cursor: pointer;
         }
 
+        .select-pro:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 2px var(--accent-subtle);
+        }
+
+        .select-pro option {
+            background: #1a1a1a;
+            color: #f5f5f5;
+            padding: 8px 12px;
+            font-weight: 600;
+        }
+
+        .analystPortal.lightMode .select-pro option {
+            background: #ffffff;
+            color: #1e293b;
+        }
+
+
         /* GRID */
         .dashboard-grid {
             display: grid;

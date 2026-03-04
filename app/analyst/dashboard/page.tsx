@@ -151,9 +151,14 @@ export default function AnalystDashboard() {
     const [exportModalOpen, setExportModalOpen] = useState(false);
     const hasMountedTheme = useRef(false);
 
+    // KPI period navigation
+    const [periodOffset, setPeriodOffset] = useState(0);
+    const [periodLabel, setPeriodLabel] = useState('');
+
     // Data states
     const [kpiData, setKpiData] = useState<KPIData | null>(null);
-    const [weeklyActivity, setWeeklyActivity] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
+    const [activityBars, setActivityBars] = useState<number[]>([]);
+    const [activityLabels, setActivityLabels] = useState<string[]>([]);
     const [deptBreakdown, setDeptBreakdown] = useState<DepartmentData[]>([]);
     const [reportData, setReportData] = useState<ReportData | null>(null);
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -225,7 +230,7 @@ export default function AnalystDashboard() {
         if (activeView === 'home') {
             fetchKPIs();
         }
-    }, [dept, period, activeView]);
+    }, [dept, period, periodOffset, activeView]);
 
     // Fetch departments list (independent of view, so all tabs have the dropdown)
     useEffect(() => {
@@ -289,17 +294,53 @@ export default function AnalystDashboard() {
         }
     }, [dept, period, activeView]);
 
+    // Generate period dropdown options
+    const getPeriodOptions = () => {
+        const options: { value: number; label: string }[] = [];
+        const now = new Date();
+        if (period === 'week') {
+            for (let i = 0; i >= -11; i--) {
+                const dayOfWeek = now.getDay();
+                const mondayDiff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                const monday = new Date(now);
+                monday.setDate(now.getDate() - mondayDiff + i * 7);
+                const sunday = new Date(monday);
+                sunday.setDate(monday.getDate() + 6);
+                const mNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const label = monday.getMonth() === sunday.getMonth()
+                    ? `${mNames[monday.getMonth()]} ${monday.getDate()} – ${sunday.getDate()}, ${sunday.getFullYear()}`
+                    : `${mNames[monday.getMonth()]} ${monday.getDate()} – ${mNames[sunday.getMonth()]} ${sunday.getDate()}, ${sunday.getFullYear()}`;
+                options.push({ value: i, label: i === 0 ? `This Week (${label})` : label });
+            }
+        } else if (period === 'month') {
+            const fullMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            for (let i = 0; i >= -11; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                const label = `${fullMonths[d.getMonth()]} ${d.getFullYear()}`;
+                options.push({ value: i, label: i === 0 ? `This Month (${label})` : label });
+            }
+        } else {
+            for (let i = 0; i >= -4; i--) {
+                const y = now.getFullYear() + i;
+                options.push({ value: i, label: i === 0 ? `This Year (${y})` : `${y}` });
+            }
+        }
+        return options;
+    };
+
     const fetchKPIs = async () => {
         setLoadingView('home');
         try {
-            const params = new URLSearchParams({ period });
+            const params = new URLSearchParams({ period, offset: periodOffset.toString() });
             if (dept !== 'ALL') params.append('dept_id', dept);
 
             const response = await fetch(`/api/analyst/kpis?${params}`);
             if (response.ok) {
                 const data = await response.json();
                 setKpiData(data.kpis);
-                setWeeklyActivity(data.weeklyActivity);
+                setActivityBars(data.activityBars || []);
+                setActivityLabels(data.activityLabels || []);
+                setPeriodLabel(data.periodLabel || '');
                 setDeptBreakdown(data.departmentBreakdown);
             }
         } catch (error) {
@@ -393,6 +434,7 @@ export default function AnalystDashboard() {
             const params = new URLSearchParams({
                 type: reportType,
                 period,
+                offset: periodOffset.toString(),
                 format: 'json',
             });
             if (dept !== 'ALL') params.append('dept_id', dept);
@@ -417,6 +459,7 @@ export default function AnalystDashboard() {
             const params = new URLSearchParams({
                 type: reportData.reportType,
                 period: reportData.period,
+                offset: periodOffset.toString(),
                 format: 'csv',
             });
             if (dept !== 'ALL') params.append('dept_id', dept);
@@ -707,15 +750,6 @@ export default function AnalystDashboard() {
                             Sentiment
                         </div>
                         <div
-                            className={`${styles['nav-item']} ${activeView === 'performers' ? styles.active : ''}`}
-                            onClick={() => setActiveView('performers')}
-                        >
-                            <svg className={styles['nav-icon']} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                            </svg>
-                            Performers
-                        </div>
-                        <div
                             className={`${styles['nav-item']} ${activeView === 'overtime' ? styles.active : ''}`}
                             onClick={() => setActiveView('overtime')}
                         >
@@ -723,15 +757,6 @@ export default function AnalystDashboard() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
                             OT & Early
-                        </div>
-                        <div
-                            className={`${styles['nav-item']} ${activeView === 'audit' ? styles.active : ''}`}
-                            onClick={() => setActiveView('audit')}
-                        >
-                            <svg className={styles['nav-icon']} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
-                            Audit Logs
                         </div>
                     </nav>
 
@@ -785,7 +810,7 @@ export default function AnalystDashboard() {
                             <div>
                                 <div className={styles['page-title']}>KPI Overview</div>
                                 <div className={styles['page-subtitle']}>
-                                    Viewing data for: <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{dept === 'ALL' ? 'All Departments' : dept}</span>
+                                    Viewing data for: <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{dept === 'ALL' ? 'All Departments' : (deptBreakdown.find(d => d.dept_id.toString() === dept)?.dept_name || dept)}</span>
                                 </div>
                             </div>
                             <div className={styles.controls}>
@@ -795,12 +820,19 @@ export default function AnalystDashboard() {
                                         <option key={d.dept_id} value={d.dept_id.toString()}>{d.dept_name}</option>
                                     ))}
                                 </select>
-                                <select className={styles['select-pro']} value={period} onChange={(e) => setPeriod(e.target.value)}>
-                                    <option value="week">This Week</option>
-                                    <option value="month">This Month</option>
-                                    <option value="year">This Year</option>
+                                <select className={styles['select-pro']} value={period} onChange={(e) => { setPeriod(e.target.value); setPeriodOffset(0); }}>
+                                    <option value="week">Weekly</option>
+                                    <option value="month">Monthly</option>
+                                    <option value="year">Yearly</option>
                                 </select>
-                                <button className={styles['btn-pro']} onClick={fetchKPIs}>Refresh</button>
+                                <select className={styles['select-pro']} value={periodOffset} onChange={(e) => setPeriodOffset(parseInt(e.target.value))}>
+                                    {getPeriodOptions().map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(prev => prev - 1)} title="Previous period">◀</button>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(0)} disabled={periodOffset === 0} title="Current period">Current</button>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(prev => prev + 1)} disabled={periodOffset >= 0} title="Next period">▶</button>
                             </div>
                         </header>
 
@@ -841,34 +873,32 @@ export default function AnalystDashboard() {
                                     </div>
                                 </div>
 
-                                {/* Weekly Activity Chart */}
+                                {/* Activity Chart - Dynamic based on period */}
                                 <div className={styles['widget-box']} style={{ gridColumn: 'span 3' }}>
                                     <div className={styles['widget-title']}>
-                                        Weekly Activity
-                                        <span style={{ fontSize: '0.7rem', background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: 4, color: 'var(--text-main)' }}>LIVE</span>
+                                        {period === 'week' ? 'Weekly' : period === 'month' ? 'Monthly' : 'Yearly'} Activity
+                                        {periodOffset === 0 && <span style={{ fontSize: '0.7rem', background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: 4, color: 'var(--text-main)', marginLeft: 8 }}>CURRENT</span>}
+                                        {periodLabel && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 8, fontFamily: 'var(--font-mono)', textTransform: 'none', letterSpacing: 0 }}>{periodLabel}</span>}
                                     </div>
                                     <div className={styles['chart-container']}>
-                                        {weeklyActivity.map((val, i) => {
-                                            const label = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][i];
-                                            return (
-                                                <div key={i} className={styles['bar-col']}>
-                                                    <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, opacity: val > 0 ? 1 : 0, transition: '0.4s', color: 'var(--text-main)' }}>
-                                                        {val}%
-                                                    </div>
-                                                    <div
-                                                        className={styles.bar}
-                                                        style={{
-                                                            height: `${val}%`,
-                                                            transition: 'height 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-                                                            width: '100%',
-                                                        }}
-                                                    />
-                                                    <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
-                                                        {label}
-                                                    </div>
+                                        {activityBars.map((val, i) => (
+                                            <div key={i} className={styles['bar-col']}>
+                                                <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '0.8rem', fontWeight: 600, opacity: val > 0 ? 1 : 0, transition: '0.4s', color: 'var(--text-main)' }}>
+                                                    {val}%
                                                 </div>
-                                            );
-                                        })}
+                                                <div
+                                                    className={styles.bar}
+                                                    style={{
+                                                        height: `${val}%`,
+                                                        transition: 'height 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+                                                        width: '100%',
+                                                    }}
+                                                />
+                                                <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.5px' }}>
+                                                    {activityLabels[i] || ''}
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
@@ -929,11 +959,19 @@ export default function AnalystDashboard() {
                                         <option key={d.dept_id} value={d.dept_id.toString()}>{d.dept_name}</option>
                                     ))}
                                 </select>
-                                <select className={styles['select-pro']} value={period} onChange={(e) => { setPeriod(e.target.value); setReportData(null); }}>
-                                    <option value="week">This Week</option>
-                                    <option value="month">This Month</option>
-                                    <option value="year">This Year</option>
+                                <select className={styles['select-pro']} value={period} onChange={(e) => { setPeriod(e.target.value); setPeriodOffset(0); setReportData(null); }}>
+                                    <option value="week">Weekly</option>
+                                    <option value="month">Monthly</option>
+                                    <option value="year">Yearly</option>
                                 </select>
+                                <select className={styles['select-pro']} value={periodOffset} onChange={(e) => { setPeriodOffset(parseInt(e.target.value)); setReportData(null); }}>
+                                    {getPeriodOptions().map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                                <button className={styles['btn-pro']} onClick={() => { setPeriodOffset(prev => prev - 1); setReportData(null); }} title="Previous period">◀</button>
+                                <button className={styles['btn-pro']} onClick={() => { setPeriodOffset(0); setReportData(null); }} disabled={periodOffset === 0} title="Current period">Current</button>
+                                <button className={styles['btn-pro']} onClick={() => { setPeriodOffset(prev => prev + 1); setReportData(null); }} disabled={periodOffset >= 0} title="Next period">▶</button>
                             </div>
                         </header>
 
@@ -943,12 +981,12 @@ export default function AnalystDashboard() {
                                 <div className={styles['widget-title']}>Select Report Type</div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginTop: '15px' }}>
                                     {[
-                                        { value: 'attendance', label: 'Attendance', icon: '📅' },
-                                        { value: 'productivity', label: 'Productivity', icon: '📊' },
-                                        { value: 'billable', label: 'Billable Hours', icon: '💰' },
-                                        { value: 'sentiment', label: 'Sentiment', icon: '😊' },
-                                        { value: 'overtime', label: 'Overtime', icon: '⏰' },
-                                        { value: 'dept_summary', label: 'Department Summary', icon: '🏢' },
+                                        { value: 'attendance', label: 'Attendance' },
+                                        { value: 'productivity', label: 'Productivity' },
+                                        { value: 'billable', label: 'Billable Hours' },
+                                        { value: 'sentiment', label: 'Sentiment' },
+                                        { value: 'overtime', label: 'Overtime' },
+                                        { value: 'dept_summary', label: 'Department Summary' },
                                     ].map(type => (
                                         <div
                                             key={type.value}
@@ -956,7 +994,6 @@ export default function AnalystDashboard() {
                                             onClick={() => { setReportType(type.value); setReportData(null); }}
                                             style={{ cursor: 'pointer', padding: '20px' }}
                                         >
-                                            <div style={{ fontSize: '2rem', marginBottom: '10px' }}>{type.icon}</div>
                                             <div style={{ fontWeight: 600, color: 'var(--text-main)' }}>{type.label}</div>
                                         </div>
                                     ))}
@@ -1144,141 +1181,7 @@ export default function AnalystDashboard() {
                     </main>
                 )}
 
-                {/* PERFORMERS VIEW */}
-                {activeView === 'performers' && (
-                    <main className={`${styles['main-view']} ${styles['view-section']}`}>
-                        <header className={styles['view-header']}>
-                            <div>
-                                <div className={styles['page-title']}>Performance Analysis</div>
-                                <div className={styles['page-subtitle']}>Top and bottom performers ranking</div>
-                            </div>
-                            <div className={styles.controls}>
-                                <select className={styles['select-pro']} value={dept} onChange={(e) => setDept(e.target.value)}>
-                                    <option value="ALL">All Departments</option>
-                                    {deptBreakdown.map(d => (
-                                        <option key={d.dept_id} value={d.dept_id.toString()}>{d.dept_name}</option>
-                                    ))}
-                                </select>
-                                <select className={styles['select-pro']} value={period} onChange={(e) => setPeriod(e.target.value)}>
-                                    <option value="week">This Week</option>
-                                    <option value="month">This Month</option>
-                                    <option value="year">This Year</option>
-                                </select>
-                                <button className={styles['btn-pro']} onClick={fetchPerformerData}>Refresh</button>
-                            </div>
-                        </header>
-
-                        {loadingView === 'performers' ? (
-                            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
-                        ) : performerData && (
-                            <div className={styles['dashboard-grid']} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-                                {/* Performance Distribution */}
-                                <div className={`${styles['widget-box']} ${styles['stat-card']}`} style={{ '--card-accent': 'var(--status-success)' } as React.CSSProperties}>
-                                    <div className={styles['widget-title']}>Excellent (90+)</div>
-                                    <div className={styles['stat-value']} style={{ color: 'var(--status-success)' }}>
-                                        <AnimatedValue value={performerData.performanceDistribution.excellent} />
-                                    </div>
-                                </div>
-
-                                <div className={`${styles['widget-box']} ${styles['stat-card']}`} style={{ '--card-accent': 'var(--color-go)' } as React.CSSProperties}>
-                                    <div className={styles['widget-title']}>Good (70-89)</div>
-                                    <div className={styles['stat-value']} style={{ color: 'var(--color-go)' }}>
-                                        <AnimatedValue value={performerData.performanceDistribution.good} />
-                                    </div>
-                                </div>
-
-                                <div className={`${styles['widget-box']} ${styles['stat-card']}`} style={{ '--card-accent': 'var(--status-warning)' } as React.CSSProperties}>
-                                    <div className={styles['widget-title']}>Average (50-69)</div>
-                                    <div className={styles['stat-value']} style={{ color: 'var(--status-warning)' }}>
-                                        <AnimatedValue value={performerData.performanceDistribution.average} />
-                                    </div>
-                                </div>
-
-                                <div className={`${styles['widget-box']} ${styles['stat-card']}`} style={{ '--card-accent': 'var(--status-danger)' } as React.CSSProperties}>
-                                    <div className={styles['widget-title']}>Below Avg (&lt;50)</div>
-                                    <div className={styles['stat-value']} style={{ color: 'var(--status-danger)' }}>
-                                        <AnimatedValue value={performerData.performanceDistribution.below_average} />
-                                    </div>
-                                </div>
-
-                                {/* Top Performers */}
-                                <div className={styles['widget-box']} style={{ gridColumn: 'span 2' }}>
-                                    <div className={styles['widget-title']} style={{ color: 'var(--status-success)' }}>🏆 Top Performers</div>
-                                    <div className={styles['table-responsive']} style={{ maxHeight: 450, overflowY: 'auto' }}>
-                                        <table className={styles['data-table']}>
-                                            <thead>
-                                                <tr>
-                                                    <th>#</th>
-                                                    <th>Name</th>
-                                                    <th>Department</th>
-                                                    <th>Score</th>
-                                                    <th>Total Hours</th>
-                                                    <th>Billable %</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {performerData.topPerformers.map((performer: any, idx: number) => (
-                                                    <tr key={performer.user_id}>
-                                                        <td style={{ fontWeight: 700 }}>{idx + 1}</td>
-                                                        <td style={{ fontWeight: 600 }}>{performer.name}</td>
-                                                        <td>{performer.department}</td>
-                                                        <td>
-                                                            <span style={{
-                                                                fontWeight: 700,
-                                                                color: performer.productivity_score >= 90 ? 'var(--status-success)' :
-                                                                    performer.productivity_score >= 70 ? 'var(--color-go)' : 'var(--status-warning)'
-                                                            }}>
-                                                                {performer.productivity_score}
-                                                            </span>
-                                                        </td>
-                                                        <td>{performer.total_hours}h</td>
-                                                        <td>{performer.billable_ratio}%</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-
-                                {/* Bottom Performers */}
-                                <div className={styles['widget-box']} style={{ gridColumn: 'span 2' }}>
-                                    <div className={styles['widget-title']} style={{ color: 'var(--status-danger)' }}>⚠️ Needs Improvement</div>
-                                    <div className={styles['table-responsive']} style={{ maxHeight: 450, overflowY: 'auto' }}>
-                                        <table className={styles['data-table']}>
-                                            <thead>
-                                                <tr>
-                                                    <th>Name</th>
-                                                    <th>Department</th>
-                                                    <th>Score</th>
-                                                    <th>Total Hours</th>
-                                                    <th>Billable %</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {performerData.bottomPerformers.map((performer: any) => (
-                                                    <tr key={performer.user_id}>
-                                                        <td style={{ fontWeight: 600 }}>{performer.name}</td>
-                                                        <td>{performer.department}</td>
-                                                        <td>
-                                                            <span style={{
-                                                                fontWeight: 700,
-                                                                color: performer.productivity_score < 50 ? 'var(--status-danger)' : 'var(--status-warning)'
-                                                            }}>
-                                                                {performer.productivity_score}
-                                                            </span>
-                                                        </td>
-                                                        <td>{performer.total_hours}h</td>
-                                                        <td>{performer.billable_ratio}%</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </main>
-                )}
+                {/* PERFORMERS VIEW REMOVED */}
 
                 {/* OVERTIME VIEW */}
                 {activeView === 'overtime' && (
@@ -1385,112 +1288,7 @@ export default function AnalystDashboard() {
                     </main>
                 )}
 
-                {/* AUDIT LOGS VIEW */}
-                {activeView === 'audit' && (
-                    <main className={`${styles['main-view']} ${styles['view-section']}`}>
-                        <header className={styles['view-header']}>
-                            <div>
-                                <div className={styles['page-title']}>Audit Logs</div>
-                                <div className={styles['page-subtitle']}>System-wide change tracking</div>
-                            </div>
-                            <div className={styles.controls}>
-                                {auditFilters.actionTypes && auditFilters.actionTypes.length > 0 && (
-                                    <select className={styles['select-pro']} value={actionFilter} onChange={(e) => { setActionFilter(e.target.value); setAuditPage(1); }}>
-                                        <option value="ALL">All Actions</option>
-                                        {auditFilters.actionTypes.map((a: string) => (
-                                            <option key={a} value={a}>{a}</option>
-                                        ))}
-                                    </select>
-                                )}
-                                {auditFilters.tablesAffected && auditFilters.tablesAffected.length > 0 && (
-                                    <select className={styles['select-pro']} value={tableFilter} onChange={(e) => { setTableFilter(e.target.value); setAuditPage(1); }}>
-                                        <option value="ALL">All Tables</option>
-                                        {auditFilters.tablesAffected.map((t: string) => (
-                                            <option key={t} value={t}>{t}</option>
-                                        ))}
-                                    </select>
-                                )}
-                                <button className={styles['btn-pro']} onClick={fetchAuditLogs}>Refresh</button>
-                            </div>
-                        </header>
-
-                        {loadingView === 'audit' ? (
-                            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
-                        ) : (
-                            <div className={styles['widget-box']}>
-                                <div className={styles['table-responsive']} style={{ maxHeight: 600, overflowY: 'auto' }}>
-                                    <table className={styles['data-table']}>
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>User</th>
-                                                <th>Action</th>
-                                                <th>Table</th>
-                                                <th>Old Value</th>
-                                                <th>New Value</th>
-                                                <th>Timestamp</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {auditLogs.map((log) => (
-                                                <tr key={log.audit_id}>
-                                                    <td>{log.audit_id}</td>
-                                                    <td style={{ fontWeight: 600 }}>
-                                                        {log.user_name}
-                                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{log.user_email}</div>
-                                                    </td>
-                                                    <td>
-                                                        <span className={styles['status-badge']} style={{
-                                                            background: log.action_type === 'CREATE' ? 'var(--status-success)' :
-                                                                log.action_type === 'UPDATE' ? 'var(--accent-blue)' :
-                                                                    log.action_type === 'DELETE' ? 'var(--status-danger)' : 'var(--bg-input)',
-                                                            color: 'white',
-                                                        }}>
-                                                            {log.action_type}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>{log.table_affected}</td>
-                                                    <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                                        {log.old_value ? (log.old_value.length > 30 ? log.old_value.substring(0, 30) + '...' : log.old_value) : '-'}
-                                                    </td>
-                                                    <td style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>
-                                                        {log.new_value ? (log.new_value.length > 30 ? log.new_value.substring(0, 30) + '...' : log.new_value) : '-'}
-                                                    </td>
-                                                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                                        {log.created_at ? new Date(log.created_at).toLocaleString() : 'N/A'}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Pagination */}
-                                {auditTotalPages > 1 && (
-                                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
-                                        <button
-                                            className={styles['btn-pro']}
-                                            onClick={() => setAuditPage(Math.max(1, auditPage - 1))}
-                                            disabled={auditPage === 1}
-                                        >
-                                            Previous
-                                        </button>
-                                        <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>
-                                            Page {auditPage} of {auditTotalPages}
-                                        </span>
-                                        <button
-                                            className={styles['btn-pro']}
-                                            onClick={() => setAuditPage(Math.min(auditTotalPages, auditPage + 1))}
-                                            disabled={auditPage === auditTotalPages}
-                                        >
-                                            Next
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </main>
-                )}
+                {/* AUDIT LOGS VIEW REMOVED */}
 
             </div>
 

@@ -5,6 +5,33 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Helper: format a date range label for the period.
+ * Week: "Mar 3 – Mar 9, 2026"
+ * Month: "March 2026"
+ * Year: "2026"
+ */
+function formatPeriodLabel(period: string, startDate: Date, endDate: Date): string {
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const fullMonthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  if (period === "week") {
+    const startMonth = monthNames[startDate.getMonth()];
+    const endMonth = monthNames[endDate.getMonth()];
+    const startDay = startDate.getDate();
+    const endDay = endDate.getDate();
+    const year = endDate.getFullYear();
+    if (startDate.getMonth() === endDate.getMonth()) {
+      return `${startMonth} ${startDay} – ${endDay}, ${year}`;
+    }
+    return `${startMonth} ${startDay} – ${endMonth} ${endDay}, ${year}`;
+  } else if (period === "month") {
+    return `${fullMonthNames[startDate.getMonth()]} ${startDate.getFullYear()}`;
+  } else {
+    return `${startDate.getFullYear()}`;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const user = await getUserFromCookie();
@@ -20,29 +47,48 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const deptId = searchParams.get("dept_id");
     const period = searchParams.get("period") || "week"; // week, month, year
+    const offset = parseInt(searchParams.get("offset") || "0"); // 0 = current, -1 = previous, etc.
 
-    // Calculate date range
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    // Calculate date range based on period + offset
+    const now = new Date();
     let startDate: Date;
+    let endDate: Date;
 
     if (period === "week") {
-      startDate = new Date(today);
-      const dayOfWeek = today.getDay();
-      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      startDate.setDate(today.getDate() - diff);
-      startDate.setHours(0, 0, 0, 0);
+      // Find Monday of the current week
+      const dayOfWeek = now.getDay();
+      const mondayDiff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - mondayDiff);
+      monday.setHours(0, 0, 0, 0);
+
+      // Apply offset (each offset unit = 7 days)
+      startDate = new Date(monday);
+      startDate.setDate(monday.getDate() + offset * 7);
+
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
     } else if (period === "month") {
-      startDate = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+      // First day of current month + offset
+      startDate = new Date(now.getFullYear(), now.getMonth() + offset, 1, 0, 0, 0, 0);
+
+      // Last day of that month
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
     } else {
-      startDate = new Date(today.getFullYear(), 0, 1, 0, 0, 0, 0);
+      // year
+      const targetYear = now.getFullYear() + offset;
+      startDate = new Date(targetYear, 0, 1, 0, 0, 0, 0);
+      endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
     }
+
+    const periodLabel = formatPeriodLabel(period, startDate, endDate);
 
     // Build where clause for filtering
     const whereClause: any = {
       log_date: {
         gte: startDate,
-        lte: today,
+        lte: endDate,
       },
     };
 
@@ -68,7 +114,7 @@ export async function GET(request: Request) {
       where: {
         shift_date: {
           gte: startDate,
-          lte: today,
+          lte: endDate,
         },
         ...(deptId && deptId !== "ALL" ? {
           D_tbluser: {
@@ -99,30 +145,92 @@ export async function GET(request: Request) {
     const actualDays = clockLogs.filter(log => log.clock_out_time).length;
     const attendanceRate = expectedDays > 0 ? (actualDays / expectedDays) * 100 : 0;
 
-    // Weekly activity (Monday to Saturday of the current week)
-    const weeklyActivity: number[] = [];
-    const currentDay = today.getDay(); // 0=Sun, 1=Mon, ...
-    const mondayOffset = currentDay === 0 ? 6 : currentDay - 1;
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - mondayOffset);
-    monday.setHours(0, 0, 0, 0);
+    // ====== DYNAMIC ACTIVITY BARS ======
+    let activityBars: number[] = [];
+    let activityLabels: string[] = [];
 
-    for (let i = 0; i < 7; i++) { // Mon(0) to Sun(6)
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + i);
-      date.setHours(0, 0, 0, 0);
-      const nextDate = new Date(date);
-      nextDate.setDate(date.getDate() + 1);
+    if (period === "week") {
+      // 7 bars: MON through SUN
+      activityLabels = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        date.setHours(0, 0, 0, 0);
+        const nextDate = new Date(date);
+        nextDate.setDate(date.getDate() + 1);
 
-      const dayLogs = timeLogs.filter(log => {
-        if (!log.log_date) return false;
-        const logDate = new Date(log.log_date);
-        return logDate >= date && logDate < nextDate;
-      });
+        const dayLogs = timeLogs.filter(log => {
+          if (!log.log_date) return false;
+          const logDate = new Date(log.log_date);
+          return logDate >= date && logDate < nextDate;
+        });
 
-      const dayTotal = dayLogs.reduce((sum, log) => sum + (log.total_hours?.toNumber() || 0), 0);
-      const percentage = dayTotal > 0 ? Math.min((dayTotal / 8) * 100, 100) : 0;
-      weeklyActivity.push(Math.round(percentage));
+        const dayTotal = dayLogs.reduce((sum, log) => sum + (log.total_hours?.toNumber() || 0), 0);
+        const percentage = dayTotal > 0 ? Math.min((dayTotal / 8) * 100, 100) : 0;
+        activityBars.push(Math.round(percentage));
+      }
+    } else if (period === "month") {
+      // 4-5 bars: one per week of the month
+      // Week 1 = day 1-7, Week 2 = day 8-14, etc.
+      const daysInMonth = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0).getDate();
+      const numWeeks = Math.ceil(daysInMonth / 7);
+
+      for (let w = 0; w < numWeeks; w++) {
+        activityLabels.push(`WK ${w + 1}`);
+
+        const weekStart = new Date(startDate);
+        weekStart.setDate(startDate.getDate() + w * 7);
+        weekStart.setHours(0, 0, 0, 0);
+
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+        // Cap to end of month
+        const monthEnd = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
+        const cappedEnd = weekEnd > monthEnd ? monthEnd : weekEnd;
+
+        const weekLogs = timeLogs.filter(log => {
+          if (!log.log_date) return false;
+          const logDate = new Date(log.log_date);
+          return logDate >= weekStart && logDate <= cappedEnd;
+        });
+
+        // Calculate number of business days in this week segment (Mon-Fri)
+        let businessDays = 0;
+        for (let d = new Date(weekStart); d <= cappedEnd; d.setDate(d.getDate() + 1)) {
+          const dow = d.getDay();
+          if (dow >= 1 && dow <= 5) businessDays++;
+        }
+
+        const weekTotal = weekLogs.reduce((sum, log) => sum + (log.total_hours?.toNumber() || 0), 0);
+        const maxHours = Math.max(businessDays * 8, 1); // prevent division by 0
+        const percentage = weekTotal > 0 ? Math.min((weekTotal / maxHours) * 100, 100) : 0;
+        activityBars.push(Math.round(percentage));
+      }
+    } else {
+      // year: 12 bars, one per month
+      activityLabels = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      for (let m = 0; m < 12; m++) {
+        const monthStart = new Date(startDate.getFullYear(), m, 1, 0, 0, 0, 0);
+        const monthEnd = new Date(startDate.getFullYear(), m + 1, 0, 23, 59, 59, 999);
+
+        const monthLogs = timeLogs.filter(log => {
+          if (!log.log_date) return false;
+          const logDate = new Date(log.log_date);
+          return logDate >= monthStart && logDate <= monthEnd;
+        });
+
+        // Count business days in the month
+        let businessDays = 0;
+        for (let d = new Date(monthStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
+          const dow = d.getDay();
+          if (dow >= 1 && dow <= 5) businessDays++;
+        }
+
+        const monthTotal = monthLogs.reduce((sum, log) => sum + (log.total_hours?.toNumber() || 0), 0);
+        const maxHours = Math.max(businessDays * 8, 1);
+        const percentage = monthTotal > 0 ? Math.min((monthTotal / maxHours) * 100, 100) : 0;
+        activityBars.push(Math.round(percentage));
+      }
     }
 
     // Department breakdown
@@ -153,6 +261,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       period,
+      offset,
+      periodLabel,
       kpis: {
         totalLogs: timeLogs.length,
         totalHours: Math.round(totalHours * 100) / 100,
@@ -162,7 +272,10 @@ export async function GET(request: Request) {
         attendanceRate: Math.round(attendanceRate * 100) / 100,
         activeStaff,
       },
-      weeklyActivity,
+      activityBars,
+      activityLabels,
+      // Keep weeklyActivity for backward compat (same as activityBars for week period)
+      weeklyActivity: period === "week" ? activityBars : [0, 0, 0, 0, 0, 0, 0],
       departmentBreakdown: deptBreakdown,
     });
   } catch (error) {
