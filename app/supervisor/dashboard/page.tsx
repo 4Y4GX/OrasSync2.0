@@ -56,8 +56,10 @@ export default function SupervisorDashboard() {
   const [loadingApprovals, setLoadingApprovals] = useState(false);
   const [approvalTab, setApprovalTab] = useState<'pending' | 'manager_rejected'>('pending');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [isDetailsClosing, setIsDetailsClosing] = useState(false);
+  const [detailsViewMode, setDetailsViewMode] = useState<'timeline' | 'approve' | 'reject'>('timeline');
   const [selectedTimesheet, setSelectedTimesheet] = useState<any>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [weekOffset, setWeekOffset] = useState(0);
@@ -169,6 +171,18 @@ export default function SupervisorDashboard() {
     setShowRejectionModal(true);
   };
 
+  const openApproveConfirm = (timesheet: any) => {
+    setSelectedTimesheet(timesheet);
+    setShowApproveConfirm(true);
+  };
+
+  const handleApproveConfirm = () => {
+    if (!selectedTimesheet) return;
+    handleApprovalAction(selectedTimesheet.log_ids, 'APPROVE');
+    setShowApproveConfirm(false);
+    setSelectedTimesheet(null);
+  };
+
   const handleRejectSubmit = () => {
     if (!rejectionReason.trim()) {
       alert('Rejection reason is required!');
@@ -182,10 +196,10 @@ export default function SupervisorDashboard() {
 
   const openDetailsModal = (timesheet: any) => {
     setSelectedTimesheet(timesheet);
+    setDetailsViewMode('timeline');
     setShowDetailsModal(true);
-  };
-
-  const handleLogout = async () => {
+    setIsDetailsClosing(false);
+  }; const handleLogout = async () => {
     if (hasClockedIn) {
       alert("You are currently clocked in. Please clock out before logging out to ensure your time is recorded correctly.");
       return;
@@ -607,11 +621,7 @@ export default function SupervisorDashboard() {
 
                     <div className="controls-panel" style={{ display: 'flex', flexDirection: 'column' }}>
                       <div className="glass-card" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                        <div className="section-title" style={{ padding: 0, background: 'transparent', margin: '0 0 20px 0' }}>Action Panel</div>
-                        <p style={{ color: "var(--text-muted)", marginBottom: 16, fontSize: "0.9rem" }}>
-                          Supervisor session active. Manage team status below.
-                        </p>
-
+                        <div className="section-title" style={{ padding: 0, background: 'transparent', margin: '0 0 20px 0' }}>Team Summary</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginBottom: 20, borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Team Members</span>
@@ -768,7 +778,7 @@ export default function SupervisorDashboard() {
                                 </button>
                                 <button
                                   className="btn-approve"
-                                  onClick={(e) => { e.stopPropagation(); handleApprovalAction(timesheet.log_ids, 'APPROVE'); }}
+                                  onClick={(e) => { e.stopPropagation(); openApproveConfirm(timesheet); }}
                                   disabled={!!isProcessing[timesheet.log_ids.join(',')]}
                                   style={{ opacity: isProcessing[timesheet.log_ids.join(',')] ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: isProcessing[timesheet.log_ids.join(',')] === 'approve' ? '#16a34a' : '' }}
                                 >
@@ -852,7 +862,7 @@ export default function SupervisorDashboard() {
                                 </button>
                                 <button
                                   className="btn-approve"
-                                  onClick={(e) => { e.stopPropagation(); handleApprovalAction(timesheet.log_ids, 'APPROVE'); }}
+                                  onClick={(e) => { e.stopPropagation(); openApproveConfirm(timesheet); }}
                                   disabled={!!isProcessing[timesheet.log_ids.join(',')]}
                                   style={{ opacity: isProcessing[timesheet.log_ids.join(',')] ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', background: isProcessing[timesheet.log_ids.join(',')] === 'approve' ? '#16a34a' : '' }}
                                 >
@@ -1783,78 +1793,14 @@ export default function SupervisorDashboard() {
         </div>
       )}
 
-      {/* Rejection Reason Modal */}
-      {showRejectionModal && (
-        <div className="modal-overlay-improved" onClick={() => setShowRejectionModal(false)}>
-          <div className="modal-card-improved rejection-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-improved">
-              <div className="modal-icon-wrapper reject-icon">✗</div>
-              <div className="modal-title-improved">Reject Timesheet</div>
-              <div className="modal-subtitle">Please provide a detailed reason for rejecting this timesheet</div>
-            </div>
-            <div className="modal-body-improved">
-              {selectedTimesheet && (
-                <div className="rejection-info">
-                  <div className="info-item">
-                    <span className="info-label">Employee:</span>
-                    <span className="info-value">{selectedTimesheet.employee}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Date:</span>
-                    <span className="info-value">{selectedTimesheet.date}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Hours:</span>
-                    <span className="info-value">{selectedTimesheet.hours.toFixed(2)}</span>
-                  </div>
-                </div>
-              )}
-              <div className="form-group-improved">
-                <label className="label-improved">Rejection Reason *</label>
-                <textarea
-                  className="textarea-improved"
-                  rows={5}
-                  placeholder="e.g., Hours do not match scheduled shift, missing activity details, unauthorized overtime..."
-                  value={rejectionReason}
-                  onChange={(e) => {
-                    const sanitized = e.target.value
-                      .replace(/[^a-zA-Z0-9.,\s]/g, "")
-                      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
-                    setRejectionReason(sanitized);
-                  }}
-                  onPaste={e => {
-                    e.preventDefault();
-                    const text = e.clipboardData.getData("text/plain");
-                    const sanitized = text
-                      .replace(/[^a-zA-Z0-9.,\s]/g, "")
-                      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
-                    setRejectionReason(rejectionReason + sanitized);
-                  }}
-                  autoFocus
-                />
-                <div className="input-hint">This reason will be visible to the employee</div>
-              </div>
-            </div>
-            <div className="modal-actions-improved">
-              <button className="btn-improved btn-ghost" onClick={() => setShowRejectionModal(false)}>
-                Cancel
-              </button>
-              <button className="btn-improved btn-reject" onClick={handleRejectSubmit} disabled={!rejectionReason.trim()}>
-                <span>✗</span> Reject Timesheet
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Details Modal (Split-Pane Timeline Layout) */}
-      {showDetailsModal && selectedTimesheet && (() => {
+      {/* Approve Confirmation Modal (Split-Pane Layout) */}
+      {showApproveConfirm && selectedTimesheet && (() => {
         const billableCount = selectedTimesheet.details?.filter((d: any) => d.is_billable).length || 0;
-        const totalCount = selectedTimesheet.details?.length || 0;
+        const totalCount = selectedTimesheet.details?.length || selectedTimesheet.activities || 0;
         const initials = selectedTimesheet.employee?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '??';
         return (
-          <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''} ${isDetailsClosing ? 'modal-closing' : ''}`} onClick={closeDetailsModal} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className={`modal-card-improved details-modal ${isDetailsClosing ? 'modal-card-closing' : ''}`} onClick={(e) => e.stopPropagation()} style={{
+          <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''}`} onClick={() => setShowApproveConfirm(false)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className={`modal-card-improved details-modal`} onClick={(e) => e.stopPropagation()} style={{
               padding: 0,
               overflow: 'hidden',
               display: 'flex',
@@ -1886,7 +1832,7 @@ export default function SupervisorDashboard() {
                   <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-warn)', boxShadow: '0 0 6px var(--color-warn)', animation: 'pulse 2s ease-in-out infinite' }} /> Pending Approval
                 </div>
                 <button
-                  onClick={closeDetailsModal}
+                  onClick={() => setShowApproveConfirm(false)}
                   style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', padding: '6px', borderRadius: '50%', transition: 'all 0.2s' }}
                   onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--bg-input)' }}
                   onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
@@ -1963,117 +1909,657 @@ export default function SupervisorDashboard() {
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-panel)', minWidth: 0 }}>
 
                   {/* Header */}
-                  <div style={{ padding: '24px 32px 18px', borderBottom: '1px solid var(--border-subtle)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Activity Timeline</h3>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'var(--bg-input)', padding: '3px 10px', borderRadius: '12px', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{totalCount} entries</div>
+                  <div style={{ padding: '32px 40px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div className="modal-icon-wrapper approve-icon" style={{ margin: 0, width: '50px', height: '50px', fontSize: '1.8rem' }}>✓</div>
+                      <div>
+                        <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Approve Timesheet?</h3>
+                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '4px' }}>Confirm approval of these recorded hours</div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '3px' }}>Chronological breakdown of {selectedTimesheet.date}</div>
                   </div>
 
-                  {/* Scrollable Timeline with mask fade */}
+                  {/* Action Body */}
                   <div style={{
                     flex: 1,
                     overflowY: 'auto',
-                    padding: '28px 32px',
-                    maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
-                    WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)'
+                    padding: '40px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center'
                   }}>
-                    {selectedTimesheet.details && selectedTimesheet.details.length > 0 ? (
-                      <div style={{ position: 'relative', paddingLeft: '28px' }}>
-                        {/* Vertical Timeline Line */}
-                        <div style={{ position: 'absolute', left: '6px', top: '10px', bottom: '10px', width: '2px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), var(--border-subtle))', borderRadius: '2px', opacity: 0.4 }} />
+                    <div style={{
+                      maxWidth: '500px', width: '100%',
+                      background: 'var(--bg-deep)', borderRadius: '16px', padding: '30px',
+                      border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '16px',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Employee</span>
+                        <span style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '1rem' }}>{selectedTimesheet.employee}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Period</span>
+                        <span style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{selectedTimesheet.date}</span>
+                      </div>
+                      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '16px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Total Hours</span>
+                        <span style={{ color: '#22c55e', fontWeight: 800, fontSize: '1.4rem' }}>{selectedTimesheet.hours.toFixed(2)}h</span>
+                      </div>
+                    </div>
+                    <p style={{ color: 'var(--text-muted)', textAlign: 'center', margin: '30px 0 0 0', fontSize: '0.95rem', lineHeight: '1.6', maxWidth: '500px' }}>
+                      By approving, you verify that these hours are accurate to your knowledge and comply with company policy. This action will process the timesheet.
+                    </p>
+                  </div>
 
-                        {selectedTimesheet.details.map((detail: any, idx: number) => (
-                          <div key={idx} style={{
-                            position: 'relative',
-                            marginBottom: idx === selectedTimesheet.details.length - 1 ? 0 : '16px',
-                            opacity: 0,
-                            animation: `cardSlideIn 0.35s ease-out ${idx * 0.06}s both`
-                          }}>
+                  {/* ACTION FOOTER */}
+                  <div style={{ padding: '24px 40px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}>
+                    <button className="btn-improved btn-ghost" onClick={() => setShowApproveConfirm(false)} style={{ padding: '12px 24px', fontSize: '0.95rem' }}>
+                      Cancel
+                    </button>
+                    <button className="btn-approve" onClick={handleApproveConfirm} style={{ padding: '12px 32px', borderRadius: '10px', fontWeight: 700, fontSize: '0.95rem', background: '#22c55e', color: 'white', border: 'none', boxShadow: '0 4px 15px rgba(34, 197, 94, 0.3)' }}>
+                      ✓ Confirm Approve
+                    </button>
+                  </div>
+                </div>
 
-                            {/* Timeline Dot */}
-                            <div style={{
-                              position: 'absolute',
-                              left: '-28px',
-                              top: '16px',
-                              width: '10px',
-                              height: '10px',
-                              borderRadius: '50%',
-                              background: detail.is_billable
-                                ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-cyan))'
-                                : 'var(--bg-panel)',
-                              border: detail.is_billable
-                                ? '2px solid var(--accent-highlight)'
-                                : '2px solid var(--border-subtle)',
-                              boxShadow: detail.is_billable
-                                ? '0 0 8px rgba(167, 139, 250, 0.6), 0 0 3px rgba(167, 139, 250, 0.3)'
-                                : '0 0 4px rgba(0,0,0,0.3)',
-                              zIndex: 2
-                            }} />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
-                            {/* Content Card with left accent border */}
-                            <div style={{
+      {/* Reject Confirmation Modal (Split-Pane Layout) */}
+      {showRejectionModal && selectedTimesheet && (() => {
+        const billableCount = selectedTimesheet.details?.filter((d: any) => d.is_billable).length || 0;
+        const totalCount = selectedTimesheet.details?.length || selectedTimesheet.activities || 0;
+        const initials = selectedTimesheet.employee?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+        return (
+          <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''}`} onClick={() => setShowRejectionModal(false)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className={`modal-card-improved details-modal`} onClick={(e) => e.stopPropagation()} style={{
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              width: '1020px',
+              maxWidth: '95vw',
+              height: '660px',
+              maxHeight: '90vh',
+              boxShadow: 'var(--shadow-card)',
+              borderRadius: '16px'
+            }}>
+
+              {/* TOP STATUS BAR */}
+              <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '5px 12px',
+                  background: 'rgba(251, 191, 36, 0.1)',
+                  color: 'var(--color-warn)',
+                  borderRadius: '20px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase' as const,
+                  border: '1px solid rgba(251, 191, 36, 0.2)'
+                }}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-warn)', boxShadow: '0 0 6px var(--color-warn)', animation: 'pulse 2s ease-in-out infinite' }} /> Pending Approval
+                </div>
+                <button
+                  onClick={() => setShowRejectionModal(false)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', padding: '6px', borderRadius: '50%', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--bg-input)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Two-pane row container */}
+              <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+                {/* LEFT PANE with accent bar */}
+                <div style={{
+                  width: '300px',
+                  minWidth: '300px',
+                  background: 'var(--bg-deep)',
+                  backgroundImage: 'linear-gradient(180deg, rgba(167,139,250,0.08) 0%, transparent 40%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative'
+                }}>
+                  {/* Right-edge separator glow */}
+                  <div style={{ position: 'absolute', right: '-1px', top: 0, bottom: 0, width: '1px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), var(--border-subtle))', opacity: 0.5, zIndex: 2 }} />
+                  <div style={{ position: 'absolute', right: '-4px', top: 0, bottom: 0, width: '8px', background: 'linear-gradient(90deg, rgba(167,139,250,0.08), transparent)', pointerEvents: 'none', zIndex: 1 }} />
+                  {/* Accent edge line */}
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), transparent)', borderRadius: '0 2px 2px 0' }} />
+
+                  <div style={{ padding: '35px 28px 35px 32px', flex: 1, overflowY: 'auto' }}>
+                    {/* Profile Section */}
+                    <div style={{ textAlign: 'center', marginBottom: '28px', paddingBottom: '22px', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div style={{
+                        width: 56, height: 56, borderRadius: '50%',
+                        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-highlight))',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.1rem', fontWeight: 800, color: 'white', letterSpacing: '1px',
+                        margin: '0 auto 14px',
+                        boxShadow: '0 0 24px var(--shadow-glow)'
+                      }}>{initials}</div>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.3px' }}>{selectedTimesheet.employee}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', letterSpacing: '0.5px' }}>Timesheet Report</div>
+                    </div>
+
+                    {/* Stats */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
+                        <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 6 }}>Date Logged</div>
+                        <div style={{ fontWeight: 600, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
+                          <span style={{ opacity: 0.6, fontSize: '0.9rem' }}>📅</span> {selectedTimesheet.date}
+                        </div>
+                      </div>
+
+                      <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
+                        <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 6 }}>Total Hours</div>
+                        <div style={{ fontWeight: 700, fontSize: '1.8rem', color: 'var(--accent-cyan)', lineHeight: 1 }}>
+                          {Number(selectedTimesheet.hours).toFixed(2)} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>hrs</span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <div style={{ flex: 1, background: 'var(--bg-input)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border-subtle)' }}>
+                          <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 4 }}>Activities</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--text-main)' }}>{totalCount}</div>
+                        </div>
+                        <div style={{ flex: 1, background: 'rgba(74, 222, 128, 0.04)', borderRadius: '10px', padding: '12px 14px', border: '1px solid rgba(74, 222, 128, 0.08)' }}>
+                          <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--color-go)', marginBottom: 4 }}>Billable</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--color-go)' }}>{billableCount}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT PANE */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-panel)', minWidth: 0 }}>
+
+                  {/* Header */}
+                  <div style={{ padding: '32px 40px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div className="modal-icon-wrapper reject-icon" style={{ margin: 0, width: '50px', height: '50px', fontSize: '1.8rem' }}>✗</div>
+                      <div>
+                        <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Reject Timesheet?</h3>
+                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '4px' }}>Confirm rejection and provide a detailed reason</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Body */}
+                  <div style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '40px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}>
+                    <div className="form-group-improved" style={{ width: '100%', maxWidth: '500px' }}>
+                      <label className="label-improved" style={{ fontSize: '0.85rem', marginBottom: '10px' }}>Rejection Reason *</label>
+                      <textarea
+                        className="textarea-improved"
+                        rows={6}
+                        style={{ fontSize: '0.95rem', padding: '20px', lineHeight: '1.6' }}
+                        placeholder="e.g., Hours do not match scheduled shift, missing activity details, unauthorized overtime..."
+                        value={rejectionReason}
+                        onChange={(e) => {
+                          const sanitized = e.target.value
+                            .replace(/[^a-zA-Z0-9.,\s]/g, "")
+                            .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
+                          setRejectionReason(sanitized);
+                        }}
+                        onPaste={e => {
+                          e.preventDefault();
+                          const text = e.clipboardData.getData("text/plain");
+                          const sanitized = text
+                            .replace(/[^a-zA-Z0-9.,\s]/g, "")
+                            .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
+                          setRejectionReason(rejectionReason + sanitized);
+                        }}
+                        autoFocus
+                      />
+                      <div className="input-hint" style={{ marginTop: '12px', fontSize: '0.8rem' }}>This reason will be visible to the employee so they can correct it</div>
+                    </div>
+                  </div>
+
+                  {/* ACTION FOOTER */}
+                  <div style={{ padding: '24px 40px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}>
+                    <button className="btn-improved btn-ghost" onClick={() => setShowRejectionModal(false)} style={{ padding: '12px 24px', fontSize: '0.95rem' }}>
+                      Cancel
+                    </button>
+                    <button className="btn-improved btn-reject" onClick={handleRejectSubmit} disabled={!rejectionReason.trim()} style={{ padding: '12px 32px', borderRadius: '10px', fontWeight: 700, fontSize: '0.95rem' }}>
+                      <span>✗</span> Confirm Reject
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* View Details Modal (Split-Pane Timeline Layout) */}
+      {showDetailsModal && selectedTimesheet && (() => {
+        const billableCount = selectedTimesheet.details?.filter((d: any) => d.is_billable).length || 0;
+        const totalCount = selectedTimesheet.details?.length || 0;
+        const initials = selectedTimesheet.employee?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+        return (
+          <div className={`modal-overlay-improved supervisor-theme ${lightMode ? 'light-mode' : ''} ${isDetailsClosing ? 'modal-closing' : ''}`} onClick={closeDetailsModal} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className={`modal-card-improved details-modal ${isDetailsClosing ? 'modal-card-closing' : ''}`} onClick={(e) => e.stopPropagation()} style={{
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              width: '1020px',
+              maxWidth: '95vw',
+              height: '660px',
+              maxHeight: '90vh',
+              boxShadow: 'var(--shadow-card)',
+              borderRadius: '16px'
+            }}>
+
+              {/* TOP STATUS BAR */}
+              <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '5px 12px',
+                  background: 'rgba(251, 191, 36, 0.1)',
+                  color: 'var(--color-warn)',
+                  borderRadius: '20px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase' as const,
+                  border: '1px solid rgba(251, 191, 36, 0.2)'
+                }}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-warn)', boxShadow: '0 0 6px var(--color-warn)', animation: 'pulse 2s ease-in-out infinite' }} /> Pending Approval
+                </div>
+                <button
+                  onClick={closeDetailsModal}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', padding: '6px', borderRadius: '50%', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--bg-input)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Two-pane row container */}
+              <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+
+                {/* LEFT PANE with accent bar */}
+                <div style={{
+                  width: '300px',
+                  minWidth: '300px',
+                  background: 'var(--bg-deep)',
+                  backgroundImage: 'linear-gradient(180deg, rgba(167,139,250,0.08) 0%, transparent 40%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative'
+                }}>
+                  {/* Right-edge separator glow */}
+                  <div style={{ position: 'absolute', right: '-1px', top: 0, bottom: 0, width: '1px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), var(--border-subtle))', opacity: 0.5, zIndex: 2 }} />
+                  <div style={{ position: 'absolute', right: '-4px', top: 0, bottom: 0, width: '8px', background: 'linear-gradient(90deg, rgba(167,139,250,0.08), transparent)', pointerEvents: 'none', zIndex: 1 }} />
+                  {/* Accent edge line */}
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), transparent)', borderRadius: '0 2px 2px 0' }} />
+
+                  <div style={{ padding: '35px 28px 0 32px' }}>
+                    {/* Profile Section */}
+                    <div style={{ textAlign: 'center', marginBottom: '20px', paddingBottom: '22px', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div style={{
+                        width: 56, height: 56, borderRadius: '50%',
+                        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-highlight))',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.1rem', fontWeight: 800, color: 'white', letterSpacing: '1px',
+                        margin: '0 auto 14px',
+                        boxShadow: '0 0 24px var(--shadow-glow)'
+                      }}>{initials}</div>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.3px' }}>{selectedTimesheet.employee}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', letterSpacing: '0.5px' }}>Timesheet Report</div>
+                    </div>
+                  </div>
+
+                  {/* Scrollable Bottom Area */}
+                  <div style={{ padding: '0 28px 35px 32px', flex: 1, overflowY: 'auto' }}>
+                    {/* Dynamic Bottom Left Section: Stats vs Condensed Timeline */}
+                    {detailsViewMode === 'timeline' ? (
+                      <div key={`stats-${detailsViewMode}`} style={{ display: 'flex', flexDirection: 'column', gap: '12px', animation: 'cardSlideIn 0.35s ease-out forwards' }}>
+                        <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '14px 16px', border: '1px solid var(--border-subtle)', boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+                          <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 6 }}>Date Logged</div>
+                          <div style={{ fontWeight: 600, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
+                            <span style={{ opacity: 0.6, fontSize: '0.9rem' }}>📅</span> {selectedTimesheet.date}
+                          </div>
+                        </div>
+
+                        <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '14px 16px', border: '1px solid var(--border-subtle)', boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+                          <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 6 }}>Total Hours</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.8rem', color: 'var(--accent-cyan)', lineHeight: 1 }}>
+                            {Number(selectedTimesheet.hours).toFixed(2)} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>hrs</span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <div style={{ flex: 1, background: 'var(--bg-input)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border-subtle)', boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+                            <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 4 }}>Activities</div>
+                            <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--text-main)' }}>{totalCount}</div>
+                          </div>
+                          <div style={{ flex: 1, background: 'rgba(74, 222, 128, 0.04)', borderRadius: '10px', padding: '12px 14px', border: '1px solid rgba(74, 222, 128, 0.08)', boxShadow: lightMode ? '0 2px 8px rgba(34,197,94,0.06)' : 'none' }}>
+                            <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--color-go)', marginBottom: 4 }}>Billable</div>
+                            <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--color-go)' }}>{billableCount}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={`summary-${detailsViewMode}`} style={{ display: 'flex', flexDirection: 'column', gap: '10px', animation: 'cardSlideIn 0.35s ease-out forwards' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px', paddingLeft: '4px' }}>
+                          <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', fontWeight: 700 }}>Summary Timeline</span>
+                          <span style={{ fontSize: '0.65rem', background: 'var(--bg-input)', padding: '3px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{totalCount} entries</span>
+                        </div>
+                        {selectedTimesheet.details && selectedTimesheet.details.length > 0 ? (
+                          selectedTimesheet.details.map((detail: any, idx: number) => (
+                            <div key={idx} style={{
                               background: 'var(--bg-input)',
                               border: '1px solid var(--border-subtle)',
                               borderLeft: `3px solid ${detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                              borderRadius: '10px',
-                              padding: '14px 16px',
+                              borderRadius: '8px',
+                              padding: '12px',
                               display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              transition: 'all 0.2s',
-                              gap: '16px'
-                            }}
-                              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.borderLeftColor = detail.is_billable ? 'var(--accent-highlight)' : 'var(--accent-primary)' }}
-                              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.borderLeftColor = detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)' }}
-                            >
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                                  <span style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>{detail.activity_name}</span>
+                              flexDirection: 'column',
+                              gap: '6px',
+                              boxShadow: lightMode ? '0 4px 12px rgba(0,0,0,0.05)' : 'none'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '70%' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: 1.2 }}>{detail.activity_name}</span>
                                   {detail.is_billable && (
-                                    <span style={{ fontSize: '0.6rem', color: 'var(--color-go)', fontWeight: 700, background: 'rgba(74, 222, 128, 0.1)', padding: '2px 7px', borderRadius: '10px', border: '1px solid rgba(74, 222, 128, 0.15)' }}>BILLABLE</span>
+                                    <span style={{ alignSelf: 'flex-start', fontSize: '0.55rem', color: 'var(--color-go)', fontWeight: 700, background: 'rgba(74, 222, 128, 0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(74, 222, 128, 0.15)' }}>BILLABLE</span>
                                   )}
                                 </div>
-                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)' }}>
-                                  <span>{detail.start_time}</span>
-                                  <span style={{ opacity: 0.4 }}>→</span>
-                                  <span>{detail.end_time}</span>
-                                </div>
+                                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>{detail.hours || '00:00'}</span>
                               </div>
-                              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
-                                  {detail.hours || '00:00'}
-                                </div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center' }}>
+                                <span>{detail.start_time}</span>
+                                <span style={{ opacity: 0.4, margin: '0 4px' }}>→</span>
+                                <span>{detail.end_time}</span>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', opacity: 0.5 }}>
-                        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📭</div>
-                        <div>No detailed activities found for this session.</div>
+                          ))
+                        ) : (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0', background: 'var(--bg-input)', borderRadius: '10px', border: '1px dashed var(--border-subtle)' }}>No activities</div>
+                        )}
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* RIGHT PANE */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-panel)', minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+
+                  {detailsViewMode === 'timeline' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.25s ease forwards' }}>
+                      {/* Header */}
+                      <div style={{ padding: '24px 32px 18px', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Activity Timeline</h3>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'var(--bg-input)', padding: '3px 10px', borderRadius: '12px', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{totalCount} entries</div>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '3px' }}>Chronological breakdown of {selectedTimesheet.date}</div>
+                      </div>
+
+                      {/* Scrollable Timeline with mask fade */}
+                      <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '28px 32px',
+                        maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)'
+                      }}>
+                        {selectedTimesheet.details && selectedTimesheet.details.length > 0 ? (
+                          <div style={{ position: 'relative', paddingLeft: '28px' }}>
+                            {/* Vertical Timeline Line */}
+                            <div style={{ position: 'absolute', left: '6px', top: '10px', bottom: '10px', width: '2px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), var(--border-subtle))', borderRadius: '2px', opacity: 0.4 }} />
+
+                            {selectedTimesheet.details.map((detail: any, idx: number) => (
+                              <div key={idx} style={{
+                                position: 'relative',
+                                marginBottom: idx === selectedTimesheet.details.length - 1 ? 0 : '16px',
+                                opacity: 0,
+                                animation: `cardSlideIn 0.35s ease-out ${idx * 0.06}s both`
+                              }}>
+
+                                {/* Timeline Dot */}
+                                <div style={{
+                                  position: 'absolute',
+                                  left: '-28px',
+                                  top: '16px',
+                                  width: '10px',
+                                  height: '10px',
+                                  borderRadius: '50%',
+                                  background: detail.is_billable
+                                    ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-cyan))'
+                                    : 'var(--bg-panel)',
+                                  border: detail.is_billable
+                                    ? '2px solid var(--accent-highlight)'
+                                    : '2px solid var(--border-subtle)',
+                                  boxShadow: detail.is_billable
+                                    ? '0 0 8px rgba(167, 139, 250, 0.6), 0 0 3px rgba(167, 139, 250, 0.3)'
+                                    : '0 0 4px rgba(0,0,0,0.3)',
+                                  zIndex: 2
+                                }} />
+
+                                {/* Content Card with left accent border */}
+                                <div style={{
+                                  background: 'var(--bg-input)',
+                                  border: '1px solid var(--border-subtle)',
+                                  borderLeft: `3px solid ${detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                                  borderRadius: '10px',
+                                  padding: '14px 16px',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  transition: 'all 0.2s',
+                                  gap: '16px',
+                                  boxShadow: lightMode ? '0 4px 15px rgba(0,0,0,0.06)' : 'none'
+                                }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.borderLeftColor = detail.is_billable ? 'var(--accent-highlight)' : 'var(--accent-primary)'; if (lightMode) e.currentTarget.style.boxShadow = '0 6px 20px rgba(167,139,250,0.15)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.borderLeftColor = detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)'; if (lightMode) e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.06)'; }}
+                                >
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                                      <span style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>{detail.activity_name}</span>
+                                      {detail.is_billable && (
+                                        <span style={{ fontSize: '0.6rem', color: 'var(--color-go)', fontWeight: 700, background: 'rgba(74, 222, 128, 0.1)', padding: '2px 7px', borderRadius: '10px', border: '1px solid rgba(74, 222, 128, 0.15)' }}>BILLABLE</span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+                                      <span>{detail.start_time}</span>
+                                      <span style={{ opacity: 0.4 }}>→</span>
+                                      <span>{detail.end_time}</span>
+                                    </div>
+                                  </div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
+                                      {detail.hours || '00:00'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', opacity: 0.5 }}>
+                            <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📭</div>
+                            <div>No detailed activities found for this session.</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {detailsViewMode === 'approve' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', animation: 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+                      {/* Header */}
+                      <div style={{ padding: '40px 40px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div className="modal-icon-wrapper approve-icon" style={{ margin: 0, width: '50px', height: '50px', fontSize: '1.8rem' }}>✓</div>
+                          <div>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Approve Timesheet?</h3>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '4px' }}>Confirm approval of these recorded hours</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Body */}
+                      <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '40px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        <div style={{
+                          maxWidth: '500px', width: '100%',
+                          background: 'var(--bg-deep)', borderRadius: '16px', padding: '30px',
+                          border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '16px',
+                          boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Employee</span>
+                            <span style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '1rem' }}>{selectedTimesheet.employee}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Period</span>
+                            <span style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{selectedTimesheet.date}</span>
+                          </div>
+                          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '16px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Total Hours</span>
+                            <span style={{ color: '#22c55e', fontWeight: 800, fontSize: '1.4rem' }}>{selectedTimesheet.hours.toFixed(2)}h</span>
+                          </div>
+                        </div>
+                        <p style={{ color: 'var(--text-muted)', textAlign: 'center', margin: '30px 0 0 0', fontSize: '0.95rem', lineHeight: '1.6', maxWidth: '500px' }}>
+                          By approving, you verify that these hours are accurate to your knowledge and comply with company policy. This action will process the timesheet.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {detailsViewMode === 'reject' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', animation: 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+                      {/* Header */}
+                      <div style={{ padding: '40px 40px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div className="modal-icon-wrapper reject-icon" style={{ margin: 0, width: '50px', height: '50px', fontSize: '1.8rem' }}>✗</div>
+                          <div>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Reject Timesheet?</h3>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '4px' }}>Confirm rejection and provide a detailed reason</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Body */}
+                      <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '40px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        <div className="form-group-improved" style={{ width: '100%', maxWidth: '500px' }}>
+                          <label className="label-improved" style={{ fontSize: '0.85rem', marginBottom: '10px' }}>Rejection Reason *</label>
+                          <textarea
+                            className="textarea-improved"
+                            rows={6}
+                            style={{ fontSize: '0.95rem', padding: '20px', lineHeight: '1.6' }}
+                            placeholder="e.g., Hours do not match scheduled shift, missing activity details, unauthorized overtime..."
+                            value={rejectionReason}
+                            onChange={(e) => {
+                              const sanitized = e.target.value
+                                .replace(/[^a-zA-Z0-9.,\s]/g, "")
+                                .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
+                              setRejectionReason(sanitized);
+                            }}
+                            onPaste={e => {
+                              e.preventDefault();
+                              const text = e.clipboardData.getData("text/plain");
+                              const sanitized = text
+                                .replace(/[^a-zA-Z0-9.,\s]/g, "")
+                                .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
+                              setRejectionReason(rejectionReason + sanitized);
+                            }}
+                            autoFocus
+                          />
+                          <div className="input-hint" style={{ marginTop: '12px', fontSize: '0.8rem' }}>This reason will be visible to the employee so they can correct it</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
 
                 {/* Close two-pane row container */}
               </div>
 
               {/* ACTION FOOTER */}
-              <div style={{ padding: '14px 28px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginRight: 'auto' }}>Review carefully before approving.</span>
-                <button className="btn-reject-outline" onClick={() => { closeDetailsModal(); setTimeout(() => openRejectModal(selectedTimesheet), 280); }} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', flex: 'none' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; e.currentTarget.style.borderColor = '#ef4444' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--color-urgent)' }}
-                >
-                  ✗ Reject
-                </button>
-                <button className="btn-approve" onClick={() => { closeDetailsModal(); setTimeout(() => handleApprovalAction(selectedTimesheet.log_ids, 'APPROVE'), 280); }} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
-                  ✓ Approve
-                </button>
+              <div style={{ zIndex: 10, padding: '16px 28px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-panel)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', boxShadow: '0 -10px 20px rgba(0,0,0,0.1)' }}>
+                {detailsViewMode === 'timeline' ? (
+                  <>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginRight: 'auto' }}>Review carefully before approving.</span>
+                    <button className="btn-reject-outline" onClick={() => { setRejectionReason(''); setDetailsViewMode('reject'); }} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', flex: 'none' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; e.currentTarget.style.borderColor = '#ef4444' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--color-urgent)' }}
+                    >
+                      ✗ Reject
+                    </button>
+                    <button className="btn-approve" onClick={() => setDetailsViewMode('approve')} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                      ✓ Approve
+                    </button>
+                  </>
+                ) : detailsViewMode === 'approve' ? (
+                  <>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginRight: 'auto' }}>Confirm your approval.</span>
+                    <button className="btn-improved" onClick={() => setDetailsViewMode('timeline')} style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', flex: 'none', transition: 'all 0.2s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      Back to Timeline
+                    </button>
+                    <button className="btn-approve" onClick={handleApproveConfirm} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', background: '#22c55e', color: 'white', border: 'none', boxShadow: '0 4px 15px rgba(34, 197, 94, 0.3)' }}>
+                      ✓ Confirm Approve
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginRight: 'auto' }}>Provide rejection reason.</span>
+                    <button className="btn-improved" onClick={() => setDetailsViewMode('timeline')} style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', flex: 'none', transition: 'all 0.2s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      Back to Timeline
+                    </button>
+                    <button className="btn-improved btn-reject" onClick={handleRejectSubmit} disabled={!rejectionReason.trim()} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                      <span>✗</span> Confirm Reject
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div >
@@ -2371,6 +2857,12 @@ export default function SupervisorDashboard() {
             transform: scale(1);
             opacity: 1;
           }
+        }
+
+        .modal-icon-wrapper.approve-icon {
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(20, 184, 166, 0.1) 100%);
+          border: 2px solid rgba(34, 197, 94, 0.3);
+          color: #22c55e;
         }
 
         .modal-icon-wrapper.reject-icon {
