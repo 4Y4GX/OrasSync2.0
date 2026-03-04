@@ -1161,33 +1161,35 @@ export default function SupervisorScheduleManagement() {
         </div>
       )}
 
-      {/* 7. STANDALONE EDIT SHIFT MODAL (Weekly View) */}
       {editShiftModal.show && !expandedDay && (
-        <div className="modal-overlay" style={{ zIndex: 9999, transition: 'opacity 0.25s ease', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '12vh' }} onClick={() => setEditShiftModal({ show: false, empId: '', empName: '', day: '', currentShift: '', newShiftId: '', scheduleId: null })}>
+        <div className="modal-overlay" style={{ zIndex: 9999, transition: 'opacity 0.25s ease', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setEditShiftModal({ show: false, empId: '', empName: '', day: '', currentShift: '', newShiftId: '', scheduleId: null })}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px', animation: 'var(--animation-entrance)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 28px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div style={{ padding: '24px 32px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <div style={{ fontWeight: 800, fontSize: '1.2rem', color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '1px' }}>EDIT SHIFT</div>
-              <span onClick={() => setEditShiftModal({ show: false, empId: '', empName: '', day: '', currentShift: '', newShiftId: '', scheduleId: null })} style={{ cursor: 'pointer', fontSize: '1.3rem', color: 'var(--text-muted)', transition: 'color 0.2s' }}
+              <span onClick={() => setEditShiftModal({ show: false, empId: '', empName: '', day: '', currentShift: '', newShiftId: '', scheduleId: null })} style={{ cursor: 'pointer', fontSize: '1.3rem', color: 'var(--text-muted)', transition: 'color 0.2s', position: 'absolute', top: '24px', right: '28px' }}
                 onMouseOver={(e) => { e.currentTarget.style.color = '#fff'; }}
                 onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; }}
               >✕</span>
             </div>
-            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0, lineHeight: '1.5' }}>
                 Updating schedule for<br />
                 <strong style={{ color: 'var(--text-main)' }}>{editShiftModal.empName}</strong> on <strong style={{ color: 'var(--accent-primary)' }}>{editShiftModal.day}</strong>.
               </p>
-              <div style={{ background: 'var(--bg-input)', padding: '16px 20px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', fontWeight: 700 }}>CURRENT SHIFT</div>
-                <div style={{ color: 'var(--accent-primary)', fontWeight: 800, fontSize: '1.15rem' }}>{editShiftModal.currentShift}</div>
+              <div style={{
+                background: '#1e1e1e', padding: '16px 20px', borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.1)'
+              }}>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', fontWeight: 800 }}>CURRENT SHIFT</div>
+                <div style={{ color: 'var(--accent-primary)', fontWeight: 800, fontSize: '1.2rem' }}>{editShiftModal.currentShift}</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>ASSIGN NEW SHIFT</label>
+                <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800 }}>ASSIGN NEW SHIFT</label>
                 <select
                   className="select custom-select"
                   value={editShiftModal.newShiftId}
                   onChange={(e) => setEditShiftModal({ ...editShiftModal, newShiftId: e.target.value })}
-                  style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '12px 16px' }}
+                  style={{ background: '#1e1e1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '14px 16px', color: '#fff', fontSize: '0.95rem', fontWeight: 500, outline: 'none', cursor: 'pointer' }}
                 >
                   <option value="">-- Select a Shift --</option>
                   <option value="OFF">Day Off (No Shift)</option>
@@ -1199,20 +1201,24 @@ export default function SupervisorScheduleManagement() {
                 </select>
               </div>
             </div>
-            <div style={{ borderTop: '1px solid var(--border-subtle)', padding: '20px 28px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <button style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem', cursor: 'pointer' }}
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '24px 32px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <button style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontWeight: 800, fontSize: '1rem', cursor: 'pointer', transition: 'color 0.2s', padding: '14px', letterSpacing: '0.5px' }}
+                onMouseOver={(e) => { e.currentTarget.style.color = '#ccc'; }}
+                onMouseOut={(e) => { e.currentTarget.style.color = '#fff'; }}
                 onClick={() => setEditShiftModal({ show: false, empId: '', empName: '', day: '', currentShift: '', newShiftId: '', scheduleId: null })}
               >Cancel</button>
               <button
                 className="modal-btn ok"
-                style={{ flex: 1.5, padding: '14px', fontSize: '1rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 800, transition: 'all 0.2s', letterSpacing: '0.5px' }}
+                style={{ flex: 1.5, padding: '14px', fontSize: '1rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 800, transition: 'all 0.2s', letterSpacing: '0.5px', background: '#4ade80', color: '#111' }}
+                onMouseOver={(e) => { e.currentTarget.style.opacity = '0.9'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseOut={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'translateY(0)'; }}
                 onClick={() => {
                   if (!editShiftModal.newShiftId) { alert("Please select a new shift."); return; }
                   setSaveShiftConfirmModal(true);
                 }}
                 disabled={isSaving}
               >
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving ? "Saving..." : "SAVE CHANGES"}
               </button>
             </div>
           </div>

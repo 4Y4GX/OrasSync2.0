@@ -15,6 +15,8 @@ function endOfDay(d: Date) {
 }
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+
   try {
     const body = await req.json().catch(() => ({} as any));
 
@@ -22,6 +24,9 @@ export async function POST(req: Request) {
     const password = (body?.password ?? "").toString();
 
     if (!email || !password) {
+      await hashPassword(password || "dummy");
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
@@ -36,32 +41,36 @@ export async function POST(req: Request) {
       },
     });
 
-    if (!userProfile) {
-      return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
-    }
-
+    // Mask database query latency
+    const queryUserId = userProfile ? userProfile.user_id : "00000000-0000-0000-0000-000000000000";
     const authRecord = await prisma.d_tbluser_authentication.findUnique({
-      where: { user_id: userProfile.user_id },
+      where: { user_id: queryUserId },
       select: {
         user_id: true,
-        password_hash: true, // plain text currently
+        password_hash: true,
         is_first_login: true,
         failed_attempts: true,
         is_disabled: true,
       },
     });
 
-    if (!authRecord || authRecord.is_disabled) {
+    if (!userProfile || !authRecord || authRecord.is_disabled) {
+      await hashPassword(password || "dummy");
+      await prisma.d_tbluser_authentication.updateMany({
+        where: { user_id: "00000000-0000-0000-0000-000000000000" },
+        data: { last_failed_attempt: new Date() },
+      });
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
-    // ✅ bcrypt compare (with gradual migration for legacy plain-text passwords)
+    // ✅ bcrypt compare
     const stored = (authRecord.password_hash ?? "").toString();
     let ok: boolean;
     if (isBcryptHash(stored)) {
       ok = await verifyPassword(password, stored);
     } else {
-      // Legacy plain-text: compare directly, then upgrade to bcrypt
       ok = stored === password;
       if (ok) {
         const hashed = await hashPassword(password);
@@ -74,7 +83,6 @@ export async function POST(req: Request) {
 
     if (!ok) {
       const attempts = (authRecord.failed_attempts ?? 0) + 1;
-
       if (attempts >= 3) {
         await prisma.d_tbluser_authentication.update({
           where: { user_id: userProfile.user_id },
@@ -84,14 +92,15 @@ export async function POST(req: Request) {
             last_failed_attempt: new Date(),
           },
         });
-        return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
+      } else {
+        await prisma.d_tbluser_authentication.update({
+          where: { user_id: userProfile.user_id },
+          data: { failed_attempts: attempts, last_failed_attempt: new Date() },
+        });
       }
 
-      await prisma.d_tbluser_authentication.update({
-        where: { user_id: userProfile.user_id },
-        data: { failed_attempts: attempts, last_failed_attempt: new Date() },
-      });
-
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({ message: "Invalid credentials" }, { status: 401 });
     }
 
@@ -103,6 +112,8 @@ export async function POST(req: Request) {
 
     // First login flow
     if (authRecord.is_first_login) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({
         message: "Setup Required",
         user: {
@@ -115,14 +126,10 @@ export async function POST(req: Request) {
       });
     }
 
-    // -----------------------------------------------------
     // OTP VERIFICATION STEP
-    // -----------------------------------------------------
     const otp = (body?.otp ?? "").toString().trim();
 
     if (!otp) {
-      // First pass: Credentials are valid, but no OTP provided. Generate one.
-
       const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
       console.log(`[AUTH] Login OTP for ${email}: ${otpCode}`);
 
@@ -135,31 +142,39 @@ export async function POST(req: Request) {
         },
       });
 
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({
         message: "OTP Required",
         requiresOtp: true,
       });
     }
 
-    // Second pass: OTP was provided, verify it.
+    // Second pass: OTP verify
     const latestLog = await prisma.d_tblotp_firsttimelog.findFirst({
       where: { user_id: userProfile.user_id },
       orderBy: { created_at: "desc" },
     });
 
     if (!latestLog || !latestLog.created_at || latestLog.is_verified) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({ message: "Invalid or expired verification code." }, { status: 400 });
     }
 
     const expiryLimit = 90 * 1000;
     const timeElapsed = Date.now() - new Date(latestLog.created_at).getTime();
     if (timeElapsed > expiryLimit) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({ message: "Verification code expired." }, { status: 400 });
     }
 
     const maxAttemptsPerOtp = 3;
     const otpAttempts = latestLog.attempts ?? 0;
     if (otpAttempts >= maxAttemptsPerOtp) {
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({ message: "Too many attempts. Request a new code." }, { status: 400 });
     }
 
@@ -169,33 +184,27 @@ export async function POST(req: Request) {
         where: { otp_id: latestLog.otp_id },
         data: { attempts: nextAttempts },
       });
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
       return NextResponse.json({ message: "Invalid verification code." }, { status: 400 });
     }
 
-    // OTP Valid - Mark as verified
     await prisma.d_tblotp_firsttimelog.update({
       where: { otp_id: latestLog.otp_id },
       data: { is_verified: true },
     });
-    // -----------------------------------------------------
 
     const roleId = Number(userProfile.role_id ?? 0);
-    console.log("LOGIN DEBUG: User:", userProfile.email, "Role:", roleId);
-
-
-    // default redirect based on role: 1=employee, 2=analyst, 3=admin, 4=supervisor, 5=manager
     let redirect = "/employee/dashboard";
     if (roleId === 2) redirect = "/analyst/dashboard";
     if (roleId === 3) redirect = "/admin/dashboard";
     if (roleId === 4) redirect = "/supervisor/dashboard";
     if (roleId === 5) redirect = "/manager/dashboard";
 
-    // Only employees (role 1) are required to complete sentiment log before accessing dashboard
     if (roleId === 1) {
       const now = new Date();
       const dayStart = startOfDay(now);
       const dayEnd = endOfDay(now);
-
       const done = await prisma.d_tblsentiment_log.findFirst({
         where: {
           user_id: userProfile.user_id,
@@ -203,13 +212,9 @@ export async function POST(req: Request) {
         },
         select: { sentiment_id: true },
       });
-
       if (!done) redirect = "/employee/sentiment";
     }
 
-    console.log("LOGIN DEBUG: Final Redirect:", redirect);
-
-    // ✅ Create session cookie
     const token = await signSession({
       user_id: userProfile.user_id,
       role_id: roleId || null,
@@ -219,11 +224,9 @@ export async function POST(req: Request) {
 
     let streakStats = null;
     if (roleId === 1) {
-      // Only fetch streak for employees
       streakStats = await prisma.d_tbluser_stats.findUnique({
         where: { user_id: userProfile.user_id },
       });
-      // If not present, create default stats
       if (!streakStats) {
         streakStats = await prisma.d_tbluser_stats.create({
           data: {
@@ -251,9 +254,13 @@ export async function POST(req: Request) {
     const cookie = sessionCookieOptions();
     res.cookies.set(cookie.name, token, cookie);
 
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
     return res;
   } catch (error) {
     console.error("Login API Error:", error);
+    const elapsed = Date.now() - startTime;
+    if (elapsed < 400) await new Promise((resolve) => setTimeout(resolve, 400 - elapsed));
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }
