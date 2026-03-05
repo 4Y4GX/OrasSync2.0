@@ -59,11 +59,11 @@ export async function GET() {
       const st = log.start_time && activeShift.shift_date
         ? combineShiftDateWithTime(log.start_time, activeShift.shift_date, firstClockIn)
         : new Date();
-        
+
       const et = log.end_time && activeShift.shift_date
         ? combineShiftDateWithTime(log.end_time, activeShift.shift_date, firstClockIn)
         : null;
-      
+
       return {
         tlog_id: log.tlog_id,
         activity_code: log.D_tblactivity?.activity_code || "???",
@@ -92,15 +92,16 @@ export async function GET() {
       });
     });
 
-    // 🚨 THE FIX: BULLETPROOF SORTING
+    // Sort by start_time descending (latest first)
     ledger.sort((a, b) => {
       // 1. Force the currently active task to be pinned to the absolute top
       if (a.is_active && !b.is_active) return -1;
       if (!a.is_active && b.is_active) return 1;
-      
-      // 2. Sort everything else purely by database Primary Key (tlog_id) descending.
-      // Database ID always increments upwards, meaning the newest item is mathematically guaranteed to be on top.
-      return b.tlog_id - a.tlog_id;
+
+      // 2. Sort by start_time descending (newest at top)
+      const timeA = new Date(a.start_time).getTime();
+      const timeB = new Date(b.start_time).getTime();
+      return timeB - timeA;
     });
 
     return NextResponse.json({
