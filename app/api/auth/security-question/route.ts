@@ -96,8 +96,14 @@ export async function POST(request: Request) {
         data: { question_attempts: nextAttempts },
       });
 
-      if (nextAttempts >= 3 && userAuth.is_disabled) {
-        await createIncidentIfMissing(userId);
+      if (nextAttempts >= 3) {
+        await prisma.d_tbluser.update({
+          where: { user_id: userId },
+          data: { account_status: "DISABLED" },
+        });
+        if (userAuth.is_disabled) {
+          await createIncidentIfMissing(userId);
+        }
       }
 
       return NextResponse.json({ message: "REQUEST FAILED" }, { status: 401 });

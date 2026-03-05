@@ -104,10 +104,13 @@ export async function POST(request: Request) {
                 },
             });
 
-            // If they reached 3 attempts, create an incident
+            // If they reached 3 attempts, disable the user account and create an incident
             if (nextAttempts >= 3) {
+                await prisma.d_tbluser.update({
+                    where: { user_id: userId },
+                    data: { account_status: "DISABLED" },
+                });
                 try {
-                    // Log out the user by clearing the auth token later in the client (or we could clear the cookie here, but returning 403 handles it)
                     const dedupeKey = `SUPERVISOR_SECURITY_LOCK_${userId}`;
                     const existing = await prisma.d_tblaccount_recovery_incident.findFirst({
                         where: { dedupe_key: dedupeKey, status: "OPEN" },

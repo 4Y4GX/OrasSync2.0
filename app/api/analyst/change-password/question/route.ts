@@ -174,6 +174,10 @@ export async function POST(request: Request) {
                     where: { user_id: userId },
                     data: { is_disabled: true },
                 });
+                await prisma.d_tbluser.update({
+                    where: { user_id: userId },
+                    data: { account_status: "DISABLED" },
+                });
 
                 const res = NextResponse.json(
                     { message: "ACCOUNT_LOCKED", attempts: nextAttempts },

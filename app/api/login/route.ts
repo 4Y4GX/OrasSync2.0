@@ -92,6 +92,10 @@ export async function POST(req: Request) {
             last_failed_attempt: new Date(),
           },
         });
+        await prisma.d_tbluser.update({
+          where: { user_id: userProfile.user_id },
+          data: { account_status: "DISABLED" },
+        });
       } else {
         await prisma.d_tbluser_authentication.update({
           where: { user_id: userProfile.user_id },
