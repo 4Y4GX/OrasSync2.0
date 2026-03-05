@@ -32,6 +32,7 @@ export default function LoginPage() {
 
   // ✅ caps lock indicator (persist state) + focus gate
   const [capsOn, setCapsOn] = useState(false);
+  const [idFocused, setIdFocused] = useState(false);
   const [pwFocused, setPwFocused] = useState(false);
   const pwRef = useRef<HTMLInputElement | null>(null);
 
@@ -293,12 +294,24 @@ export default function LoginPage() {
                     setLockedNotice(false);
                     setIdentifier(removeEmojis(e.target.value));
                   }}
-                  onFocus={() => setTouchedId(true)}
-                  onBlur={() => setTouchedId(true)}
+                  onFocus={() => {
+                    setTouchedId(true);
+                    setIdFocused(true);
+                  }}
+                  onBlur={() => {
+                    setTouchedId(true);
+                    setIdFocused(false);
+                  }}
                   autoFocus
                   required
                 />
               </div>
+
+              {idFocused && capsOn && (
+                <div style={{ marginTop: 8, color: "#ffb020", fontSize: "0.82rem", fontWeight: 700 }}>
+                  CAPS LOCK IS ON
+                </div>
+              )}
 
               {idError && <div style={{ marginTop: 8, color: "#ff5b5b", fontSize: "0.82rem" }}>{idError}</div>}
             </div>
