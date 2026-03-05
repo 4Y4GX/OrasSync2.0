@@ -20,23 +20,36 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const deptId = searchParams.get("dept_id");
     const period = searchParams.get("period") || "week";
+    const offset = parseInt(searchParams.get("offset") || "0");
 
-    // Calculate date range
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
+    // Calculate date range based on period + offset
+    const now = new Date();
     let startDate: Date;
+    let endDate: Date;
 
     if (period === "week") {
-      startDate = new Date(today);
-      const dayOfWeek = today.getDay();
-      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      startDate.setDate(today.getDate() - diff);
-      startDate.setHours(0, 0, 0, 0);
+      const dayOfWeek = now.getDay();
+      const mondayDiff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - mondayDiff);
+      monday.setHours(0, 0, 0, 0);
+
+      startDate = new Date(monday);
+      startDate.setDate(monday.getDate() + offset * 7);
+
+      endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
     } else if (period === "month") {
-      startDate = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
+      startDate = new Date(now.getFullYear(), now.getMonth() + offset, 1, 0, 0, 0, 0);
+      endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
     } else {
-      startDate = new Date(today.getFullYear(), 0, 1, 0, 0, 0, 0);
+      const targetYear = now.getFullYear() + offset;
+      startDate = new Date(targetYear, 0, 1, 0, 0, 0, 0);
+      endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
     }
+
+    const today = endDate;
 
     // Get OT requests
     const otRequests = await prisma.d_tblot_request.findMany({

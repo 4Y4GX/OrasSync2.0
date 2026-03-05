@@ -278,7 +278,7 @@ export default function AnalystDashboard() {
         if (activeView === 'sentiment') {
             fetchSentimentData();
         }
-    }, [dept, period, activeView]);
+    }, [dept, period, periodOffset, activeView]);
 
     // Fetch performer data
     useEffect(() => {
@@ -292,7 +292,7 @@ export default function AnalystDashboard() {
         if (activeView === 'overtime') {
             fetchOvertimeData();
         }
-    }, [dept, period, activeView]);
+    }, [dept, period, periodOffset, activeView]);
 
     // Generate period dropdown options
     const getPeriodOptions = () => {
@@ -377,7 +377,7 @@ export default function AnalystDashboard() {
     const fetchSentimentData = async () => {
         setLoadingView('sentiment');
         try {
-            const params = new URLSearchParams({ period });
+            const params = new URLSearchParams({ period, offset: periodOffset.toString() });
             if (dept !== 'ALL') params.append('dept_id', dept);
 
             const response = await fetch(`/api/analyst/sentiment?${params}`);
@@ -413,7 +413,7 @@ export default function AnalystDashboard() {
     const fetchOvertimeData = async () => {
         setLoadingView('overtime');
         try {
-            const params = new URLSearchParams({ period });
+            const params = new URLSearchParams({ period, offset: periodOffset.toString() });
             if (dept !== 'ALL') params.append('dept_id', dept);
 
             const response = await fetch(`/api/analyst/overtime?${params}`);
@@ -1068,7 +1068,7 @@ export default function AnalystDashboard() {
                         <header className={styles['view-header']}>
                             <div>
                                 <div className={styles['page-title']}>Sentiment Analysis</div>
-                                <div className={styles['page-subtitle']}>Employee morale and burnout risk monitoring</div>
+                                <div className={styles['page-subtitle']}>Employee morale monitoring</div>
                             </div>
                             <div className={styles.controls}>
                                 <select className={styles['select-pro']} value={dept} onChange={(e) => setDept(e.target.value)}>
@@ -1077,12 +1077,19 @@ export default function AnalystDashboard() {
                                         <option key={d.dept_id} value={d.dept_id.toString()}>{d.dept_name}</option>
                                     ))}
                                 </select>
-                                <select className={styles['select-pro']} value={period} onChange={(e) => setPeriod(e.target.value)}>
-                                    <option value="week">This Week</option>
-                                    <option value="month">This Month</option>
-                                    <option value="year">This Year</option>
+                                <select className={styles['select-pro']} value={period} onChange={(e) => { setPeriod(e.target.value); setPeriodOffset(0); }}>
+                                    <option value="week">Weekly</option>
+                                    <option value="month">Monthly</option>
+                                    <option value="year">Yearly</option>
                                 </select>
-                                <button className={styles['btn-pro']} onClick={fetchSentimentData}>Refresh</button>
+                                <select className={styles['select-pro']} value={periodOffset} onChange={(e) => setPeriodOffset(parseInt(e.target.value))}>
+                                    {getPeriodOptions().map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(prev => prev - 1)} title="Previous period">◀</button>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(0)} disabled={periodOffset === 0} title="Current period">Current</button>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(prev => prev + 1)} disabled={periodOffset >= 0} title="Next period">▶</button>
                             </div>
                         </header>
 
@@ -1121,7 +1128,7 @@ export default function AnalystDashboard() {
                                     </div>
                                 </div>
 
-                                {/* Burnout Risks */}
+                                {/* Burnout Risks - COMMENTED OUT
                                 <div className={styles['widget-box']} style={{ gridColumn: 'span 3' }}>
                                     <div className={styles['widget-title']} style={{ color: 'var(--status-danger)' }}>
                                         ⚠️ Burnout Risk Alerts
@@ -1176,6 +1183,7 @@ export default function AnalystDashboard() {
                                         </table>
                                     </div>
                                 </div>
+                                */}
                             </div>
                         )}
                     </main>
@@ -1198,12 +1206,19 @@ export default function AnalystDashboard() {
                                         <option key={d.dept_id} value={d.dept_id.toString()}>{d.dept_name}</option>
                                     ))}
                                 </select>
-                                <select className={styles['select-pro']} value={period} onChange={(e) => setPeriod(e.target.value)}>
-                                    <option value="week">This Week</option>
-                                    <option value="month">This Month</option>
-                                    <option value="year">This Year</option>
+                                <select className={styles['select-pro']} value={period} onChange={(e) => { setPeriod(e.target.value); setPeriodOffset(0); }}>
+                                    <option value="week">Weekly</option>
+                                    <option value="month">Monthly</option>
+                                    <option value="year">Yearly</option>
                                 </select>
-                                <button className={styles['btn-pro']} onClick={fetchOvertimeData}>Refresh</button>
+                                <select className={styles['select-pro']} value={periodOffset} onChange={(e) => setPeriodOffset(parseInt(e.target.value))}>
+                                    {getPeriodOptions().map(opt => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(prev => prev - 1)} title="Previous period">◀</button>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(0)} disabled={periodOffset === 0} title="Current period">Current</button>
+                                <button className={styles['btn-pro']} onClick={() => setPeriodOffset(prev => prev + 1)} disabled={periodOffset >= 0} title="Next period">▶</button>
                             </div>
                         </header>
 
@@ -1233,7 +1248,7 @@ export default function AnalystDashboard() {
                                     </div>
                                 </div>
 
-                                {/* Flags Table */}
+                                {/* Flags Table - COMMENTED OUT
                                 <div className={styles['widget-box']} style={{ gridColumn: 'span 3' }}>
                                     <div className={styles['widget-title']}>⚠️ Flagged Employees</div>
                                     <div className={styles['table-responsive']} style={{ maxHeight: 400, overflowY: 'auto' }}>
@@ -1283,6 +1298,7 @@ export default function AnalystDashboard() {
                                         </table>
                                     </div>
                                 </div>
+                                */}
                             </div>
                         )}
                     </main>
@@ -1631,6 +1647,7 @@ export default function AnalystDashboard() {
                     </div>
                 </div>
             )}
+
         </div>
     );
 }
