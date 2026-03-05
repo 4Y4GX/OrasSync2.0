@@ -27,7 +27,7 @@ export default function ManagerClock() {
     const interval = setInterval(() => {
       const now = new Date();
       const diff = now.getTime() - startTime.getTime();
-      
+
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -76,8 +76,8 @@ export default function ManagerClock() {
     }
   };
 
-  const today = new Date().toLocaleDateString("en-US", { 
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
   return (
@@ -96,8 +96,8 @@ export default function ManagerClock() {
         </div>
 
         {status === "IDLE" ? (
-          <button 
-            className="btn" 
+          <button
+            className="btn"
             style={{ backgroundColor: "var(--color-go)", color: "white", padding: "0.8rem 1.5rem" }}
             onClick={handleClockIn}
             disabled={loading}
@@ -105,13 +105,13 @@ export default function ManagerClock() {
             {loading ? "..." : "CLOCK IN"}
           </button>
         ) : (
-          <button 
-            className="btn" 
-            style={{ backgroundColor: "var(--color-stop)", color: "white", padding: "0.8rem 1.5rem" }}
+          <button
+            className="btn"
+            style={{ backgroundColor: "#ff0000", color: "white", padding: "0.8rem 1.5rem" }}
             onClick={handleClockOut}
             disabled={loading}
           >
-             {loading ? "..." : "CLOCK OUT"}
+            {loading ? "..." : "CLOCK OUT"}
           </button>
         )}
       </div>

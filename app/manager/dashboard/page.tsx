@@ -100,6 +100,19 @@ export default function ManagerDashboard() {
   const [selectedEmp, setSelectedEmp] = useState<any>(null);
   const [schedForm, setSchedForm] = useState({ date: "", start: "", end: "", task: "" });
 
+  const [selectedTimesheet, setSelectedTimesheet] = useState<any>(null);
+  const [detailsViewMode, setDetailsViewMode] = useState<'timeline' | 'approve' | 'reject'>('timeline');
+  const [isDetailsClosing, setIsDetailsClosing] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  const closeDetailsModal = () => {
+    setIsDetailsClosing(true);
+    setTimeout(() => {
+      setDetailsModal({ show: false, timesheet: null });
+      setIsDetailsClosing(false);
+    }, 280);
+  };
+
   const [calendarView, setCalendarView] = useState<'weekly' | 'monthly'>('weekly');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [scheduleData, setScheduleData] = useState<any[]>([]);
@@ -286,6 +299,19 @@ export default function ManagerDashboard() {
     }
   };
 
+  const handleApproveConfirm = () => {
+    if (!selectedTimesheet) return;
+    const tlogIds = selectedTimesheet.activities.map((a: any) => a.tlog_id);
+    setApproveModal({ show: true, tlogIds });
+  };
+
+  const handleRejectSubmit = () => {
+    if (!selectedTimesheet || !rejectionReason.trim()) return;
+    const tlogIds = selectedTimesheet.activities.map((a: any) => a.tlog_id);
+    setRejectModal({ show: true, tlogIds, reason: rejectionReason });
+    setRejectConfirmModal(true);
+  };
+
   const fetchAnalyticsData = async () => {
     setAnalyticsLoading(true);
     try {
@@ -322,7 +348,11 @@ export default function ManagerDashboard() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tlog_ids: approveModal.tlogIds })
       });
-      if (res.ok) { setApproveModal({ show: false, tlogIds: [] }); fetchPendingTimesheets(); }
+      if (res.ok) {
+        setApproveModal({ show: false, tlogIds: [] });
+        setDetailsModal({ show: false, timesheet: null }); // Close details modal
+        fetchPendingTimesheets();
+      }
       else { const data = await res.json(); alert(`Failed: ${data.message}`); }
     } catch (e) { alert("Error approving timesheet."); } finally { setIsLoading(false); }
   };
@@ -330,13 +360,32 @@ export default function ManagerDashboard() {
   const executeRejectTimesheet = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/manager/timesheets/reject', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tlog_ids: rejectModal.tlogIds, reason: rejectModal.reason })
+      const payload = {
+        action: 'reject',
+        log_ids: rejectModal.tlogIds,
+        reason: rejectModal.reason
+      };
+
+      const res = await fetch('/api/manager/timesheets/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
-      if (res.ok) { setRejectConfirmModal(false); setRejectModal({ show: false, tlogIds: [], reason: "" }); fetchPendingTimesheets(); }
-      else { const data = await res.json(); alert(`Failed: ${data.message}`); }
-    } catch (e) { alert("Error rejecting timesheet."); } finally { setIsLoading(false); }
+
+      if (res.ok) {
+        setRejectConfirmModal(false);
+        setRejectModal({ show: false, tlogIds: [], reason: '' });
+        setDetailsModal({ show: false, timesheet: null });
+        setRejectionReason(''); // Clear reason on success
+        fetchPendingTimesheets();
+      } else {
+        alert("Failed to reject timesheet.");
+      }
+    } catch (error) {
+      console.error("Error rejecting:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClockIn = async () => {
@@ -761,7 +810,7 @@ export default function ManagerDashboard() {
                       <div style={{ marginTop: 'auto', paddingTop: '20px', borderTop: '1px solid var(--border-subtle)' }}>
                         <div className="hud-label" style={{ marginBottom: '5px' }}>MY STATUS</div>
                         <div className="status-badge go" style={{ display: 'flex', marginBottom: '10px', width: '100%', justifyContent: 'center', padding: '10px', background: 'var(--bg-input)', borderRadius: '8px' }}>CLOCKED IN</div>
-                        <button className="btn-action btn-urgent" onClick={() => setShowClockOutModal(true)} style={{ borderRadius: '8px' }}>Clock Out</button>
+                        <button className="btn-action btn-urgent" onClick={() => setShowClockOutModal(true)} style={{ borderRadius: '8px', backgroundColor: '#ff0000', color: 'white' }}>Clock Out</button>
                       </div>
                     </div>
                   </div>
@@ -789,7 +838,7 @@ export default function ManagerDashboard() {
                   <div className="section-animate">
                     <div className="glass-card">
                       <div className="section-title" style={{ borderBottom: 'none', marginBottom: 0, paddingBottom: 0 }}>
-                        <span>Timesheet Approvals</span>
+                        <span style={{ textTransform: 'uppercase' }}>TIMESHEET APPROVALS</span>
                       </div>
                       <div style={{ display: 'flex', gap: '10px', marginBottom: 15, padding: '0 20px' }}>
                         <input type="date" className="input-rounded" style={{ padding: '8px 12px', color: tsDate ? 'var(--accent-blue)' : 'var(--text-main)', fontWeight: 700, fontFamily: 'var(--font-mono)', letterSpacing: '2px', cursor: 'pointer' }} value={tsDate} onChange={(e) => setTsDate(e.target.value)} />
@@ -797,8 +846,8 @@ export default function ManagerDashboard() {
                       </div>
                       <div className="detail-log-tabs" style={{ marginBottom: 20 }}>
                         {([
-                          { key: 'pending' as const, label: 'Pending', color: '#4ade80', count: pendingTimesheets.length },
-                          { key: 'awaiting_supervisor' as const, label: 'Awaiting Supervisor', color: '#f472b6', count: awaitingSupervisorTimesheets.length },
+                          { key: 'pending' as const, label: 'PENDING', color: '#eab308', count: pendingTimesheets.length },
+                          { key: 'awaiting_supervisor' as const, label: 'AWAITING SUPERVISOR', color: '#f472b6', count: awaitingSupervisorTimesheets.length },
                         ]).map(tab => (
                           <button
                             key={tab.key}
@@ -850,13 +899,37 @@ export default function ManagerDashboard() {
                                 {currentTimesheets.length === 0 ? 'All caught up! No pending approvals.' : 'No submissions match your filters.'}
                               </div>
                             ) : filteredTimesheets.map((ts, i) => (
-                              <div key={`${ts.user_id}_${ts.date}`} className="approval-card">
+                              <div key={`${ts.user_id}_${ts.date}`} className="approval-card" onClick={() => { setDetailsViewMode('timeline'); setSelectedTimesheet(ts); setDetailsModal({ show: true, timesheet: ts }); }} style={{ cursor: 'pointer' }}>
                                 <div className="approval-header">
-                                  <div>
-                                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{ts.employee_name}</div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {ts.date}</div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+                                    <div>
+                                      <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{ts.employee_name}</div>
+                                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {ts.date}</div>
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px" }}>
+                                      <div className="approval-badge pending">PENDING</div>
+                                      <button
+                                        className="btn-view-link"
+                                        onClick={() => { setDetailsViewMode('timeline'); setSelectedTimesheet(ts); setDetailsModal({ show: true, timesheet: ts }); }}
+                                        style={{
+                                          marginTop: "8px",
+                                          fontSize: "0.75rem",
+                                          fontWeight: 600,
+                                          padding: "4px 12px",
+                                          background: "var(--bg-deep)",
+                                          border: "1px solid var(--border-subtle)",
+                                          borderRadius: "20px",
+                                          color: "var(--text-main)",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                          transition: "all 0.2s"
+                                        }}
+                                      >
+                                        View Details <span style={{ fontSize: "1rem" }}>→</span>
+                                      </button>
+                                    </div>
                                   </div>
-                                  <div className="approval-badge pending">READY</div>
                                 </div>
                                 <div className="approval-stats">
                                   <div className="stat-item">
@@ -868,10 +941,21 @@ export default function ManagerDashboard() {
                                     <span className="stat-value">{ts.activities.length}</span>
                                   </div>
                                 </div>
-                                <div className="approval-actions">
-                                  <button className="btn-view" onClick={() => setDetailsModal({ show: true, timesheet: ts })}>View Details</button>
-                                  <button className="btn-approve" onClick={() => setApproveModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id) })}>✓ Approve</button>
-                                  <button className="btn-reject" onClick={() => setRejectModal({ show: true, tlogIds: ts.activities.map((a: any) => a.tlog_id), reason: '' })}>✗ Reject</button>
+                                <div className="approval-actions" style={{ marginTop: "15px", display: "flex", gap: "10px" }}>
+                                  <button
+                                    className="btn-reject-outline"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedTimesheet(ts); setDetailsViewMode('reject'); setDetailsModal({ show: true, timesheet: ts }); }}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', flex: 1 }}
+                                  >
+                                    ✗ Reject
+                                  </button>
+                                  <button
+                                    className="btn-approve"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedTimesheet(ts); setDetailsViewMode('approve'); setDetailsModal({ show: true, timesheet: ts }); }}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', flex: 1 }}
+                                  >
+                                    ✓ Approve
+                                  </button>
                                 </div>
                               </div>
                             ))}
@@ -913,13 +997,37 @@ export default function ManagerDashboard() {
                                 {currentTimesheets.length === 0 ? 'No timesheets awaiting supervisor approval.' : 'No submissions match your filters.'}
                               </div>
                             ) : filteredTimesheets.map((ts, i) => (
-                              <div key={`${ts.user_id}_${ts.date}`} className="approval-card" style={{ borderColor: 'rgba(244, 114, 182, 0.3)' }}>
+                              <div key={`${ts.user_id}_${ts.date}`} className="approval-card" onClick={() => { setDetailsViewMode('timeline'); setSelectedTimesheet(ts); setDetailsModal({ show: true, timesheet: ts }); }} style={{ cursor: 'pointer', borderColor: 'rgba(244, 114, 182, 0.3)' }}>
                                 <div className="approval-header">
-                                  <div>
-                                    <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{ts.employee_name}</div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {ts.date}</div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+                                    <div>
+                                      <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{ts.employee_name}</div>
+                                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Date: {ts.date}</div>
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "5px" }}>
+                                      <div className="approval-badge awaiting">AWAITING</div>
+                                      <button
+                                        className="btn-view-link"
+                                        onClick={() => { setDetailsViewMode('timeline'); setSelectedTimesheet(ts); setDetailsModal({ show: true, timesheet: ts }); }}
+                                        style={{
+                                          marginTop: "8px",
+                                          fontSize: "0.75rem",
+                                          fontWeight: 600,
+                                          padding: "4px 12px",
+                                          background: "var(--bg-deep)",
+                                          border: "1px solid var(--border-subtle)",
+                                          borderRadius: "20px",
+                                          color: "var(--text-main)",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: "4px",
+                                          transition: "all 0.2s"
+                                        }}
+                                      >
+                                        View Details <span style={{ fontSize: "1rem" }}>→</span>
+                                      </button>
+                                    </div>
                                   </div>
-                                  <div className="approval-badge awaiting">AWAITING</div>
                                 </div>
                                 <div className="approval-stats">
                                   <div className="stat-item">
@@ -931,10 +1039,21 @@ export default function ManagerDashboard() {
                                     <span className="stat-value">{ts.activities.length}</span>
                                   </div>
                                 </div>
-                                <div className="approval-actions">
-                                  <button className="btn-view" onClick={() => setDetailsModal({ show: true, timesheet: ts })}>View Details</button>
-                                  <button className="btn-approve" disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>✓ Approve</button>
-                                  <button className="btn-reject" disabled style={{ opacity: 0.4, cursor: 'not-allowed' }}>✗ Reject</button>
+                                <div className="approval-actions" style={{ marginTop: "15px", display: "flex", gap: "10px" }}>
+                                  <button
+                                    className="btn-reject-outline"
+                                    disabled
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', opacity: 0.4, cursor: 'not-allowed', flex: 1 }}
+                                  >
+                                    ✗ Reject
+                                  </button>
+                                  <button
+                                    className="btn-approve"
+                                    disabled
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', opacity: 0.4, cursor: 'not-allowed', flex: 1 }}
+                                  >
+                                    ✓ Approve
+                                  </button>
                                 </div>
                               </div>
                             ))}
@@ -1605,7 +1724,7 @@ export default function ManagerDashboard() {
               </div>
               <div className="modal-footer" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', borderTop: 'none', paddingBottom: '30px' }}>
                 <button className="btn-action btn-standard" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => setShowClockOutModal(false)} disabled={clockOutLoading}>Cancel</button>
-                <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={handleClockOut} disabled={clockOutLoading}>
+                <button className="btn-action btn-urgent" style={{ padding: '14px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#ff0000', color: 'white' }} onClick={handleClockOut} disabled={clockOutLoading}>
                   {clockOutLoading ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
@@ -1762,86 +1881,420 @@ export default function ManagerDashboard() {
         )
       }
 
-      {
-        detailsModal.show && detailsModal.timesheet && (
-          <div className="modal-overlay" style={{ zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="modal-card fade-in-up" style={{ width: '90%', maxWidth: '900px', background: 'var(--bg-panel)', borderRadius: '12px', border: '1px solid var(--border-subtle)', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
-              <div className="modal-header" style={{ padding: '20px 25px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-deep)' }}>
-                <div>
-                  <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 700 }}>Timesheet Detail: {detailsModal.timesheet.employee_name}</h3>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontFamily: 'var(--font-mono)' }}>Date: {detailsModal.timesheet.date}</span>
+      {/* View Details Modal (Split-Pane Timeline Layout) */}
+      {detailsModal.show && selectedTimesheet && (() => {
+        const billableCount = selectedTimesheet.activities?.filter((d: any) => d.is_billable).length || 0;
+        const totalCount = selectedTimesheet.activities?.length || 0;
+        const initials = selectedTimesheet.employee_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || '??';
+        return (
+          <div className={`modal-overlay-improved manager-theme ${lightMode ? 'light-mode' : ''} ${isDetailsClosing ? 'modal-closing' : ''}`} onClick={closeDetailsModal} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div className={`modal-card-improved details-modal ${isDetailsClosing ? 'modal-card-closing' : ''}`} onClick={(e) => e.stopPropagation()} style={{
+              padding: 0,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              width: '1020px',
+              maxWidth: '95vw',
+              height: '660px',
+              maxHeight: '90vh',
+              boxShadow: 'var(--shadow-card)',
+              borderRadius: '16px'
+            }}>
+
+              {/* TOP STATUS BAR */}
+              <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '5px 12px',
+                  background: 'rgba(251, 191, 36, 0.1)',
+                  color: 'var(--color-warn)',
+                  borderRadius: '20px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase' as const,
+                  border: '1px solid rgba(251, 191, 36, 0.2)'
+                }}>
+                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-warn)', boxShadow: '0 0 6px var(--color-warn)', animation: 'pulse 2s ease-in-out infinite' }} /> Pending Approval
                 </div>
-                <span onClick={() => setDetailsModal({ show: false, timesheet: null })} style={{ cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.5rem', padding: '0 10px' }}>✕</span>
+                <button
+                  onClick={closeDetailsModal}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', padding: '6px', borderRadius: '50%', transition: 'all 0.2s' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-main)'; e.currentTarget.style.background = 'var(--bg-input)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' }}
+                >
+                  ✕
+                </button>
               </div>
 
-              <div className="modal-body" style={{ padding: '0', overflowY: 'auto', flex: 1 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-panel)', boxShadow: '0 1px 0 var(--border-subtle)' }}>
-                    <tr>
-                      <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Activity</th>
-                      <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Category</th>
-                      <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Notes</th>
-                      <th style={{ padding: '15px 25px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem', textAlign: 'right' }}>Hours</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detailsModal.timesheet.activities.map((act: any, idx: number) => {
-                      const durHeader = Number(act.hours || 0).toFixed(2);
-                      let hoursText = (durHeader === '0.00' && act.hours > 0) ? '<0.01h' : `${durHeader}h`;
+              {/* Two-pane row container */}
+              <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-                      return (
-                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-soft)' }}>
-                          <td style={{ padding: '15px 25px', color: 'var(--text-main)', fontWeight: 600 }}>{act.activity_name || "Unknown"}</td>
-                          <td style={{ padding: '15px 25px', color: 'var(--text-muted)' }}>{act.category || "General"}</td>
-                          <td style={{ padding: '15px 25px', color: 'var(--text-muted)', fontStyle: act.notes ? 'normal' : 'italic' }}>{act.notes || "No notes provided"}</td>
-                          <td style={{ padding: '15px 25px', color: 'var(--accent-blue)', fontWeight: 700, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{hoursText}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                {/* LEFT PANE with accent bar */}
+                <div style={{
+                  width: '300px',
+                  minWidth: '300px',
+                  background: 'var(--bg-deep)',
+                  backgroundImage: 'linear-gradient(180deg, rgba(59,130,246,0.08) 0%, transparent 40%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative'
+                }}>
+                  {/* Right-edge separator glow */}
+                  <div style={{ position: 'absolute', right: '-1px', top: 0, bottom: 0, width: '1px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), var(--border-subtle))', opacity: 0.5, zIndex: 2 }} />
+                  <div style={{ position: 'absolute', right: '-4px', top: 0, bottom: 0, width: '8px', background: 'linear-gradient(90deg, rgba(59,130,246,0.08), transparent)', pointerEvents: 'none', zIndex: 1 }} />
+                  {/* Accent edge line */}
+                  <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '3px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), transparent)', borderRadius: '0 2px 2px 0' }} />
+
+                  <div style={{ padding: '35px 28px 0 32px' }}>
+                    {/* Profile Section */}
+                    <div style={{ textAlign: 'center', marginBottom: '20px', paddingBottom: '22px', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div style={{
+                        width: 56, height: 56, borderRadius: '50%',
+                        background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-highlight))',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.1rem', fontWeight: 800, color: 'white', letterSpacing: '1px',
+                        margin: '0 auto 14px',
+                        boxShadow: '0 0 24px var(--shadow-glow)'
+                      }}>{initials}</div>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.3px' }}>{selectedTimesheet.employee_name}</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', letterSpacing: '0.5px' }}>Timesheet Report</div>
+                    </div>
+                  </div>
+
+                  {/* Scrollable Bottom Area */}
+                  <div style={{ padding: '0 28px 35px 32px', flex: 1, overflowY: 'auto' }}>
+                    {/* Dynamic Bottom Left Section: Stats vs Condensed Timeline */}
+                    {detailsViewMode === 'timeline' ? (
+                      <div key={`stats-${detailsViewMode}`} style={{ display: 'flex', flexDirection: 'column', gap: '12px', animation: 'cardSlideIn 0.35s ease-out forwards' }}>
+                        <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '14px 16px', border: '1px solid var(--border-subtle)', boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+                          <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 6 }}>Date Logged</div>
+                          <div style={{ fontWeight: 600, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)' }}>
+                            <span style={{ opacity: 0.6, fontSize: '0.9rem' }}>📅</span> {selectedTimesheet.date}
+                          </div>
+                        </div>
+
+                        <div style={{ background: 'var(--bg-input)', borderRadius: '10px', padding: '14px 16px', border: '1px solid var(--border-subtle)', boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+                          <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 6 }}>Total Hours</div>
+                          <div style={{ fontWeight: 700, fontSize: '1.8rem', color: 'var(--accent-cyan)', lineHeight: 1 }}>
+                            {Number(selectedTimesheet.total_hours).toFixed(2)} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>hrs</span>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                          <div style={{ flex: 1, background: 'var(--bg-input)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border-subtle)', boxShadow: lightMode ? '0 2px 8px rgba(0,0,0,0.04)' : 'none' }}>
+                            <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--text-muted)', marginBottom: 4 }}>Activities</div>
+                            <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--text-main)' }}>{totalCount}</div>
+                          </div>
+                          <div style={{ flex: 1, background: 'rgba(74, 222, 128, 0.04)', borderRadius: '10px', padding: '12px 14px', border: '1px solid rgba(74, 222, 128, 0.08)', boxShadow: lightMode ? '0 2px 8px rgba(34,197,94,0.06)' : 'none' }}>
+                            <div style={{ fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '1.5px', color: 'var(--color-go)', marginBottom: 4 }}>Billable</div>
+                            <div style={{ fontWeight: 700, fontSize: '1.3rem', color: 'var(--color-go)' }}>{billableCount}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={`summary-${detailsViewMode}`} style={{ display: 'flex', flexDirection: 'column', gap: '10px', animation: 'cardSlideIn 0.35s ease-out forwards' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px', paddingLeft: '4px' }}>
+                          <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', fontWeight: 700 }}>Summary Timeline</span>
+                          <span style={{ fontSize: '0.65rem', background: 'var(--bg-input)', padding: '3px 8px', borderRadius: '10px', color: 'var(--text-muted)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{totalCount} entries</span>
+                        </div>
+                        {selectedTimesheet.activities && selectedTimesheet.activities.length > 0 ? (
+                          selectedTimesheet.activities.map((detail: any, idx: number) => (
+                            <div key={idx} style={{
+                              background: 'var(--bg-input)',
+                              border: '1px solid var(--border-subtle)',
+                              borderLeft: `3px solid ${detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                              borderRadius: '8px',
+                              padding: '12px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px',
+                              boxShadow: lightMode ? '0 4px 12px rgba(0,0,0,0.05)' : 'none'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '70%' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: 1.2 }}>{detail.activity_name}</span>
+                                  {detail.is_billable && (
+                                    <span style={{ alignSelf: 'flex-start', fontSize: '0.55rem', color: 'var(--color-go)', fontWeight: 700, background: 'rgba(74, 222, 128, 0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(74, 222, 128, 0.15)' }}>BILLABLE</span>
+                                  )}
+                                </div>
+                                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>{detail.hours || '00:00'}</span>
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center' }}>
+                                <span>{detail.start_time}</span>
+                                <span style={{ opacity: 0.4, margin: '0 4px' }}>→</span>
+                                <span>{detail.end_time}</span>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '24px 0', background: 'var(--bg-input)', borderRadius: '10px', border: '1px dashed var(--border-subtle)' }}>No activities</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* RIGHT PANE */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-panel)', minWidth: 0, position: 'relative', overflow: 'hidden' }}>
+
+                  {detailsViewMode === 'timeline' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', animation: 'fadeIn 0.25s ease forwards' }}>
+                      {/* Header */}
+                      <div style={{ padding: '24px 32px 18px', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Activity Timeline</h3>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', background: 'var(--bg-input)', padding: '3px 10px', borderRadius: '12px', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>{totalCount} entries</div>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '3px' }}>Chronological breakdown of {selectedTimesheet.date}</div>
+                      </div>
+
+                      {/* Scrollable Timeline with mask fade */}
+                      <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '28px 32px',
+                        maskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 8%, black 92%, transparent 100%)'
+                      }}>
+                        {selectedTimesheet.activities && selectedTimesheet.activities.length > 0 ? (
+                          <div style={{ position: 'relative', paddingLeft: '28px' }}>
+                            {/* Vertical Timeline Line */}
+                            <div style={{ position: 'absolute', left: '6px', top: '10px', bottom: '10px', width: '2px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-cyan), var(--border-subtle))', borderRadius: '2px', opacity: 0.4 }} />
+
+                            {selectedTimesheet.activities.map((detail: any, idx: number) => (
+                              <div key={idx} style={{
+                                position: 'relative',
+                                marginBottom: idx === selectedTimesheet.activities.length - 1 ? 0 : '16px',
+                                opacity: 0,
+                                animation: `cardSlideIn 0.35s ease-out ${idx * 0.06}s both`
+                              }}>
+
+                                {/* Timeline Dot */}
+                                <div style={{
+                                  position: 'absolute',
+                                  left: '-28px',
+                                  top: '16px',
+                                  width: '10px',
+                                  height: '10px',
+                                  borderRadius: '50%',
+                                  background: detail.is_billable
+                                    ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-cyan))'
+                                    : 'var(--bg-panel)',
+                                  border: detail.is_billable
+                                    ? '2px solid var(--accent-highlight)'
+                                    : '2px solid var(--border-subtle)',
+                                  boxShadow: detail.is_billable
+                                    ? '0 0 8px rgba(167, 139, 250, 0.6), 0 0 3px rgba(167, 139, 250, 0.3)'
+                                    : '0 0 4px rgba(0,0,0,0.3)',
+                                  zIndex: 2
+                                }} />
+
+                                {/* Content Card with left accent border */}
+                                <div style={{
+                                  background: 'var(--bg-input)',
+                                  border: '1px solid var(--border-subtle)',
+                                  borderLeft: `3px solid ${detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                                  borderRadius: '10px',
+                                  padding: '14px 16px',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  transition: 'all 0.2s',
+                                  gap: '16px',
+                                  boxShadow: lightMode ? '0 4px 15px rgba(0,0,0,0.06)' : 'none'
+                                }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-card)'; e.currentTarget.style.borderColor = 'var(--accent-primary)'; e.currentTarget.style.borderLeftColor = detail.is_billable ? 'var(--accent-highlight)' : 'var(--accent-primary)'; if (lightMode) e.currentTarget.style.boxShadow = '0 6px 20px rgba(167,139,250,0.15)'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.borderLeftColor = detail.is_billable ? 'var(--accent-primary)' : 'var(--border-subtle)'; if (lightMode) e.currentTarget.style.boxShadow = '0 4px 15px rgba(0,0,0,0.06)'; }}
+                                >
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                                      <span style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-main)' }}>{detail.activity_name}</span>
+                                      {detail.is_billable && (
+                                        <span style={{ fontSize: '0.6rem', color: 'var(--color-go)', fontWeight: 700, background: 'rgba(74, 222, 128, 0.1)', padding: '2px 7px', borderRadius: '10px', border: '1px solid rgba(74, 222, 128, 0.15)' }}>BILLABLE</span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-mono)' }}>
+                                      <span>{detail.start_time}</span>
+                                      <span style={{ opacity: 0.4 }}>→</span>
+                                      <span>{detail.end_time}</span>
+                                    </div>
+                                  </div>
+                                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-main)', fontFamily: 'var(--font-mono)' }}>
+                                      {detail.hours || '00:00'}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', opacity: 0.5 }}>
+                            <div style={{ fontSize: '3rem', marginBottom: '15px' }}>📭</div>
+                            <div>No detailed activities found for this session.</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {detailsViewMode === 'approve' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', animation: 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+                      {/* Header */}
+                      <div style={{ padding: '40px 40px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div className="modal-icon-wrapper approve-icon" style={{ margin: 0, width: '50px', height: '50px', fontSize: '1.8rem' }}>✓</div>
+                          <div>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Approve Timesheet?</h3>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '4px' }}>Confirm approval of these recorded hours</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Body */}
+                      <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '40px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        <div style={{
+                          maxWidth: '500px', width: '100%',
+                          background: 'var(--bg-deep)', borderRadius: '16px', padding: '30px',
+                          border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '16px',
+                          boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Employee</span>
+                            <span style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '1rem' }}>{selectedTimesheet.employee_name}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Period</span>
+                            <span style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '1rem' }}>{selectedTimesheet.date}</span>
+                          </div>
+                          <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '16px', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Total Hours</span>
+                            <span style={{ color: '#22c55e', fontWeight: 800, fontSize: '1.4rem' }}>{selectedTimesheet.total_hours.toFixed(2)}h</span>
+                          </div>
+                        </div>
+                        <p style={{ color: 'var(--text-muted)', textAlign: 'center', margin: '30px 0 0 0', fontSize: '0.95rem', lineHeight: '1.6', maxWidth: '500px' }}>
+                          By approving, you verify that these hours are accurate to your knowledge and comply with company policy. This action will process the timesheet.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {detailsViewMode === 'reject' && (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', animation: 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards' }}>
+                      {/* Header */}
+                      <div style={{ padding: '40px 40px 24px', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div className="modal-icon-wrapper reject-icon" style={{ margin: 0, width: '50px', height: '50px', fontSize: '1.8rem' }}>✗</div>
+                          <div>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Reject Timesheet?</h3>
+                            <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '4px' }}>Confirm rejection and provide a detailed reason</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Body */}
+                      <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '40px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        <div className="form-group-improved" style={{ width: '100%', maxWidth: '500px' }}>
+                          <label className="label-improved" style={{ fontSize: '0.85rem', marginBottom: '10px' }}>Rejection Reason *</label>
+                          <textarea
+                            className="textarea-improved"
+                            rows={6}
+                            style={{ fontSize: '0.95rem', padding: '20px', lineHeight: '1.6' }}
+                            placeholder="e.g., Hours do not match scheduled shift, missing activity details, unauthorized overtime..."
+                            value={rejectionReason}
+                            onChange={(e) => {
+                              const sanitized = e.target.value
+                                .replace(/[^a-zA-Z0-9.,\s]/g, "")
+                                .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
+                              setRejectionReason(sanitized);
+                            }}
+                            onPaste={e => {
+                              e.preventDefault();
+                              const text = e.clipboardData.getData("text/plain");
+                              const sanitized = text
+                                .replace(/[^a-zA-Z0-9.,\s]/g, "")
+                                .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FE0F}\u{1F1E0}-\u{1F1FF}]/gu, "");
+                              setRejectionReason(rejectionReason + sanitized);
+                            }}
+                            autoFocus
+                          />
+                          <div className="input-hint" style={{ marginTop: '12px', fontSize: '0.8rem' }}>This reason will be visible to the employee so they can correct it</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+
+                {/* Close two-pane row container */}
               </div>
 
-              <div className="modal-footer" style={{ padding: '20px 25px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-deep)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: '1.1rem', color: 'var(--text-main)' }}>
-                  Total Hours: <span style={{ fontWeight: 700, color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)' }}>{detailsModal.timesheet.total_hours.toFixed(2)} Hrs</span>
-                </div>
-                <div style={{ display: 'flex', gap: '15px' }}>
-                  <button
-                    className="btn-action"
-                    style={{
-                      padding: '10px 20px',
-                      background: 'transparent',
-                      color: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'var(--accent-pink)' : 'var(--text-muted)',
-                      border: `1px solid ${detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'var(--accent-pink)' : 'var(--border-subtle)'}`,
-                      opacity: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 1 : 0.5,
-                      cursor: detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'pointer' : 'not-allowed'
-                    }}
-                    onClick={() => {
-                      setDetailsModal({ show: false, timesheet: null });
-                      setRejectModal({ show: true, tlogIds: detailsModal.timesheet.activities.map((a: any) => a.tlog_id), reason: "" });
-                    }}
-                    disabled={detailsModal.timesheet.approval_status !== 'SUPERVISOR_APPROVED'}
-                  >
-                    Reject
-                  </button>
-                  <button
-                    className="btn-action"
-                    style={{ padding: '10px 25px', background: 'var(--color-go)', color: '#000', fontWeight: 700, border: 'none' }}
-                    onClick={() => {
-                      setDetailsModal({ show: false, timesheet: null });
-                      setApproveModal({ show: true, tlogIds: detailsModal.timesheet.activities.map((a: any) => a.tlog_id) });
-                    }}
-                    disabled={detailsModal.timesheet.approval_status !== 'SUPERVISOR_APPROVED'}
-                  >
-                    {detailsModal.timesheet.approval_status === 'SUPERVISOR_APPROVED' ? 'Approve Timesheet' : 'Pending Supervisor'}
-                  </button>
-                </div>
+              {/* ACTION FOOTER */}
+              <div style={{ zIndex: 10, padding: '16px 28px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-panel)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', boxShadow: '0 -10px 20px rgba(0,0,0,0.1)' }}>
+                {detailsViewMode === 'timeline' ? (
+                  <>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginRight: 'auto' }}>Review carefully before approving.</span>
+                    <button className="btn-reject-outline" onClick={() => { setRejectionReason(''); setDetailsViewMode('reject'); }} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', flex: 'none' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; e.currentTarget.style.borderColor = '#ef4444' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--color-urgent)' }}
+                    >
+                      ✗ Reject
+                    </button>
+                    <button className="btn-approve" onClick={() => setDetailsViewMode('approve')} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                      ✓ Approve
+                    </button>
+                  </>
+                ) : detailsViewMode === 'approve' ? (
+                  <>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginRight: 'auto' }}>Confirm your approval.</span>
+                    <button className="btn-improved" onClick={() => setDetailsViewMode('timeline')} style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', flex: 'none', transition: 'all 0.2s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      Back to Timeline
+                    </button>
+                    <button className="btn-approve" onClick={handleApproveConfirm} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', background: '#22c55e', color: 'white', border: 'none', boxShadow: '0 4px 15px rgba(34, 197, 94, 0.3)' }}>
+                      ✓ Confirm Approve
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginRight: 'auto' }}>Provide rejection reason.</span>
+                    <button className="btn-improved" onClick={() => setDetailsViewMode('timeline')} style={{ background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-main)', padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem', flex: 'none', transition: 'all 0.2s' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-input)'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      Back to Timeline
+                    </button>
+                    <button className="btn-improved btn-reject" onClick={handleRejectSubmit} disabled={!rejectionReason.trim()} style={{ padding: '7px 18px', borderRadius: '8px', fontWeight: 700, whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+                      <span>✗</span> Confirm Reject
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-          </div>
-        )
-      }
+          </div >
+        );
+      })()}
 
       {/* 4. ASSIGN SCHEDULE MODAL */}
       {
@@ -2103,6 +2556,569 @@ export default function ManagerDashboard() {
       }
 
       <style jsx>{`
+        /* Card Actions */
+        .btn-approve,
+        .btn-reject,
+        .btn-reject-outline,
+        .btn-view-link {
+          padding: 10px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 0.85rem;
+          text-transform: uppercase;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+        }
+
+        .btn-approve {
+          border: none;
+          background: var(--color-go);
+          color: white;
+        }
+
+        .btn-approve:hover {
+          background: #3bc76e;
+          transform: translateY(-1px);
+        }
+
+        .btn-reject {
+          border: none;
+          background: var(--color-urgent);
+          color: white;
+        }
+
+        .btn-reject:hover {
+          background: #f65858;
+          transform: translateY(-1px);
+        }
+
+        .btn-reject-outline {
+          border: 1px solid var(--color-urgent);
+          background: transparent;
+          color: var(--color-urgent);
+          flex: 1;
+        }
+
+        .btn-reject-outline:hover {
+          background: rgba(248, 113, 113, 0.1);
+        }
+
+        .btn-view-link {
+          border: none;
+          background: transparent;
+          color: var(--accent-primary);
+          text-transform: none;
+          font-size: 0.85rem;
+          padding: 0;
+          margin-top: 15px;
+          justify-content: flex-end;
+          width: 100%;
+        }
+
+        .btn-view-link:hover {
+          color: var(--accent-highlight);
+          text-decoration: underline;
+        }
+
+        .manager-theme.light-mode .btn-reject-outline {
+          border-color: var(--color-urgent);
+          color: var(--color-urgent);
+          background: rgba(239, 68, 68, 0.05);
+        }
+
+        .manager-theme.light-mode .btn-reject-outline:hover {
+          background: rgba(239, 68, 68, 0.12);
+        }
+
+        .manager-theme.light-mode .btn-approve {
+          color: #fff;
+        }
+
+        /* Improved Modal Styles */
+        .modal-overlay-improved {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.85);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          animation: fadeIn 0.3s ease;
+          padding: 20px;
+        }
+
+        .modal-overlay-improved.modal-closing {
+          animation: fadeOut 0.3s forwards;
+        }
+
+        .modal-card-improved {
+          background: var(--bg-main);
+          border: 1px solid var(--border-subtle);
+          border-radius: 20px;
+          box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+          animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          max-width: 650px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          position: relative;
+        }
+
+        .modal-card-improved.modal-card-closing {
+          animation: scaleOut 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .modal-card-improved.rejection-modal {
+          max-width: 550px;
+        }
+
+        .modal-card-improved.details-modal {
+          max-width: 750px;
+          background: var(--bg-main);
+        }
+
+        .modal-header-improved {
+          padding: 30px 30px 20px 30px;
+          border-bottom: 1px solid var(--border-subtle);
+          text-align: center;
+          background: #1a1a1a;
+          border-radius: 20px 20px 0 0;
+        }
+
+        .light-mode .modal-header-improved {
+          background: #f8fafc;
+        }
+
+        .modal-icon-wrapper {
+          width: 70px;
+          height: 70px;
+          margin: 0 auto 15px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          font-size: 2rem;
+          animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes fadeOut {
+          from { opacity: 1; }
+          to { opacity: 0; }
+        }
+
+        @keyframes scaleOut {
+          from { opacity: 1; transform: scale(1) translateY(0); }
+          to { opacity: 0; transform: scale(0.95) translateY(10px); }
+        }
+
+        @keyframes bounceIn {
+          0% {
+            transform: scale(0);
+            opacity: 0;
+          }
+          50% {
+            transform: scale(1.1);
+          }
+          100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+
+        .modal-icon-wrapper.approve-icon {
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.2) 0%, rgba(20, 184, 166, 0.1) 100%);
+          border: 2px solid rgba(34, 197, 94, 0.3);
+          color: #22c55e;
+        }
+
+        .modal-icon-wrapper.reject-icon {
+          background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.1) 100%);
+          border: 2px solid rgba(239, 68, 68, 0.3);
+          color: #ef4444;
+        }
+
+        .modal-icon-wrapper.view-icon {
+          background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(124, 58, 237, 0.1) 100%);
+          border: 2px solid rgba(167, 139, 250, 0.3);
+          color: var(--accent-primary);
+        }
+
+        .modal-title-improved {
+          font-size: 1.75rem;
+          font-weight: 700;
+          color: var(--text-main);
+          margin-bottom: 8px;
+        }
+
+        .modal-subtitle {
+          font-size: 0.95rem;
+          color: var(--text-muted);
+          font-weight: 500;
+        }
+
+        .modal-body-improved {
+          padding: 25px 30px;
+        }
+
+        .rejection-info {
+          background: var(--bg-input);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 25px;
+        }
+
+        .info-item {
+          display: flex;
+          justify-content: space-between;
+          padding: 10px 0;
+          border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .info-item:last-child {
+          border-bottom: none;
+        }
+
+        .info-label {
+          font-weight: 600;
+          color: var(--text-muted);
+          font-size: 0.9rem;
+        }
+
+        .info-value {
+          font-weight: 700;
+          color: var(--text-main);
+          font-size: 0.95rem;
+        }
+
+        .form-group-improved {
+          margin-bottom: 20px;
+        }
+
+        .label-improved {
+          display: block;
+          font-weight: 600;
+          color: var(--text-main);
+          margin-bottom: 10px;
+          font-size: 0.95rem;
+        }
+
+        .textarea-improved {
+          width: 100%;
+          padding: 15px;
+          border-radius: 12px;
+          border: 2px solid var(--border-subtle);
+          background: var(--bg-input);
+          color: var(--text-main);
+          font-family: inherit;
+          font-size: 0.95rem;
+          resize: vertical;
+          transition: all 0.3s ease;
+        }
+
+        .textarea-improved:focus {
+          outline: none;
+          border-color: var(--accent-primary);
+          box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.1);
+        }
+
+        .input-hint {
+          margin-top: 8px;
+          font-size: 0.85rem;
+          color: var(--text-muted);
+          font-style: italic;
+        }
+
+        .details-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 15px;
+          margin-bottom: 25px;
+        }
+
+        .detail-card-improved {
+          background: var(--bg-input);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          padding: 15px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          transition: all 0.3s ease;
+        }
+
+        .detail-card-improved:hover {
+          border-color: var(--accent-primary);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(167, 139, 250, 0.15);
+        }
+
+        .detail-icon {
+          font-size: 1.5rem;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(167, 139, 250, 0.1);
+          border-radius: 8px;
+          flex-shrink: 0;
+        }
+
+        .detail-content {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .detail-label-improved {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 4px;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: unset;
+        }
+
+        .detail-value-improved {
+          font-size: 1rem;
+          color: var(--text-main);
+          font-weight: 700;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: unset;
+        }
+
+        .activity-breakdown {
+          margin-top: 25px;
+        }
+
+        .breakdown-title {
+          font-size: 1.2rem;
+          font-weight: 700;
+          color: var(--text-main);
+          margin-bottom: 15px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .breakdown-title:before {
+          content: '';
+          width: 4px;
+          height: 24px;
+          background: var(--accent-primary);
+          border-radius: 2px;
+        }
+
+        .activity-list-improved {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .activity-item-improved {
+          background: var(--bg-input);
+          border: 1px solid var(--border-subtle);
+          border-left: 4px solid var(--accent-primary);
+          border-radius: 10px;
+          padding: 15px;
+          transition: all 0.3s ease;
+        }
+
+        .activity-item-improved:hover {
+          border-color: var(--accent-primary);
+          box-shadow: 0 4px 15px rgba(167, 139, 250, 0.15);
+          transform: translateX(5px);
+        }
+
+        .activity-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 10px;
+        }
+
+        .activity-name {
+          font-weight: 700;
+          color: var(--text-main);
+          font-size: 1rem;
+        }
+
+        .badge-billable {
+          padding: 4px 10px;
+          background: rgba(34, 197, 94, 0.15);
+          color: #22c55e;
+          border-radius: 6px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+        }
+
+        .activity-time {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .time-badge {
+          padding: 4px 10px;
+          background: rgba(167, 139, 250, 0.1);
+          border: 1px solid rgba(167, 139, 250, 0.2);
+          border-radius: 6px;
+          font-size: 0.85rem;
+          color: var(--text-main);
+          font-weight: 600;
+          font-family: var(--font-mono);
+        }
+
+        .time-arrow {
+          color: var(--text-muted);
+          font-weight: 700;
+        }
+
+        .duration-badge {
+          padding: 4px 12px;
+          background: linear-gradient(135deg, rgba(167, 139, 250, 0.2) 0%, rgba(124, 58, 237, 0.1) 100%);
+          border: 1px solid var(--accent-primary);
+          border-radius: 20px;
+          font-size: 0.85rem;
+          color: var(--accent-primary);
+          font-weight: 700;
+          margin-left: auto;
+        }
+
+        .modal-actions-improved {
+          padding: 20px 30px;
+          border-top: 1px solid var(--border-subtle);
+          display: flex;
+          gap: 12px;
+          justify-content: flex-end;
+          background: rgba(255, 255, 255, 0.02);
+        }
+
+        .btn-improved {
+          padding: 12px 24px;
+          border-radius: 10px;
+          border: none;
+          font-weight: 700;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .btn-improved:before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 0;
+          height: 0;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.1);
+          transform: translate(-50%, -50%);
+          transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-improved:hover:before {
+          width: 300px;
+          height: 300px;
+        }
+
+        .btn-improved span {
+          position: relative;
+          z-index: 1;
+        }
+
+        .btn-improved:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-improved:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .btn-improved:disabled:hover {
+          transform: none;
+          box-shadow: none;
+        }
+
+        .btn-ghost {
+          background: transparent;
+          color: var(--text-muted);
+          border: 2px solid var(--border-subtle);
+        }
+
+        .btn-ghost:hover {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: var(--text-main);
+          color: var(--text-main);
+        }
+
+        .btn-reject {
+          background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+          color: white;
+        }
+
+        .btn-reject:hover {
+          background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        }
+
+        .btn-primary {
+          background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+          color: white;
+        }
+
+        .btn-primary:hover {
+          background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--accent-primary) 100%);
+        }
+
+        @keyframes scaleIn {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        @keyframes cardSlideIn {
+          from {
+            opacity: 0;
+            transform: translateY(16px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
