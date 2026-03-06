@@ -299,17 +299,54 @@ export default function ManagerDashboard() {
     }
   };
 
-  const handleApproveConfirm = () => {
+  const handleApproveConfirm = async () => {
     if (!selectedTimesheet) return;
-    const tlogIds = selectedTimesheet.activities.map((a: any) => a.tlog_id);
-    setApproveModal({ show: true, tlogIds });
+    const tlog_ids = selectedTimesheet.activities.map((a: any) => a.tlog_id);
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/manager/timesheets/approve', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tlog_ids })
+      });
+      if (res.ok) {
+        setDetailsModal({ show: false, timesheet: null }); // Close details modal
+        fetchPendingTimesheets();
+      } else {
+        const data = await res.json(); alert(`Failed: ${data.message}`);
+      }
+    } catch (e) { alert("Error approving timesheet."); } finally { setIsLoading(false); }
   };
 
-  const handleRejectSubmit = () => {
+  const handleRejectSubmit = async () => {
     if (!selectedTimesheet || !rejectionReason.trim()) return;
-    const tlogIds = selectedTimesheet.activities.map((a: any) => a.tlog_id);
-    setRejectModal({ show: true, tlogIds, reason: rejectionReason });
-    setRejectConfirmModal(true);
+    const log_ids = selectedTimesheet.activities.map((a: any) => a.tlog_id);
+    setIsLoading(true);
+
+    try {
+      const payload = {
+        action: 'reject',
+        log_ids,
+        reason: rejectionReason
+      };
+
+      const res = await fetch('/api/manager/timesheets/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        setDetailsModal({ show: false, timesheet: null });
+        setRejectionReason(''); // Clear reason on success
+        fetchPendingTimesheets();
+      } else {
+        alert("Failed to reject timesheet.");
+      }
+    } catch (error) {
+      console.error("Error rejecting:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const fetchAnalyticsData = async () => {
@@ -621,7 +658,6 @@ export default function ManagerDashboard() {
 
           <div className="brand-logo">
             ORASYNC
-            <span style={{ fontSize: '0.8rem', color: 'var(--accent-gold)', display: 'block', letterSpacing: '4px', marginTop: '-5px' }}>MANAGER</span>
           </div>
 
           <ul className="nav-links">
